@@ -12,10 +12,10 @@ Section map.
   Hypothesis compare_eq_iff : forall a b, compare a b = Eq <-> a = b.
   Hypothesis lt_trans : Relations_1.Transitive (fun a b => compare a b = Lt).
   Hypothesis gt_trans : Relations_1.Transitive (fun a b => compare a b = Gt).
-  
+
   Definition map_compare (x_ y_ : A * B) :=
     match x_, y_ with (x, _), (y, _) => compare x y end.
-  
+
   Definition map := set.set (A * B) map_compare.
 
   Fixpoint list_mem (x : A) (l : list (A * B)) : bool :=
@@ -191,7 +191,7 @@ Section map.
         rewrite <- compare_eq_iff in He.
         congruence.
   Qed.
-  
+
   Definition list_update (x : A) (vo : option B) (l : list (A * B)) : list (A * B) :=
     match vo with
     | None => list_remove x l
@@ -432,4 +432,3 @@ Definition map_fun (A B B' : Set) comp
   (m : map A B comp) : M (map A B' comp) :=
   let (l, H) := m in
   map_fun_aux _ _ _ comp f l H.
-  

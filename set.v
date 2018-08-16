@@ -42,7 +42,7 @@ Section definition.
         assert (compare a a = Gt) by (exact (gt_trans _ _ _ Hab Hgt)).
         assert (compare a a = Eq) by (rewrite compare_eq_iff; reflexivity).
         congruence.
-  Qed.        
+  Qed.
 
   Lemma decide_eq (a b : A) : {a = b} + {a <> b}.
   Proof.
@@ -119,7 +119,7 @@ Section definition.
         rewrite IHl.
         intuition.
   Qed.
-        
+
   Lemma list_insert_sorted (x : A) (l : list A) :
     Sorted.StronglySorted lt l ->
     Sorted.StronglySorted lt (list_insert x l).
@@ -176,7 +176,7 @@ Section definition.
         rewrite IHl.
         intuition congruence.
   Qed.
-  
+
   Lemma list_remove_sorted (x : A) (l : list A) :
     Sorted.StronglySorted lt l ->
     Sorted.StronglySorted lt (List.remove decide_eq x l).
@@ -205,7 +205,7 @@ Section definition.
           apply list_remove_in in Hin.
           intuition.
   Qed.
-          
+
   Program Definition remove (x : A) (s : set) : set :=
     let (l, _) := s in
     exist _ (List.remove decide_eq x l) _.
@@ -237,5 +237,3 @@ Section definition.
   Defined.
 
 End definition.
-
-

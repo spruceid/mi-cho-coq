@@ -43,7 +43,7 @@ Section semantics.
       | DIP i =>
         fun SbA =>
           let (y, SA) := SbA in
-          bind (fun SC => Return _ (y, SC)) (eval i n SA)          
+          bind (fun SC => Return _ (y, SC)) (eval i n SA)
       | EXEC =>
         fun SxfA =>
           match SxfA return M (stack (_ ::: _)) with
@@ -148,7 +148,7 @@ Section semantics.
         fun SxyA =>
           let (x, SyA) := SxyA in
           let (y, SA) := SyA in
-          Return _ ((x ++ y)%string, SA)          
+          Return _ ((x ++ y)%string, SA)
       | PAIR =>
         fun SxyA =>
           let (x, SyA) := SxyA in
@@ -276,7 +276,7 @@ Section semantics.
           | (cons a b, SA) => eval bt n (a, (b, SA))
           | (nil, SA) => eval bf n SA
           end
-        
+
       | ITER_set body =>
         fun SxA =>
           let (x, SA) := SxA in

@@ -346,7 +346,7 @@ Canonical Structure bitwise_not_nat : not.type nat_ :=
 
 Module mem.
   Definition top_type := type.
-  
+
   Record class (data : type -> Set) (key : comparable_type) (collection : type) : Set :=
     Class
       { mem : comparable_data key -> data collection ->
@@ -361,7 +361,7 @@ End mem.
 
 Module update.
   Definition top_type := type.
-  
+
   Record class (data : type -> Set) (key : comparable_type) (collection : type)
                (opt_val : type) : Set :=
     Class
@@ -379,7 +379,7 @@ End update.
 
 Module reduce.
   Definition top_type := type.
-  
+
   Record class (data : type -> Set) (collection : type)
          (entry : type) : Set :=
     Class
@@ -443,7 +443,7 @@ Module MAP.
 
 End MAP.
 
-Infix ":::" := (@cons type) (at level 60, right associativity). 
+Infix ":::" := (@cons type) (at level 60, right associativity).
 
 Section syntax.
 
@@ -512,9 +512,9 @@ Canonical Structure update_set (key : comparable_type) :=
      update.class_of :=
        {| update.update := fun k (v : data bool) (s : data (set_ key)) =>
                              Return _
-                                     (set.update _ _ 
-                                                 (compare_eq_iff key) 
-                                                 (lt_trans key) 
+                                     (set.update _ _
+                                                 (compare_eq_iff key)
+                                                 (lt_trans key)
                                                  (gt_trans key) k s v) |} |}.
 
 Canonical Structure mem_map (key : comparable_type) (val : type) :=
@@ -579,7 +579,7 @@ Canonical Structure reduce_map (key : comparable_type) (val : type) :=
               (data key * data val)
               (map.map_compare (comparable_data key) (data val) _)
               (data B) f b s) |}.
-                                 
+
 Canonical Structure reduce_list (a : type) :=
   {| reduce.collection := list_ a;
      reduce.entry := a;
@@ -662,7 +662,7 @@ Inductive instruction : list type -> list type -> Set :=
 (* The type given for LOOP_LEFT in doc is not compatible with the *)
 (* second semantic rule (and the first rule makes no sense, "(or 'a 'b)" *)
 (* should be "a") *)
-                                  
+
 | DIP {b A C} : instruction A C -> instruction (b :: A) (b :: C)
 | EXEC {a b C} : instruction (a ::: lambda a b ::: C) (b :: C)
 | DROP {a A} : instruction (a :: A) A
@@ -770,7 +770,7 @@ Inductive instruction : list type -> list type -> Set :=
 | HASH_KEY {S} : instruction (key :: S) (key_hash ::: S)
 | H {a S} : instruction (a :: S) (string_ ::: S)
 | CHECK_SIGNATURE {S} : instruction (key ::: pair signature string_ ::: S) (bool ::: S).
-                                  
+
 Definition stack_type := list type.
 
 Fixpoint stack (t : stack_type) : Set :=

@@ -64,7 +64,7 @@ Fixpoint string_compare (s1 s2 : string) : comparison :=
     | Eq => string_compare s1 s2
     end
   end.
-  
+
 Lemma ascii_compare_Eq_correct (a1 a2 : Ascii.ascii) : ascii_compare a1 a2 = Eq <-> a1 = a2.
 Proof.
   unfold ascii_compare.
@@ -253,7 +253,7 @@ Proof.
   - destruct x as [x]; destruct y as [y]; destruct z as [z].
     apply string_compare_Lt_trans.
   - apply Z.lt_trans.
-Qed.        
+Qed.
 
 Definition gt (a : comparable_type) (x y : comparable_data a) : Prop :=
   compare a x y = Gt.
@@ -274,12 +274,12 @@ Proof.
   - destruct x as [x]; destruct y as [y]; destruct z as [z].
     apply string_compare_Gt_trans.
   - apply Zcompare_Gt_trans.
-Qed.        
+Qed.
 
 Lemma compare_eq_iff a c1 c2 : compare a c1 c2 = Eq <-> c1 = c2.
 Proof.
   destruct a; simpl.
-  - apply N.compare_eq_iff. 
+  - apply N.compare_eq_iff.
   - apply Z.compare_eq_iff.
   - destruct c1; destruct c2; split; simpl; congruence.
   - apply string_compare_Eq_correct.
@@ -289,4 +289,3 @@ Proof.
     split; congruence.
   - apply Z.compare_eq_iff.
 Qed.
-
