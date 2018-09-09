@@ -1,7 +1,7 @@
 (* Syntax and typing of the Michelson language *)
 
 Require Import ZArith.
-Require Import String.
+Require String.
 Require Import ListSet.
 Require Import comparable.
 Require set map.
@@ -17,7 +17,9 @@ Inductive type : Set :=
 | option_ : type -> type
 | list_ : type -> type
 | set_ : comparable_type -> type
-| contract : type -> type -> type
+| contract : type -> type
+| address : type
+| operation : type
 | pair : type -> type -> type
 | or : type -> type -> type
 | lambda : type -> type -> type
@@ -26,7 +28,7 @@ Inductive type : Set :=
 
 Coercion Comparable_type : comparable_type >-> type.
 
-Definition contract_env : Set := contract_constant -> type * type.
+Definition contract_env : Set := contract_constant -> type.
 
 Module neg.
   Record class (a : comparable_type) :=
@@ -39,8 +41,8 @@ Module neg.
 
 End neg.
 
-Canonical Structure neg_nat : neg.type nat_ :=
-  neg.Pack nat_ (neg.Class nat_ (fun x => Return _ (- Z.of_N x)%Z)).
+Canonical Structure neg_nat : neg.type nat :=
+  neg.Pack nat (neg.Class nat (fun x => Return _ (- Z.of_N x)%Z)).
 
 Canonical Structure neg_int : neg.type int :=
   neg.Pack int (neg.Class int (fun x => Return _ (- x)%Z)).
@@ -60,20 +62,20 @@ Module add.
 
 End add.
 
-Canonical Structure add_nat_nat : add.type nat_ nat_ :=
+Canonical Structure add_nat_nat : add.type nat nat :=
   add.Pack
-    nat_ nat_ nat_
-    (add.Class nat_ nat_ nat_ (fun x y => Return _ (x + y)%N)).
+    nat nat nat
+    (add.Class nat nat nat (fun x y => Return _ (x + y)%N)).
 
-Canonical Structure add_nat_int : add.type nat_ int :=
+Canonical Structure add_nat_int : add.type nat int :=
   add.Pack
-    nat_ int int
-    (add.Class nat_ int int (fun x y => Return _ (Z.of_N x + y)%Z)).
+    nat int int
+    (add.Class nat int int (fun x y => Return _ (Z.of_N x + y)%Z)).
 
-Canonical Structure add_int_nat : add.type int nat_ :=
+Canonical Structure add_int_nat : add.type int nat :=
   add.Pack
-    int nat_ int
-    (add.Class int nat_ int (fun x y => Return _ (x + Z.of_N y)%Z)).
+    int nat int
+    (add.Class int nat int (fun x y => Return _ (x + Z.of_N y)%Z)).
 
 Canonical Structure add_int_int : add.type int int :=
   add.Pack
@@ -90,11 +92,11 @@ Canonical Structure add_int_timestamp : add.type int timestamp :=
     int timestamp timestamp
     (add.Class int timestamp timestamp (fun x y => Return _ (x + y)%Z)).
 
-Canonical Structure add_tez_tez : add.type tez tez :=
+Canonical Structure add_tez_tez : add.type mutez mutez :=
   add.Pack
-    tez tez tez
+    mutez mutez mutez
     (add.Class
-       tez tez tez
+       mutez mutez mutez
        (fun x y =>
           match tez.of_Z (tez.to_Z x + tez.to_Z y) with
           | None => Failed _ Overflow
@@ -116,14 +118,14 @@ Module sub.
 
 End sub.
 
-Canonical Structure sub_nat_nat : sub.type nat_ nat_ :=
-  sub.Pack _ _ _ (sub.Class nat_ nat_ int (fun x y => Return _ (Z.of_N x - Z.of_N y)%Z)).
+Canonical Structure sub_nat_nat : sub.type nat nat :=
+  sub.Pack _ _ _ (sub.Class nat nat int (fun x y => Return _ (Z.of_N x - Z.of_N y)%Z)).
 
-Canonical Structure sub_nat_int : sub.type nat_ int :=
-  sub.Pack _ _ _ (sub.Class nat_ int int (fun x y => Return _ (Z.of_N x - y)%Z)).
+Canonical Structure sub_nat_int : sub.type nat int :=
+  sub.Pack _ _ _ (sub.Class nat int int (fun x y => Return _ (Z.of_N x - y)%Z)).
 
-Canonical Structure sub_int_nat : sub.type int nat_ :=
-  sub.Pack _ _ _ (sub.Class int nat_ int (fun x y => Return _ (x - Z.of_N y)%Z)).
+Canonical Structure sub_int_nat : sub.type int nat :=
+  sub.Pack _ _ _ (sub.Class int nat int (fun x y => Return _ (x - Z.of_N y)%Z)).
 
 Canonical Structure sub_int_int : sub.type int int :=
   sub.Pack _ _ _ (sub.Class int int int (fun x y => Return _ (x - y)%Z)).
@@ -134,9 +136,9 @@ Canonical Structure sub_timestamp_int : sub.type timestamp int :=
 Canonical Structure sub_timestamp_timestamp : sub.type timestamp timestamp :=
   sub.Pack _ _ _ (sub.Class timestamp timestamp int (fun x y => Return _ (x - y)%Z)).
 
-Canonical Structure sub_tez_tez : sub.type tez tez :=
+Canonical Structure sub_tez_tez : sub.type mutez mutez :=
   sub.Pack
-    _ _ _ (sub.Class tez tez tez
+    _ _ _ (sub.Class mutez mutez mutez
     (fun x y =>
        match tez.of_Z (tez.to_Z x - tez.to_Z y) with
        | None => Failed _ Overflow
@@ -158,14 +160,14 @@ Module mul.
 
 End mul.
 
-Canonical Structure mul_nat_nat : mul.type nat_ nat_ :=
-  mul.Pack _ _ _ (mul.Class nat_ nat_ nat_ (fun x y => Return _ (x * y)%N)).
+Canonical Structure mul_nat_nat : mul.type nat nat :=
+  mul.Pack _ _ _ (mul.Class nat nat nat (fun x y => Return _ (x * y)%N)).
 
-Canonical Structure mul_nat_int : mul.type nat_ int :=
-  mul.Pack _ _ _ (mul.Class nat_ int int (fun x y => Return _ (Z.of_N x * y)%Z)).
+Canonical Structure mul_nat_int : mul.type nat int :=
+  mul.Pack _ _ _ (mul.Class nat int int (fun x y => Return _ (Z.of_N x * y)%Z)).
 
-Canonical Structure mul_int_nat : mul.type int nat_ :=
-  mul.Pack _ _ _ (mul.Class int nat_ int (fun x y => Return _ (x * Z.of_N y)%Z)).
+Canonical Structure mul_int_nat : mul.type int nat :=
+  mul.Pack _ _ _ (mul.Class int nat int (fun x y => Return _ (x * Z.of_N y)%Z)).
 
 Canonical Structure mul_int_int : mul.type int int :=
   mul.Pack _ _ _ (mul.Class int int int (fun x y => Return _ (x * y)%Z)).
@@ -176,18 +178,18 @@ Canonical Structure mul_timestamp_int : mul.type timestamp int :=
 Canonical Structure mul_int_timestamp : mul.type int timestamp :=
   mul.Pack _ _ _ (mul.Class int timestamp timestamp (fun x y => Return _ (x + y)%Z)).
 
-Canonical Structure mul_tez_nat : mul.type tez nat_ :=
+Canonical Structure mul_tez_nat : mul.type mutez nat :=
   mul.Pack _ _ _ (mul.Class
-    tez nat_ tez
+    mutez nat mutez
     (fun x y =>
        match tez.of_Z (tez.to_Z x * Z.of_N y) with
        | None => Failed _ Overflow
        | Some t => Return _ t
        end)).
 
-Canonical Structure mul_nat_tez : mul.type nat_ tez :=
+Canonical Structure mul_nat_tez : mul.type nat mutez :=
   mul.Pack _ _ _ (mul.Class
-    nat_ tez tez
+    nat mutez mutez
     (fun x y =>
        match tez.of_Z (Z.of_N x * tez.to_Z y) with
        | None => Failed _ Overflow
@@ -211,25 +213,25 @@ Module ediv.
 
 End ediv.
 
-Canonical Structure ediv_nat_nat : ediv.type nat_ nat_ :=
+Canonical Structure ediv_nat_nat : ediv.type nat nat :=
   ediv.Pack _ _ _ _ (ediv.Class
-    nat_ nat_ nat_ nat_
+    nat nat nat nat
     (fun x y =>
        Return _
                (if (y =? 0)%N then None
                 else Some ((x / y)%N, (x mod y)%N)))).
 
-Canonical Structure ediv_nat_int : ediv.type nat_ int :=
+Canonical Structure ediv_nat_int : ediv.type nat int :=
   ediv.Pack _ _ _ _ (ediv.Class
-    nat_ int int nat_
+    nat int int nat
     (fun x y =>
        Return _
                (if (y =? 0)%Z then None
                 else Some ((Z.of_N x / y)%Z, Z.to_N (Z.of_N x mod y)%Z)))).
 
-Canonical Structure ediv_int_nat : ediv.type int nat_ :=
+Canonical Structure ediv_int_nat : ediv.type int nat :=
   ediv.Pack _ _ _ _ (ediv.Class
-    int nat_ int nat_
+    int nat int nat
     (fun x y =>
        Return _
                (if (y =? 0)%N then None
@@ -237,15 +239,15 @@ Canonical Structure ediv_int_nat : ediv.type int nat_ :=
 
 Canonical Structure ediv_int_int : ediv.type int int :=
   ediv.Pack _ _ _ _ (ediv.Class
-    int int int nat_
+    int int int nat
     (fun x y =>
        Return _
                (if (y =? 0)%Z then None
                 else Some ((x / y)%Z, Z.to_N (x mod y)%Z)))).
 
-Canonical Structure ediv_tez_nat : ediv.type tez nat_ :=
+Canonical Structure ediv_tez_nat : ediv.type mutez nat :=
   ediv.Pack _ _ _ _ (ediv.Class
-    tez nat_ tez tez
+    mutez nat mutez mutez
     (fun x y =>
        Return _
                (if (y =? 0)%N then None
@@ -259,9 +261,9 @@ Canonical Structure ediv_tez_nat : ediv.type tez nat_ :=
                               (* Should not happen but I am a bit lazy to prove it *)
                   end))).
 
-Canonical Structure ediv_tez_tez : ediv.type tez tez :=
+Canonical Structure ediv_tez_tez : ediv.type mutez mutez :=
   ediv.Pack _ _ _ _ (ediv.Class
-    tez tez nat_ tez
+    mutez mutez nat mutez
     (fun x y =>
        Return _
                (if (tez.to_Z y =? 0)%Z then None
@@ -309,9 +311,9 @@ Canonical Structure bitwise_bool : bitwise.type bool :=
     (fun x y => Return _ (x || y)%bool)
     (fun x y => Return _ (xorb x y))).
 
-Canonical Structure bitwise_nat : bitwise.type nat_ :=
+Canonical Structure bitwise_nat : bitwise.type nat :=
   bitwise.Pack _ (bitwise.Class
-    nat_
+    nat
     (fun x y => Return _ (N.land x y))
     (fun x y => Return _ (N.lor x y))
     (fun x y => Return _ (N.lxor x y))).
@@ -339,9 +341,9 @@ Canonical Structure bitwise_not_int : not.type int :=
     int int
     (fun x => Return _ (- 1 - x)%Z)).
 
-Canonical Structure bitwise_not_nat : not.type nat_ :=
+Canonical Structure bitwise_not_nat : not.type nat :=
   not.Pack _ _ (not.Class
-    nat_ int
+    nat int
     (fun x => Return _ (- 1 - Z.of_N x)%Z)).
 
 Module mem.
@@ -443,16 +445,57 @@ Module MAP.
 
 End MAP.
 
+Module string_like.
+  Record class (a : comparable_type) :=
+    Class
+      { slice_ : comparable_data nat -> comparable_data nat ->
+                 comparable_data a -> M (option (comparable_data string));
+        concat_ : comparable_data a -> comparable_data a -> M (comparable_data a)}.
+
+  Structure type (a : comparable_type) :=
+    Pack { class_of : class a }.
+
+  Definition slice (a : comparable_type) {e : type a} :
+    comparable_data nat ->
+    comparable_data nat ->
+    comparable_data a ->
+    M (option (comparable_data string)) :=
+    slice_ _ (class_of a e).
+
+  Definition concat (a : comparable_type) {e : type a} :
+    comparable_data a ->
+    comparable_data a ->
+    M (comparable_data a) :=
+    concat_ _ (class_of a e).
+
+End string_like.
+
+Definition str_slice (n1 n2 : N.t) (s : str) : M (option str) :=
+  if (n1 + n2 <=? N.of_nat (String.length s))%N then
+    Return _ (Some (String.substring (N.to_nat n1) (N.to_nat n2) s))
+  else Return _ None.
+
+Canonical Structure string_like_string : string_like.type string :=
+  string_like.Pack _
+    (string_like.Class string str_slice (fun s1 s2 => Return _ (String.append s1 s2))).
+
+Canonical Structure string_like_bytes : string_like.type bytes :=
+  string_like.Pack _
+    (string_like.Class bytes str_slice (fun s1 s2 => Return _ (String.append s1 s2))).
+
 Infix ":::" := (@cons type) (at level 60, right associativity).
 
 Section syntax.
 
 Parameter e : contract_env.
+Parameter ae : address_constant -> type.
 
 Fixpoint data (a : type) {struct a} : Set :=
   match a with
   | Comparable_type b => comparable_data b
+  | address => address_constant
   | signature => signature_constant
+  | operation => operation_constant
   | key => key_constant
   | unit => Datatypes.unit
   | pair a b => data a * data b
@@ -463,41 +506,47 @@ Fixpoint data (a : type) {struct a} : Set :=
   | map a b => map.map (comparable_data a) (data b) (compare a)
   | big_map a b => map.map (comparable_data a) (data b) (compare a)
   | lambda a b => data a -> M (data b)
-  | contract a b => {s : contract_constant | e s = (a, b) }
+  | contract a => {s : contract_constant | e s = a }
   end.
 
 Record node : Set :=
   mk_node
     {
-      manager : forall p r,
-          data (contract p r) ->
-          M (comparable_data key_hash);
-      create_contract : forall g p r,
+      create_contract : forall g p,
           comparable_data key_hash ->
           option (comparable_data key_hash) ->
-          Datatypes.bool -> Datatypes.bool -> tez.tez ->
-          (data (pair p g) -> M (data (pair r g))) ->
-          data g -> M (data (contract p r));
+          Datatypes.bool -> Datatypes.bool -> tez.mutez ->
+          (data (pair p g) -> M (data (pair (list_ operation) g))) ->
+          data g -> M (data (pair operation address));
       create_account :
           comparable_data key_hash ->
           option (comparable_data key_hash) ->
-          Datatypes.bool -> tez.tez ->
-          M (data (contract unit unit));
-      transfer_tokens : forall p r g,
-          data p -> tez.tez -> data (contract p r) -> data g ->
-          M (data (pair r g));
-      balance : M tez.tez;
-      source : forall p r, M (data (contract p r));
-      self : forall p r, M (data (contract p r));
-      amount : M tez.tez;
-      default_account :
-        comparable_data key_hash -> M (data (contract unit unit));
+          Datatypes.bool -> tez.mutez ->
+          M (data operation * data (contract unit));
+      transfer_tokens : forall p,
+          data p -> tez.mutez -> data (contract p) ->
+          M (data operation);
+      set_delegate : option (comparable_data key_hash) ->
+                     M (data operation);
+      balance : M tez.mutez;
+      address_ : forall p, data (contract p) -> M (data address);
+      contract_ : forall p, data address -> M (option (data (contract p)));
+      source : M (data address);
+      sender : M (data address);
+      self : forall p, M (data (contract p));
+      amount : M tez.mutez;
+      implicit_account :
+        comparable_data key_hash -> M (data (contract unit));
       steps_to_quota : M N;
       now : M (comparable_data timestamp);
       hash_key : data key -> M (comparable_data key_hash);
-      h : forall a, data a -> M string;
+      pack : forall a, data a -> M str;
+      unpack : forall a, str -> M (option (data a));
+      blake2b : str -> M str;
+      sha256 : str -> M str;
+      sha512 : str -> M str;
       check_signature :
-        data key -> (data signature * string) -> M Datatypes.bool
+        data key -> (data signature * String.string) -> M Datatypes.bool
     }.
 
 Canonical Structure mem_set (key : comparable_type) :=
@@ -615,6 +664,20 @@ Canonical Structure size_list (a : type) :=
                          Return _ (N.of_nat (List.length l)) |}
        |}.
 
+Canonical Structure size_string :=
+  {| size.collection := string;
+     size.class_of :=
+       {| size.size := fun (s : data string) =>
+                         Return _ (N.of_nat (String.length s)) |}
+       |}.
+
+Canonical Structure size_bytes :=
+  {| size.collection := bytes;
+     size.class_of :=
+       {| size.size := fun (s : data bytes) =>
+                         Return _ (N.of_nat (String.length s)) |}
+       |}.
+
 Canonical Structure get_map (key : comparable_type) (val : type) :=
   {| get.collection := map key val;
      get.class_of :=
@@ -652,20 +715,16 @@ Canonical Structure map_list (a : type) :=
          (fun B f l => map.list_map _ _ f l) |}.
 
 Inductive instruction : list type -> list type -> Set :=
-| FAIL {A B} : instruction A B
+| FAILWITH {A B a} : data a -> instruction A B
 | SEQ {A B C} : instruction A B -> instruction B C -> instruction A C
 | IF_ {A B} : instruction A B -> instruction A B -> instruction (bool ::: A) B
 | LOOP {A} : instruction A (bool ::: A) -> instruction (bool ::: A) A
 | LOOP_LEFT {a b A} : instruction (a :: A) (or a b :: A) ->
                       instruction (or a b :: A) (b :: A)
-
-(* The type given for LOOP_LEFT in doc is not compatible with the *)
-(* second semantic rule (and the first rule makes no sense, "(or 'a 'b)" *)
-(* should be "a") *)
-
 | DIP {b A C} : instruction A C -> instruction (b :: A) (b :: C)
 | EXEC {a b C} : instruction (a ::: lambda a b ::: C) (b :: C)
 | DROP {a A} : instruction (a :: A) A
+| DUP {a A} : instruction (a ::: A) (a ::: a ::: A)
 | SWAP {a b A} : instruction (a ::: b ::: A) (b ::: a ::: A)
 | PUSH (a : type) (x : data a) {A} : instruction A (a :: A)
 | UNIT {A} : instruction A (unit :: A)
@@ -682,7 +741,7 @@ Inductive instruction : list type -> list type -> Set :=
 | XOR {b} {s : bitwise.type b} {S} : instruction (b ::: b ::: S) (b ::: S)
 | NOT {b} {s : not.type b} {S} : instruction (b ::: S) (not.ret _ s ::: S)
 | NEG {n} {s : neg.type n} {S} : instruction (n ::: S) (int ::: S)
-| ABS {S} : instruction (int ::: S) (nat_ ::: S)
+| ABS {S} : instruction (int ::: S) (nat ::: S)
 | ADD {a b} {s : add.type a b} {S} :
     instruction (a ::: b ::: S) (add.ret _ _ s ::: S)
 | SUB {a b} {s : sub.type a b} {S} :
@@ -690,10 +749,12 @@ Inductive instruction : list type -> list type -> Set :=
 | MUL {a b} {s : mul.type a b} {S} :
     instruction (a ::: b ::: S) (mul.ret _ _ s ::: S)
 | EDIV {a b} {s : ediv.type a b} {S} : instruction (a ::: b ::: S) (option_ (pair (ediv.quo _ _ s) (ediv.rem _ _ s)) :: S)
-| LSL {S} : instruction (nat_ ::: nat_ ::: S) (nat_ ::: S)
-| LSR {S} : instruction (nat_ ::: nat_ ::: S) (nat_ ::: S)
+| LSL {S} : instruction (nat ::: nat ::: S) (nat ::: S)
+| LSR {S} : instruction (nat ::: nat ::: S) (nat ::: S)
 | COMPARE {a : comparable_type} {S} : instruction (a ::: a ::: S) (int ::: S)
-| CONCAT {S} : instruction (string_ ::: string_ ::: S) (string_ ::: S)
+| CONCAT {S a} {i : string_like.type a} : instruction (a ::: a ::: S) (a ::: S)
+| SLICE {S a} {i : string_like.type a} :
+    instruction (nat ::: nat ::: a ::: S) (option_ string ::: S)
 | PAIR {a b S} : instruction (a ::: b ::: S) (pair a b :: S)
 | CAR {a b S} : instruction (pair a b :: S) (a :: S)
 | CDR {a b S} : instruction (pair a b :: S) (b :: S)
@@ -707,7 +768,7 @@ Inductive instruction : list type -> list type -> Set :=
 | ITER_set {elt : comparable_type} {A} :
     instruction (elt ::: A) A -> instruction (set_ elt :: A) A
 | SIZE {i : size.type data} {S} :
-    instruction (size.collection _ i ::: S) (nat_ ::: S)
+    instruction (size.collection _ i ::: S) (nat ::: S)
 | EMPTY_MAP (key : comparable_type) (val : type) {S} :
     instruction S (map key val :: S)
 | GET {key : comparable_type} {i : get.type data key} {S} :
@@ -745,31 +806,40 @@ Inductive instruction : list type -> list type -> Set :=
     instruction (elt ::: A) (b ::: A) ->
     instruction (list_ elt ::: A) (list_ b ::: A)
 | ITER_list {elt A} : instruction (elt :: A) A -> instruction (list_ elt :: A) A
-| MANAGER {p r S} : instruction (contract p r ::: S) (key_hash ::: S)
-| CREATE_CONTRACT {p r g S} :
+| CREATE_CONTRACT {p g S} :
     instruction
-      (key_hash ::: option_ key_hash ::: bool ::: bool ::: tez :::
-       lambda (pair p g) (pair r g) ::: g ::: S)
-      (contract p r ::: S)
-| CREATE_CONTRACT_literal {S} (g p r : type) :
-    instruction (pair p g :: nil) (pair r g :: nil) ->
-    instruction (key_hash ::: option_ key_hash ::: bool ::: bool ::: tez ::: g ::: S)
-                (contract p r ::: S)
+      (key_hash ::: option_ key_hash ::: bool ::: bool ::: mutez :::
+       lambda (pair p g) (pair (list_ operation) g) ::: g ::: S)
+      (operation ::: address ::: S)
+| CREATE_CONTRACT_literal {S} (g p : type) :
+    instruction (pair p g :: nil) (pair (list_ operation) g :: nil) ->
+    instruction (key_hash ::: option_ key_hash ::: bool ::: bool ::: mutez ::: g ::: S)
+                (operation ::: address ::: S)
 | CREATE_ACCOUNT {S} :
-    instruction (key_hash ::: option_ key_hash ::: bool ::: tez ::: S)
-                (contract unit unit ::: S)
-| TRANSFER_TOKENS {p r g} :
-    instruction (p ::: tez ::: contract p r ::: g ::: nil) (r ::: g ::: nil)
-| BALANCE {S} : instruction S (tez ::: S)
-| SOURCE {p r S} : instruction S (contract p r :: S)
-| SELF {p r S} : instruction S (contract p r :: S)
-| AMOUNT {S} : instruction S (tez ::: S)
-| DEFAULT_ACCOUNT {S} : instruction (key_hash ::: S) (contract unit unit :: S)
-| STEPS_TO_QUOTA {S} : instruction S (nat_ ::: S)
+    instruction (key_hash ::: option_ key_hash ::: bool ::: mutez ::: S)
+                (operation ::: contract unit ::: S)
+| TRANSFER_TOKENS {p S} :
+    instruction (p ::: mutez ::: contract p ::: S) (operation ::: S)
+| SET_DELEGATE {S} :
+    instruction (option_ key_hash ::: S) (operation ::: S)
+| BALANCE {S} : instruction S (mutez ::: S)
+| ADDRESS {p S} : instruction (contract p ::: S) (address ::: S)
+| CONTRACT {S} p : instruction (address ::: S) (option_ (contract p) ::: S)
+(* Mistake in the doc: the return type must be an option *)
+| SOURCE {S} : instruction S (address :: S)
+| SENDER {S} : instruction S (address :: S)
+| SELF {p S} : instruction S (contract p :: S)
+| AMOUNT {S} : instruction S (mutez ::: S)
+| IMPLICIT_ACCOUNT {S} : instruction (key_hash ::: S) (contract unit :: S)
+| STEPS_TO_QUOTA {S} : instruction S (nat ::: S)
 | NOW {S} : instruction S (timestamp ::: S)
-| HASH_KEY {S} : instruction (key :: S) (key_hash ::: S)
-| H {a S} : instruction (a :: S) (string_ ::: S)
-| CHECK_SIGNATURE {S} : instruction (key ::: pair signature string_ ::: S) (bool ::: S).
+| PACK {a S} : instruction (a ::: S) (bytes ::: S)
+| UNPACK {a S} : instruction (bytes ::: S) (option_ a ::: S)
+| HASH_KEY {S} : instruction (key ::: S) (key_hash ::: S)
+| BLAKE2B {S} : instruction (bytes ::: S) (bytes ::: S)
+| SHA256 {S} : instruction (bytes ::: S) (bytes ::: S)
+| SHA512 {S} : instruction (bytes ::: S) (bytes ::: S)
+| CHECK_SIGNATURE {S} : instruction (key ::: pair signature string ::: S) (bool ::: S).
 
 Definition stack_type := list type.
 

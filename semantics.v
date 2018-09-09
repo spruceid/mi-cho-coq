@@ -16,13 +16,13 @@ Section semantics.
   amount of gas that is actually required to run the contract because
   in the SEQ case, both instructions are run with gas n *)
   Fixpoint eval {A : stack_type} {B : stack_type}
-           (i : instruction A B) (gas : nat) {struct gas} :
+           (i : instruction A B) (fuel : Datatypes.nat) {struct fuel} :
     stack A -> M (stack B) :=
-    match gas with
-    | O => fun SA => Failed _ Out_of_gas
+    match fuel with
+    | O => fun SA => Failed _ Out_of_fuel
     | S n =>
       match i in instruction A B return stack A -> M (stack B) with
-      | FAIL => fun _ => Failed _ Assertion_Failure
+      | @FAILWITH A B a x => fun _ => Failed _ (Assertion_Failure (data a) x)
       | SEQ i1 i2 =>
         fun SA => bind (eval i2 n) (eval i1 n SA)
       | IF_ bt bf =>
@@ -56,6 +56,10 @@ Section semantics.
         fun SxA =>
           let (x, SA) := SxA in
           Return _ SA
+      | DUP =>
+        fun SxA =>
+          let (x, SA) := SxA in
+          Return _ (x, (x, SA))
       | SWAP =>
         fun SxyA =>
           let (x, SyA) := SxyA in
@@ -129,43 +133,6 @@ Section semantics.
         fun SxA =>
           let (x, SA) := SxA in
           Return _ (Z.abs_N x, SA)
-      | LSL =>
-        fun SxyA =>
-          let (x, SyA) := SxyA in
-          let (y, SA) := SyA in
-          Return _ (N.shiftl x y, SA)
-      | LSR =>
-        fun SxyA =>
-          let (x, SyA) := SxyA in
-          let (y, SA) := SyA in
-          Return _ (N.shiftr x y, SA)
-      | COMPARE =>
-        fun SxyA =>
-          let (x, SyA) := SxyA in
-          let (y, SA) := SyA in
-          Return _ (comparison_to_int (compare _ x y), SA)
-      | CONCAT =>
-        fun SxyA =>
-          let (x, SyA) := SxyA in
-          let (y, SA) := SyA in
-          Return _ ((x ++ y)%string, SA)
-      | PAIR =>
-        fun SxyA =>
-          let (x, SyA) := SxyA in
-          let (y, SA) := SyA in
-          Return _ ((x, y), SA)
-      | CAR =>
-        fun SxyA =>
-          let (xy, SA) := SxyA in
-          let (x, y) := xy in
-          Return _ (x, SA)
-      | CDR =>
-        fun SxyA =>
-          let (xy, SA) := SxyA in
-          let (x, y) := xy in
-          Return _ (y, SA)
-      | EMPTY_SET a =>
-        fun SA => Return _ (set.empty _ (compare a), SA)
       | ADD =>
         fun SxyA =>
           let (x, SyA) := SxyA in
@@ -190,6 +157,51 @@ Section semantics.
           let (y, SA) := SyA in
           bind (fun r => Return _ (r, SA))
                (ediv.op _ _ x y)
+      | LSL =>
+        fun SxyA =>
+          let (x, SyA) := SxyA in
+          let (y, SA) := SyA in
+          Return _ (N.shiftl x y, SA)
+      | LSR =>
+        fun SxyA =>
+          let (x, SyA) := SxyA in
+          let (y, SA) := SyA in
+          Return _ (N.shiftr x y, SA)
+      | COMPARE =>
+        fun SxyA =>
+          let (x, SyA) := SxyA in
+          let (y, SA) := SyA in
+          Return _ (comparison_to_int (compare _ x y), SA)
+      | @CONCAT _ _ i =>
+        fun SxyA =>
+          let (x, SyA) := SxyA in
+          let (y, SA) := SyA in
+          bind (fun r => Return _ (r, SA))
+               (@string_like.concat _ i x y)
+      | @SLICE _ _ i =>
+        fun SabcA =>
+          match SabcA with
+            (a, (b, (c, SA))) =>
+            bind (fun r => Return _ (r, SA))
+                 (@string_like.slice _ i a b c)
+          end
+      | PAIR =>
+        fun SxyA =>
+          let (x, SyA) := SxyA in
+          let (y, SA) := SyA in
+          Return _ ((x, y), SA)
+      | CAR =>
+        fun SxyA =>
+          let (xy, SA) := SxyA in
+          let (x, y) := xy in
+          Return _ (x, SA)
+      | CDR =>
+        fun SxyA =>
+          let (xy, SA) := SxyA in
+          let (x, y) := xy in
+          Return _ (y, SA)
+      | EMPTY_SET a =>
+        fun SA => Return _ (set.empty _ (compare a), SA)
       | MEM =>
         fun SxyA =>
           let (x, SyA) := SxyA in
@@ -210,6 +222,16 @@ Section semantics.
           let (z, SA) := SzA in
           bind (fun r => Return _ (r, SA))
                (@reduce.op _ i b x y z)
+      | ITER_set body =>
+        fun SxA =>
+          let (x, SA) := SxA in
+          match set.destruct _ _ x with
+          | None => Return _ SA
+          | Some (a, y) =>
+            bind (fun SB =>
+                    eval (ITER_set body) n (y, SB))
+                 (eval body n (a, SA))
+          end
       | SIZE =>
         fun SxA =>
           let (x, SA) := SxA in
@@ -229,6 +251,31 @@ Section semantics.
           let (y, SA) := SyA in
           bind (fun r => Return _ (r, SA))
                (MAP.op _ _ _ x y)
+      | MAP_map_body body =>
+        fun SxA =>
+          let (x, SA) := SxA in
+          match set.destruct _ _ x with
+          | None => Return _ (map.empty _ _ _, SA)
+          | Some (a, y) =>
+            let (k, _) := a in
+            bind (fun SbB : data _ * _ =>
+                    let (b, SB) := SbB in
+                    bind (fun ScC : data (map _ _) * _ =>
+                            let (c, SC) := ScC in
+                            Return _ (map.update _ _ _ (compare_eq_iff _) (lt_trans _) (gt_trans _) k (Some b) c, SC))
+                         (eval (MAP_map_body body) n (y, SB)))
+                 (eval body n (a, SA))
+          end
+      | ITER_map body =>
+        fun SxA =>
+          let (x, SA) := SxA in
+          match set.destruct _ _ x with
+          | None => Return _ SA
+          | Some (a, y) =>
+            bind (fun SB =>
+                    eval (ITER_map body) n (y, SB))
+                 (eval body n (a, SA))
+          end
       | SOME =>
         fun SxA =>
           let (x, SA) := SxA in
@@ -276,52 +323,6 @@ Section semantics.
           | (cons a b, SA) => eval bt n (a, (b, SA))
           | (nil, SA) => eval bf n SA
           end
-
-      | ITER_set body =>
-        fun SxA =>
-          let (x, SA) := SxA in
-          match set.destruct _ _ x with
-          | None => Return _ SA
-          | Some (a, y) =>
-            bind (fun SB =>
-                    eval (ITER_set body) n (y, SB))
-                 (eval body n (a, SA))
-          end
-      | ITER_map body =>
-        fun SxA =>
-          let (x, SA) := SxA in
-          match set.destruct _ _ x with
-          | None => Return _ SA
-          | Some (a, y) =>
-            bind (fun SB =>
-                    eval (ITER_map body) n (y, SB))
-                 (eval body n (a, SA))
-          end
-      | ITER_list body =>
-        fun SxA =>
-          let (x, SA) := SxA in
-          match x with
-          | nil => Return _ SA
-          | cons a y =>
-            bind (fun SB =>
-                    eval (ITER_list body) n (y, SB))
-                 (eval body n (a, SA))
-          end
-      | MAP_map_body body =>
-        fun SxA =>
-          let (x, SA) := SxA in
-          match set.destruct _ _ x with
-          | None => Return _ (map.empty _ _ _, SA)
-          | Some (a, y) =>
-            let (k, _) := a in
-            bind (fun SbB : data _ * _ =>
-                    let (b, SB) := SbB in
-                    bind (fun ScC : data (map _ _) * _ =>
-                            let (c, SC) := ScC in
-                            Return _ (map.update _ _ _ (compare_eq_iff _) (lt_trans _) (gt_trans _) k (Some b) c, SC))
-                         (eval (MAP_map_body body) n (y, SB)))
-                 (eval body n (a, SA))
-          end
       | MAP_list_body body =>
         fun SxA =>
           let (x, SA) := SxA in
@@ -336,20 +337,25 @@ Section semantics.
                          (eval (MAP_list_body body) n (y, SB)))
                  (eval body n (a, SA))
           end
-
-      | MANAGER =>
+      | ITER_list body =>
         fun SxA =>
           let (x, SA) := SxA in
-          bind (fun r => Return _ (r, SA))
-               (manager nd _ _ x)
+          match x with
+          | nil => Return _ SA
+          | cons a y =>
+            bind (fun SB =>
+                    eval (ITER_list body) n (y, SB))
+                 (eval body n (a, SA))
+          end
       | CREATE_CONTRACT =>
         fun SabcdefgA =>
           match SabcdefgA with
           | (a, (b, (c, (d, (e, (f, (g, SA))))))) =>
-            bind (fun r => Return _ (r, SA))
-                 (create_contract nd _ _ _ a b c d e f g)
+            bind (fun r : data operation * data address =>
+                    let (a, b) := r in Return _ (a, (b, SA)))
+                 (create_contract nd _ _ a b c d e f g)
           end
-      | CREATE_CONTRACT_literal _ _ _ f =>
+      | CREATE_CONTRACT_literal _ _ f =>
         fun SabcdegA =>
           let ff := fun p =>
                       bind (fun SxA =>
@@ -358,53 +364,88 @@ Section semantics.
           in
           match SabcdegA with
           | (a, (b, (c, (d, (e, (g, SA)))))) =>
-            bind (fun r => Return _ (r, SA))
-                 (create_contract nd _ _ _ a b c d e ff g)
+            bind (fun r : data operation * data address =>
+                     let (a, b) := r in Return _ (a, (b, SA)))
+                 (create_contract nd _ _ a b c d e ff g)
           end
       | CREATE_ACCOUNT =>
         fun SabcdA =>
           match SabcdA with
           | (a, (b, (c, (d, SA)))) =>
-            bind (fun r => Return _ (r, SA))
+            bind (fun r : data _ * data _ =>
+                     let (a, b) := r in Return _ (a, (b, SA)))
                  (create_account nd a b c d)
           end
       | TRANSFER_TOKENS =>
         fun SabcdA =>
           match SabcdA with
-          | (a, (b, (c, (d, SA)))) =>
-            bind (fun ret : (data _ * data _) => let (s, t) := ret in Return _ (s, (t, SA)))
-                 (transfer_tokens nd _ _ _ a b c d)
+          | (a, (b, (c, SA))) =>
+            bind (fun r => Return _ (r, SA))
+                 (transfer_tokens nd _ a b c)
           end
-      | BALANCE => fun SA => bind (fun r => Return _ (r, SA)) (balance nd)
-      | SOURCE =>
-        fun SA =>
-          bind (fun r => Return _ (r, SA))
-               (source nd _ _)
-      | SELF =>
-        fun SA =>
-          bind (fun r => Return _ (r, SA))
-               (self nd _ _)
-      | AMOUNT => fun SA => bind (fun r => Return _ (r, SA)) (amount nd)
-      | DEFAULT_ACCOUNT =>
+      | SET_DELEGATE =>
         fun SxA =>
           let (x, SA) := SxA in
           bind (fun r => Return _ (r, SA))
-               (default_account nd x)
+               (set_delegate nd x)
+      | BALANCE => fun SA => bind (fun r => Return _ (r, SA)) (balance nd)
+      | ADDRESS =>
+        fun SxA =>
+          let (x, SA) := SxA in
+          bind (fun r => Return _ (r, SA))
+               (address_ nd _ x)
+      | CONTRACT _ =>
+        fun SxA =>
+          let (x, SA) := SxA in
+          bind (fun r => Return _ (r, SA))
+               (contract_ nd _ x)
+      | SOURCE =>
+        fun SA =>
+          bind (fun r => Return _ (r, SA))
+               (source nd)
+      | SENDER =>
+        fun SA =>
+          bind (fun r => Return _ (r, SA))
+               (sender nd)
+      | SELF =>
+        fun SA =>
+          bind (fun r => Return _ (r, SA))
+               (self nd _)
+      | AMOUNT => fun SA => bind (fun r => Return _ (r, SA)) (amount nd)
+      | IMPLICIT_ACCOUNT =>
+        fun SxA =>
+          let (x, SA) := SxA in
+          bind (fun r => Return _ (r, SA))
+               (implicit_account nd x)
       | STEPS_TO_QUOTA =>
         fun SA =>
           bind (fun r => Return _ (r, SA))
                (steps_to_quota nd)
       | NOW => fun SA => bind (fun r => Return _ (r, SA)) (now nd)
+      | PACK => fun SxA => let (x, SA) := SxA in
+                           bind (fun r => Return _ (r, SA)) (pack nd _ x)
+      | UNPACK => fun SxA => let (x, SA) := SxA in
+                             bind (fun r => Return _ (r, SA)) (unpack nd _ x)
       | HASH_KEY =>
         fun SxA =>
           let (x, SA) := SxA in
           bind (fun r => Return _ (r, SA))
                (hash_key nd x)
-      | H =>
+      | BLAKE2B =>
         fun SxA =>
           let (x, SA) := SxA in
           bind (fun r => Return _ (r, SA))
-               (h nd _ x)
+               (blake2b nd x)
+      | SHA256 =>
+        fun SxA =>
+          let (x, SA) := SxA in
+          bind (fun r => Return _ (r, SA))
+               (sha256 nd x)
+      | SHA512 =>
+        fun SxA =>
+          let (x, SA) := SxA in
+          bind (fun r => Return _ (r, SA))
+               (sha512 nd x)
       | CHECK_SIGNATURE =>
         fun SxyA =>
           let (x, SyA) := SxyA in

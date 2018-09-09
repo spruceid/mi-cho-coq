@@ -1,6 +1,7 @@
 (* The error monad *)
 
-Inductive exception := Out_of_gas | Overflow | Assertion_Failure.
+Inductive exception : Prop :=
+  Out_of_fuel | Overflow | Assertion_Failure (A : Set) (a : A).
 
 Inductive M (A : Set) : Set :=
 | Failed : exception -> M A

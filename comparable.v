@@ -1,35 +1,40 @@
-(* Michelson comparable types: nat, int, string, timestamp, tez, bool,
+(* Michelson comparable types: nat, int, string, timestamp, mutez, bool,
    and key hashes *)
 
 Require Import ZArith.
-Require Import String.
+Require String.
 Require Import ListSet.
 Require tez.
 Require Relations_1.
 
-Inductive timestamp_constant : Set := Mk_timestamp : string -> timestamp_constant.
-Inductive signature_constant : Set := Mk_sig : string -> signature_constant.
-Inductive key_constant : Set := Mk_key : string -> key_constant.
-Inductive key_hash_constant : Set := Mk_key_hash : string -> key_hash_constant.
-Inductive tez_constant : Set := Mk_tez : string -> tez_constant.
-Inductive contract_constant : Set := Mk_contract : string -> contract_constant.
+Definition str := String.string.
+Inductive timestamp_constant : Set := Mk_timestamp : str -> timestamp_constant.
+Inductive signature_constant : Set := Mk_sig : str -> signature_constant.
+Inductive key_constant : Set := Mk_key : str -> key_constant.
+Inductive key_hash_constant : Set := Mk_key_hash : str -> key_hash_constant.
+Inductive tez_constant : Set := Mk_tez : str -> tez_constant.
+Inductive contract_constant : Set := Mk_contract : str -> contract_constant.
+Inductive address_constant : Set := Mk_address : str -> address_constant.
+Inductive operation_constant : Set := Mk_operation : str -> operation_constant.
 
 Inductive comparable_type : Set :=
-| nat_
+| string
+| nat
 | int
+| bytes
 | bool
-| string_
-| tez
+| mutez
 | key_hash
 | timestamp.
 
 Definition comparable_data (a : comparable_type) : Set :=
   match a with
   | int => Z
-  | nat_ => N
-  | string_ => string
+  | nat => N
+  | string => str
+  | bytes => str
   | timestamp => Z
-  | tez => tez.tez
+  | mutez => tez.mutez
   | bool => Datatypes.bool
   | key_hash => key_hash_constant
   end.
@@ -52,12 +57,12 @@ Definition bool_compare (b1 b2 : Datatypes.bool) : comparison :=
 Definition ascii_compare (a1 a2 : Ascii.ascii) : comparison :=
   (Ascii.N_of_ascii a1 ?= Ascii.N_of_ascii a2)%N.
 
-Fixpoint string_compare (s1 s2 : string) : comparison :=
+Fixpoint string_compare (s1 s2 : str) : comparison :=
   match s1, s2 with
-  | EmptyString, EmptyString => Eq
-  | EmptyString, _ => Lt
-  | _, EmptyString => Gt
-  | String a1 s1, String a2 s2 =>
+  | String.EmptyString, String.EmptyString => Eq
+  | String.EmptyString, _ => Lt
+  | _, String.EmptyString => Gt
+  | String.String a1 s1, String.String a2 s2 =>
     match ascii_compare a1 a2 with
     | Lt => Lt
     | Gt => Gt
@@ -120,7 +125,7 @@ Proof.
   apply (ascii_compare_Lt_trans _ a2); assumption.
 Qed.
 
-Lemma string_compare_Eq_correct (s1 s2 : string) : string_compare s1 s2 = Eq <-> s1 = s2.
+Lemma string_compare_Eq_correct (s1 s2 : str) : string_compare s1 s2 = Eq <-> s1 = s2.
 Proof.
   generalize s2; clear s2.
   induction s1 as [|a1 s1]; intros [|a2 s2].
@@ -148,7 +153,7 @@ Proof.
       split; congruence.
 Qed.
 
-Lemma string_compare_Lt_trans (s1 s2 s3 : string) :
+Lemma string_compare_Lt_trans (s1 s2 s3 : str) :
   string_compare s1 s2 = Lt ->
   string_compare s2 s3 = Lt ->
   string_compare s1 s3 = Lt.
@@ -194,7 +199,7 @@ Proof.
     congruence.
 Qed.
 
-Lemma string_compare_Lt_Gt (s1 s2 : string) :
+Lemma string_compare_Lt_Gt (s1 s2 : str) :
   string_compare s1 s2 = Gt <->
   string_compare s2 s1 = Lt.
 Proof.
@@ -210,7 +215,7 @@ Proof.
       intuition.
 Qed.
 
-Lemma string_compare_Gt_trans (s1 s2 s3 : string) :
+Lemma string_compare_Gt_trans (s1 s2 s3 : str) :
   string_compare s1 s2 = Gt ->
   string_compare s2 s3 = Gt ->
   string_compare s1 s3 = Gt.
@@ -229,11 +234,12 @@ Definition key_hash_compare (h1 h2 : key_hash_constant) : comparison :=
 
 Definition compare (a : comparable_type) : comparable_data a -> comparable_data a -> comparison :=
   match a with
-  | nat_ => N.compare
+  | nat => N.compare
   | int => Z.compare
   | bool => bool_compare
-  | string_ => string_compare
-  | tez => tez.compare
+  | string => string_compare
+  | bytes => string_compare
+  | mutez => tez.compare
   | key_hash => key_hash_compare
   | timestamp => Z.compare
   end.
@@ -245,10 +251,11 @@ Lemma lt_trans (a : comparable_type) : Relations_1.Transitive _ (lt a).
 Proof.
   unfold lt.
   destruct a; simpl; intros x y z.
+  - apply string_compare_Lt_trans.
   - apply N.lt_trans.
   - apply Z.lt_trans.
-  - destruct x; destruct y; destruct z; simpl; congruence.
   - apply string_compare_Lt_trans.
+  - destruct x; destruct y; destruct z; simpl; congruence.
   - apply Z.lt_trans.
   - destruct x as [x]; destruct y as [y]; destruct z as [z].
     apply string_compare_Lt_trans.
@@ -262,14 +269,15 @@ Lemma gt_trans (a : comparable_type) : Relations_1.Transitive _ (gt a).
 Proof.
   unfold gt.
   destruct a; simpl; intros x y z.
+  - apply string_compare_Gt_trans.
   - rewrite N.compare_gt_iff.
     rewrite N.compare_gt_iff.
     rewrite N.compare_gt_iff.
     intros.
     transitivity y; assumption.
   - apply Zcompare_Gt_trans.
-  - destruct x; destruct y; destruct z; simpl; congruence.
   - apply string_compare_Gt_trans.
+  - destruct x; destruct y; destruct z; simpl; congruence.
   - apply Zcompare_Gt_trans.
   - destruct x as [x]; destruct y as [y]; destruct z as [z].
     apply string_compare_Gt_trans.
@@ -279,10 +287,11 @@ Qed.
 Lemma compare_eq_iff a c1 c2 : compare a c1 c2 = Eq <-> c1 = c2.
 Proof.
   destruct a; simpl.
+  - apply string_compare_Eq_correct.
   - apply N.compare_eq_iff.
   - apply Z.compare_eq_iff.
-  - destruct c1; destruct c2; split; simpl; congruence.
   - apply string_compare_Eq_correct.
+  - destruct c1; destruct c2; split; simpl; congruence.
   - apply tez.compare_eq_iff.
   - destruct c1 as [s1]; destruct c2 as [s2]. simpl.
     rewrite string_compare_Eq_correct.
