@@ -8,10 +8,9 @@ are formalized:
 - the syntax
 - the semantics
 
-This formalisation is entirely based on the specification of Michelson
-(https://tezos.gitlab.io/betanet/whitedoc/michelson.html); more
-precisely, it is currently based on the following version of this
-specification:
+This formalisation is entirely based on [[https://tezos.gitlab.io/betanet/whitedoc/michelson.html][the specification of
+Michelson]]; more precisely, it is currently based on the following
+version of this specification:
 [[https://gitlab.com/tezos/tezos/blob/16bd2b036439d76a3e89dff8fdfbd36cf1d131fe/docs/whitedoc/michelson.rst]]
 
 * Type system
