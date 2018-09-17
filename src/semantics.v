@@ -23,8 +23,14 @@ Section semantics.
     | S n =>
       match i in instruction A B return stack A -> M (stack B) with
       | @FAILWITH A B a x => fun _ => Failed _ (Assertion_Failure (data a) x)
-      | SEQ i1 i2 =>
-        fun SA => bind (eval i2 n) (eval i1 n SA)
+
+      (* According to the documentation, FAILWITH's argument should
+         not be part of the state reached by the instruction but the
+         whole point of this instruction (compared to the FAIL macro)
+         is to report the argument to the user. *)
+
+      | SEQ I C =>
+        fun SA => bind (eval C n) (eval I n SA)
       | IF_ bt bf =>
         fun SbA =>
           let (b, SA) := SbA in

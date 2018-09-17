@@ -717,7 +717,11 @@ Canonical Structure map_list (a : type) :=
 Inductive instruction : list type -> list type -> Set :=
 | FAILWITH {A B a} : data a -> instruction A B
 | SEQ {A B C} : instruction A B -> instruction B C -> instruction A C
+(* The instruction SEQ I C is written "{ I ; C }" in Michelson *)
 | IF_ {A B} : instruction A B -> instruction A B -> instruction (bool ::: A) B
+(* "IF" is a reserved keyword in file Coq.Init.Logic because it is
+part of the notation "'IF' c1 'then' c2 'else' c3" so we cannot call
+this constructor "IF" but we can make a notation for it. *)
 | LOOP {A} : instruction A (bool ::: A) -> instruction (bool ::: A) A
 | LOOP_LEFT {a b A} : instruction (a :: A) (or a b :: A) ->
                       instruction (or a b :: A) (b :: A)
@@ -829,6 +833,7 @@ Inductive instruction : list type -> list type -> Set :=
 | SOURCE {S} : instruction S (address :: S)
 | SENDER {S} : instruction S (address :: S)
 | SELF {p S} : instruction S (contract p :: S)
+(* p should be obtained from the node *)
 | AMOUNT {S} : instruction S (mutez ::: S)
 | IMPLICIT_ACCOUNT {S} : instruction (key_hash ::: S) (contract unit :: S)
 | STEPS_TO_QUOTA {S} : instruction S (nat ::: S)
@@ -840,6 +845,10 @@ Inductive instruction : list type -> list type -> Set :=
 | SHA256 {S} : instruction (bytes ::: S) (bytes ::: S)
 | SHA512 {S} : instruction (bytes ::: S) (bytes ::: S)
 | CHECK_SIGNATURE {S} : instruction (key ::: pair signature string ::: S) (bool ::: S).
+
+(* TODO: add the no-ops CAST and RENAME *)
+
+Notation "'IF'" := (IF_).
 
 Definition stack_type := list type.
 
