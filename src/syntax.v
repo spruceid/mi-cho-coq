@@ -767,8 +767,6 @@ this constructor "IF" but we can make a notation for it. *)
     instruction (elt ::: mem.collection _ _ i ::: S) (bool ::: S)
 | UPDATE {elt : comparable_type} {i : update.type data elt} {S} :
     instruction (elt ::: update.opt_val _ _ i ::: update.collection _ _ i ::: S) (update.collection _ _ i ::: S)
-| REDUCE {elt : type} {i : reduce.type data} {b S} :
-    instruction (lambda (pair (reduce.entry _ i) b) b ::: reduce.collection _ i ::: b ::: S) (b :: S)
 | ITER_set {elt : comparable_type} {A} :
     instruction (elt ::: A) A -> instruction (set_ elt :: A) A
 | SIZE {i : size.type data} {S} :
@@ -777,8 +775,6 @@ this constructor "IF" but we can make a notation for it. *)
     instruction S (map key val :: S)
 | GET {key : comparable_type} {i : get.type data key} {S} :
     instruction (key ::: get.collection _ _ i ::: S) (option_ (get.val _ _ i) :: S)
-| MAP {i : MAP.type data} {b S} :
-    instruction (lambda (MAP.entry _ i) b ::: MAP.collection _ i (MAP.val _ i) ::: S) (MAP.collection _ i b :: S)
 | MAP_map_body {key : comparable_type} {val b A} :
     instruction (pair key val :: A) (b :: A) ->
     instruction (map key val :: A) (map key b :: A)
