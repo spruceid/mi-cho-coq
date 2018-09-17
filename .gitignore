@@ -1,5 +1,21 @@
+# General
+.depend
+.bkp/
+
+# Coq
 *.aux
 *.glob
 *.vo
-.depend
-.bkp/
+
+# LaTeX
+*.tex
+*.vrb
+*.toc
+*.toc
+*.snm
+*.out
+*.nav
+*.aux
+*.log
+# we keep *.pdf to ease sharing of slides
+notes.*

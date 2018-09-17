@@ -1,0 +1,457 @@
+* Options                                                         :noexport:
+#+OPTIONS: H:2 texht:t toc:nil
+#+DATE: September 17, 2018
+#+Title: Michelson in Coq
+** Beamer
+#+STARTUP: beamer
+#+BEAMER_COLOR_THEME: default
+#+BEAMER_FONT_THEME:
+#+LaTeX_header: \usepackage{ wasysym }
+#+LaTeX_header: \mode<beamer>{\usetheme{Darmstadt}}
+#+BEAMER_HEADER: \setbeamertemplate{navigation symbols}{}
+#+BEAMER_HEADER: \setbeamertemplate{footline}[frame number]
+#+BEAMER_INNER_THEME:
+#+BEAMER_OUTER_THEME:
+#+LATEX_CLASS: beamer
+#+LATEX_CLASS_OPTIONS:
+
+** XeLaTeX
+#+LATEX_HEADER: \usepackage{fontspec} \setmainfont{FreeSerif}
+** Code Listing
+#+LaTeX_Header: \usepackage{listings}
+#+LaTeX_Header: \usepackage{color}
+#+LaTeX_Header: \lstset{basicstyle={\ttfamily\small},keywordstyle={\color{blue}}}
+*** Dedukti
+#+LaTeX_Header: \lstdefinelanguage{Dedukti}{alsoletter={=->:},keywords={def,Type,-->,->,=>,:=,:,.},moredelim=[s][\color{brown}]{\[}{\]},moredelim=[s][\color{red}]{(;}{;)}}
+#+LaTeX_Header: \lstnewenvironment{dedukticode}
+#+LaTeX_Header: {\lstset{language={Dedukti}}}{}
+*** Coq
+#+LaTeX_Header: \lstdefinelanguage{Coq}{alsoletter={=->:},keywords={Definition,Type,Set,Prop,Parameter,Check,Ltac,Defined,Qed,Print,Lemma,Proof,Inductive,fun,forall,Fixpoint,struct,match,with,in,return,Module,Record,Class,Structure,End,Canonical,if,then,else,Coercion,end}}
+#+LaTeX_Header: \lstnewenvironment{coqcode}
+#+LaTeX_Header: {\lstset{language={Coq}}}{}
+
+** Busproof
+#+LaTeX_Header: \usepackage{setspace}
+#+LaTeX_header: \usepackage{bussproofs}
+#+LaTeX_header: \newcommand{\myUIC}[2]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#1}
+#+LaTeX_header:      \UnaryInfC{#2}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\myBIC}[3]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#1}
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \BinaryInfC{#3}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\myTIC}[4]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#1}
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \AxiomC{#3}
+#+LaTeX_header:      \TrinaryInfC{#4}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\mylUIC}[3]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \RightLabel{\scriptsize(#1)}
+#+LaTeX_header:      \UnaryInfC{#3}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\mylBIC}[4]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \AxiomC{#3}
+#+LaTeX_header:      \RightLabel{\scriptsize(#1)}
+#+LaTeX_header:      \BinaryInfC{#4}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\mylTIC}[5]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \AxiomC{#3}
+#+LaTeX_header:      \AxiomC{#4}
+#+LaTeX_header:      \RightLabel{\scriptsize(#1)}
+#+LaTeX_header:      \TrinaryInfC{#5}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newenvironment{infset}
+#+LaTeX_header:   {\begin{center} \setstretch{2.5}}
+#+LaTeX_header:   {\end{center}}
+
+** Arrays
+#+LaTeX_Header: \newenvironment{leftarray}{\begin{array}{l}}{\end{array}}
+#+LaTeX_Header: \newenvironment{leftleftarray}{\begin{array}{ll}}{\end{array}}
+#+LaTeX_Header: \newenvironment{leftleftleftarray}{\begin{array}{lll}}{\end{array}}
+#+LaTeX_Header: \newenvironment{leftleftxleftarray}{\begin{array}{ll@{}l}}{\end{array}}
+#+LaTeX_Header: \newenvironment{leftreducearray}{\begin{array}{l@{~}l@{ }r@{}l}}{\end{array}}
+
+** Tikz
+#+LaTeX_header: \usepackage{tikz}
+
+
+
+* Presentation
+:PROPERTIES:
+:UNNUMBERED: t
+:END:
+
+#+LaTeX_header: \renewcommand{\maketitle}{\begin{frame}[noframenumbering,plain]\titlepage\end{frame}}
+
+#+LaTeX: \AtBeginSection[]
+#+LaTeX: {
+#+LaTeX:  \begin{frame}[noframenumbering,plain] %<beamer>
+#+LaTeX:  \frametitle{Outline}
+#+LaTeX:  \tableofcontents[currentsection]
+#+LaTeX:  \end{frame}
+#+LaTeX: }
+
+** Presentation
+
+Raphaël Cauderlier
+
+- PhD defended in 2016
+  + directed by Catherine Dubois
+  + at Deducteam (Inria, LSV, CNAM)
+- Postdoc at IRIF (Paris 7) with Mihaela Sighireanu
+
+** PhD on interoperability of proof systems
+
+- Operational semantics of FoCaLiZe-ML
+  + Contribution to the FoCaLiZe compiler
+    * 7800 lines of OCaml
+    * 2400 lines of Dedukti
+- Operational semantics of the \varsigma-calculus
+  + Developpement of a prototype
+    * 2000 lines of OCaml
+    * 800 lines of Dedukti
+    * 600 lines of Coq
+- Rewrite systems for proof transformation (tactics, axiom elimination, theorem transfer)
+** Postdoc on proofs of imperative programs
+
+- Separation Logic
+- Case study: 6400 lines of VeriFast
+- Contributions to VeriFast: better integration of SMT solvers
+    * 1000 lines of OCaml
+
+#+LaTeX:  \end{frame}
+#+LaTeX:  \begin{frame}[noframenumbering,plain]
+#+LaTeX:  \frametitle{Outline}
+#+LaTeX:  \tableofcontents
+
+* Motivation
+** What?
+
+   Define in Coq the following parts of Michelson:
+   - syntax
+   - typing
+   - semantics (evaluator)
+
+** Why?
+
+- Fun
+- Many applications:
+  - Check the Michelson specification
+  - Prove properties of Michelson programs
+  - Prove correctness of compilers from/to Michelson
+  - Extract some correct-by-construction tools
+
+** Related work
+
+https://github.com/tezos/tezoscoq
+
+  - + Proof of the multisig contract
+  - - Untyped instructions
+  - - Out of date (last commit one year ago)
+
+* Coq
+** The Coq interactive theorem prover
+
+- Developped for more than 30 years
+- Non-trivial mathematical theorems: 4-color, odd-order
+- CompCert: certified C compiler
+
+** Dependent Types
+
+#+BEGIN_SRC coq
+  Parameter A : Type.
+#+END_SRC
+
+\pause
+#+BEGIN_SRC coq
+  Parameter a : A.
+#+END_SRC
+
+\pause
+#+BEGIN_SRC coq
+  Parameter B : A -> Prop.
+#+END_SRC
+
+\pause
+#+BEGIN_SRC coq
+  Parameter f : forall x : A, B x.
+#+END_SRC
+
+\pause
+#+BEGIN_SRC coq
+  Check f a.  (* Answer: f a : B a *)
+#+END_SRC
+
+** Implicit arguments
+
+Explicit polymorphism: Types are regular terms
+#+BEGIN_SRC coq
+  Definition identity (A : Type) (a : A) := a.
+#+END_SRC
+
+\pause Inference of first argument
+#+BEGIN_SRC coq
+  Lemma identity_2 : identity _ 2 = 2.
+  Proof. reflexivity. Qed.
+#+END_SRC
+
+\pause Implicit argument
+#+BEGIN_SRC coq
+  Definition id {A : Type} (a : A) := a.
+
+  Lemma id_2 : id 2 = 2.
+  Proof. reflexivity. Qed.
+#+END_SRC
+
+** Inductive Types
+
+Generalisation of ADT to dependent types:
+
+#+BEGIN_SRC Coq
+Inductive vector (A : Type) : nat -> Type :=
+  | Nil : vector A 0
+  | Cons n : A -> vector A n -> vector A (1 + n).
+#+END_SRC
+
+#+LaTeX:  \end{frame}
+#+LaTeX:  \begin{frame}[noframenumbering,plain]
+#+LaTeX:  \frametitle{Outline}
+#+LaTeX:  \tableofcontents
+
+* Formalisation of Michelson
+** Code
+
+#+BEGIN_CENTER
+[[https://framagit.org/rafoo/michelson-coq]]
+#+END_CENTER
+
+** Types
+
+#+BEGIN_SRC coq
+  Inductive comparable_type : Set := nat | int ...
+
+  Inductive type : Set :=
+  | Comparable_type : comparable_type -> type
+  | unit : type
+  | set : comparable_type -> type
+  ...
+
+  Coercion Comparable_type : comparable_type >-> type.
+#+END_SRC
+
+** Types
+
+#+BEGIN_SRC coq
+Definition comparable_data (a : comparable_type)
+   : Set :=
+  match a with
+  | nat => N
+  | int => Z
+  ...
+  end.
+
+Fixpoint data (a : type) {struct a} : Set :=
+  match a with
+  | Comparable_type b => comparable_data b
+  | unit => Datatypes.unit
+  ...
+  end.
+#+END_SRC
+
+** Syntax
+
+#+BEGIN_SRC coq
+Inductive instruction : list type -> list type -> Set :=
+| FAILWITH {A B a} : data a -> instruction A B
+| SEQ {A B C} : instruction A B -> instruction B C ->
+                instruction A C
+| IF {A B} : instruction A B -> instruction A B ->
+             instruction (bool ::: A) B
+| LOOP {A} : instruction A (bool ::: A) ->
+             instruction (bool ::: A) A
+...
+#+END_SRC
+
+\pause
+#+BEGIN_CENTER
+Syntax and typing simultaneously
+#+END_CENTER
+
+** Semantics
+#+BEGIN_SRC coq
+  Fixpoint eval {A : list type} {B : list type}
+        (i : instruction A B) : stack A -> stack B :=
+      match i in instruction A B
+        return stack A -> stack B with
+      | FAILWITH x =>
+         ...
+      | SEQ i1 i2 =>
+         fun SA => eval i2 (eval i1 SA)
+      | IF bt bf =>
+         fun SbA => let (b, SA) := SbA in
+           if b then eval bt SA else eval bf SA
+      | LOOP body =>
+         fun SbA => let (b, SA) := SbA in
+           if b then eval (SEQ body (LOOP body)) SA
+           else SA
+      ...
+
+#+END_SRC
+
+** Semantics
+#+BEGIN_SRC coq
+  Fixpoint eval {A : list type} {B : list type}
+        (i : instruction A B) : stack A -> M (stack B) :=
+      match i in instruction A B
+        return stack A -> M (stack B) with
+      | FAILWITH x =>
+         fun SA => Failed _ (Assertion_Failure _ x)
+      | SEQ i1 i2 =>
+         fun SA => bind (eval i2) (eval i1 SA)
+      | IF bt bf =>
+         fun SbA => let (b, SA) := SbA in
+           if b then eval bt SA else eval bf SA
+      | LOOP body =>
+         fun SbA => let (b, SA) := SbA in
+           if b then eval (SEQ body (LOOP body)) SA
+           else Return _ SA
+      ...
+#+END_SRC
+
+** Semantics
+#+BEGIN_SRC coq
+  Fixpoint eval {A : list type} {B : list type}
+        (i : instruction A B) (fuel : nat)
+        {struct fuel} : stack A -> M (stack B) :=
+    match fuel with
+    | O => fun SA => Failed _ Out_of_fuel
+    | S n =>
+      match i in instruction A B
+        return stack A -> M (stack B) with
+      | FAILWITH x =>
+         fun _ => Failed _ (Assertion_Failure _ x)
+      | SEQ i1 i2 =>
+         fun SA => bind (eval i2 n) (eval i1 n SA)
+      | IF bt bf =>
+         ...
+      | LOOP body =>
+         ...
+#+END_SRC
+
+** Fuel vs Gas
+
+   - Fuel: Coq trick to turn a non-terminating function into a terminating one
+     + Fuel (SEQ A B) = max(Fuel A, Fuel B) + O(1)
+   - Gas: measures the complexity of the program
+     + Gas (SEQ A B) = Gas A + Gas B + O(1)
+
+** Discussion
+
+- Separating syntax and semantics
+  + Close to the Michelson compiler written in OCaml
+  + Does not scale very well
+
+- Modular presentation (instruction by instruction)
+  + Close to the specification
+  + Useful to handle overloading
+
+#+LaTeX:  \end{frame}
+#+LaTeX:  \begin{frame}[noframenumbering,plain]
+#+LaTeX:  \frametitle{Outline}
+#+LaTeX:  \tableofcontents
+
+* Conclusion
+:PROPERTIES:
+:UNNUMBERED: t
+:END:
+** Summary
+
+- Michelson is a simple language
+
+  No major difficulty to formalize it in Coq
+
+- A small mistake detected in the specification of =LOOP_LEFT=
+
+  Now fixed but new suspicious line:
+
+#+BEGIN_SRC Coq
+SLICE :: nat : nat : bytes : 'S -> option string : 'S
+#+END_SRC
+
+** Evolution
+
+ - Extract the evaluator
+ - Share the formalisation of the syntax with the current compiler
+ - Extract the documentation of Michelson from its formalisation
+
+** Thank you!
+
+
+#+BEGIN_Huge
+#+BEGIN_CENTER
+Questions?
+#+END_CENTER
+#+END_Huge
+
+** Semantics of the data types
+:PROPERTIES:
+:BEAMER_OPT: plain,noframenumbering
+:END:
+
+  #+ATTR_LaTeX: :align l|l@{\qquad}l|l
+  | Michelson   | Coq      | Michelson     | Coq              |
+  |-------------+----------+---------------+------------------|
+  | =int=       | =Z=      | =pair a b=    | =a * b=          |
+  | =nat=       | =N=      | =option a=    | =option a=       |
+  | =string=    | =string= | =or a b=      | =sum a b=        |
+  | =bytes=     | =string= | =list a=      | =list a=         |
+  | =timestamp= | =Z=      | =set a=       | =set a (lt a)=   |
+  | =mutez=     | =int63=  | =map a b=     | =map a b (lt a)= |
+  | =bool=      | =bool=   | =bigmap a b=  | idem             |
+  | =unit=      | =unit=   | =lambda a b=  | =a -> M b=       |
+  |             |          | anything else | axiomatized      |
+with
+#+BEGIN_SRC coq
+ Definition int63 :=
+   {t : int64.int64 | int64.sign t = false}
+ Definition set a lt :=
+   {l : list A | Sorted.StronglySorted lt l}
+ Definition map a b lt :=
+   set (a * b) (fun x y => lt (fst x) (fst y))
+#+END_SRC
+** Overloading
+# :PROPERTIES:
+# :BEAMER_OPT: plain,noframenumbering
+# :END:
+
+  Almost fully supported using canonical structures.
+
+#+BEGIN_SRC coq
+Module neg.
+  Record class (a : comparable_type) :=
+    Class { neg : comparable_data a -> M Z }.
+  Structure type (a : comparable_type) :=
+    Pack { class_of : class a }.
+  Definition op (a : comparable_type) {e : type a}
+    : comparable_data a -> M Z := neg _ (class_of a e).
+End neg.
+
+Canonical Structure neg_nat : neg.type nat :=
+  neg.Pack nat (neg.Class nat
+    (fun x => Return _ (- Z.of_N x)%Z)).
+Canonical Structure neg_int : neg.type int :=
+  neg.Pack int (neg.Class int
+    (fun x => Return _ (- x)%Z)).
+#+END_SRC
