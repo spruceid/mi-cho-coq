@@ -1,0 +1,209 @@
+#+Title: Michelson in Coq
+
+This repository is a formalisation of the [[https://www.michelson-lang.com/][Michelson]] language using the
+[[https://coq.inria.fr/][Coq]] interactive theorem prover. The following parts of the language
+are formalized:
+
+- the type system
+- the syntax
+- the semantics
+
+This formalisation is entirely based on the specification of Michelson
+(https://tezos.gitlab.io/betanet/whitedoc/michelson.html); more
+precisely, it is currently based on the following version of this
+specification:
+[[https://gitlab.com/tezos/tezos/blob/16bd2b036439d76a3e89dff8fdfbd36cf1d131fe/docs/whitedoc/michelson.rst]]
+
+* Type system
+
+In Michelson, an important distinction is made between *comparable*
+types and non-comparable ones. Comparable types can be used to index
+maps and only sets of elements in comparable types are allowed.
+
+Here is the list of comparable types defined in [[./src/comparable.v]]:
+
+#+BEGIN_SRC coq
+Inductive comparable_type : Set :=
+| string
+| nat
+| int
+| bytes
+| bool
+| mutez
+| key_hash
+| timestamp.
+#+END_SRC
+
+Each comparable type is trivially a Michelson type, here is the full
+list of Michelson types as defined in [[./src/syntax.v]]:
+
+#+BEGIN_SRC coq
+Inductive type : Set :=
+| Comparable_type : comparable_type -> type
+| key : type
+| unit : type
+| signature : type
+| option_ : type -> type
+| list_ : type -> type
+| set_ : comparable_type -> type
+| contract : type -> type
+| address : type
+| operation : type
+| pair : type -> type -> type
+| or : type -> type -> type
+| lambda : type -> type -> type
+| map : comparable_type -> type -> type
+| big_map : comparable_type -> type -> type.
+#+END_SRC
+
+Coq let us see the type =comparable_type= as a subtype of the type
+=type= by declaring the =Comparable_type= injection as an implicit
+coercion.
+
+#+BEGIN_SRC coq
+Coercion Comparable_type : comparable_type >-> type.
+#+END_SRC
+
+Finally, the semantics of these types is defined by interpreting them
+by predefined Coq types using the following table:
+
+  | Michelson     | Coq              |
+  |---------------+------------------|
+  | =int=         | =Z=              |
+  | =nat=         | =N=              |
+  | =string=      | =string=         |
+  | =bytes=       | =string=         |
+  | =timestamp=   | =Z=              |
+  | =mutez=       | =int63=          |
+  | =bool=        | =bool=           |
+  | =unit=        | =unit=           |
+  | =pair a b=    | =a * b=          |
+  | =option a=    | =option a=       |
+  | =or a b=      | =sum a b=        |
+  | =list a=      | =list a=         |
+  | =set a=       | =set a (lt a)=   |
+  | =map a b=     | =map a b (lt a)= |
+  | =bigmap a b=  | idem             |
+  | =lambda a b=  | =a -> M b=       |
+  | anything else | axiomatized      |
+
+with
+#+BEGIN_SRC coq
+ Definition int63 :=
+   {t : int64.int64 | int64.sign t = false}
+ Definition set a lt :=
+   {l : list A | Sorted.StronglySorted lt l}
+ Definition map a b lt :=
+   set (a * b) (fun x y => lt (fst x) (fst y))
+#+END_SRC
+
+* Syntax
+
+The syntax and typing of Michelson instructions is defined in file
+[[./src/syntax.v]]. We use a dependent inductive type to rule out
+ill-typed instructions.
+
+#+BEGIN_SRC coq
+Inductive instruction : list type -> list type -> Set :=
+| FAILWITH {A B a} : data a -> instruction A B
+| SEQ {A B C} : instruction A B -> instruction B C -> instruction A C
+| IF_ {A B} : instruction A B -> instruction A B -> instruction (bool ::: A) B
+| LOOP {A} : instruction A (bool ::: A) -> instruction (bool ::: A) A
+...
+#+END_SRC
+
+* Semantics
+
+We formalize the semantics of Michelson by defining an evaluator in
+file [[./src/semantics.v]]. Since evaluating a Michelson instruction might
+fail (which Coq functions cannot), we wrap the return type of this
+evaluator in the exception monad defined in file
+[[./src/error.v]]. Moreover, Coq forbids non-terminating function so we
+use a common Coq trick to define the evalator on diverging
+instructions such as =LOOP=: we make the evaluator structurally
+recursive on an extra argument of type =Datatypes.nat= called the
+=fuel= of the evaluator.
+
+#+BEGIN_SRC coq
+  Fixpoint eval {A : stack_type} {B : stack_type}
+           (i : instruction A B) (fuel : Datatypes.nat) {struct fuel} :
+    stack A -> M (stack B) :=
+    match fuel with
+    | O => fun SA => Failed _ Out_of_fuel
+    | S n =>
+      match i in instruction A B return stack A -> M (stack B) with
+      ...
+#+END_SRC
+
+* Overloading
+
+A Michelson instruction is called overloaded when it can be assigned
+several types. For example, the =NEG= instruction which replaces a
+number at the top of the stack by its opposite can have either the
+type =int : 'S -> int : 'S= or the type =nat : 'S -> int : 'S=.
+
+To handle this source of ambiguity in our typed AST =instruction=, we
+use *canonical structures*, a Coq feature that let the Coq refiner
+solve the ambiguity by inferring the missing piece of information from
+the context.
+
+Both versions of the =NEG= instruction are defined in [[./src/syntax.v]]
+as follows:
+
+#+BEGIN_SRC coq
+Module neg.
+  Record class (a : comparable_type) :=
+    Class { neg : comparable_data a -> M Z }.
+
+  Structure type (a : comparable_type) := Pack { class_of : class a }.
+
+  Definition op (a : comparable_type) {e : type a} : comparable_data a -> M Z :=
+    neg _ (class_of a e).
+End neg.
+
+Canonical Structure neg_nat : neg.type nat :=
+  neg.Pack nat (neg.Class nat (fun x => Return _ (- Z.of_N x)%Z)).
+
+Canonical Structure neg_int : neg.type int :=
+  neg.Pack int (neg.Class int (fun x => Return _ (- x)%Z)).
+#+END_SRC
+
+The structure =neg.type= is then used in the =instruction= datatype as follows:
+
+#+BEGIN_SRC coq
+Inductive instruction : list type -> list type -> Set :=
+...
+| NEG {n} {s : neg.type n} {S} : instruction (n ::: S) (int ::: S)
+...
+#+END_SRC
+
+so the =NEG= instruction receives a =neg.type= as an implicit argument
+which is going to be provided by the canonical structure mechanism.
+
+Finally, the evaluator in file [[./src/semantics.v]] uses this implicit
+argument to call the correct function depending on the chosen type for
+the =NEG= instruction:
+
+#+BEGIN_SRC coq
+  Fixpoint eval {A : stack_type} {B : stack_type}
+           (i : instruction A B) (fuel : Datatypes.nat) {struct fuel} :
+    stack A -> M (stack B) :=
+    match fuel with
+    | O => fun SA => Failed _ Out_of_fuel
+    | S n =>
+      match i in instruction A B return stack A -> M (stack B) with
+      ...
+      | @NEG b s _ =>
+        fun SxA =>
+          let (x, SA) := SxA in
+          bind (fun r => Return _ (r, SA))
+               (@neg.op b s x)
+      ...
+#+END_SRC
+
+The main drawback of this approach based on canonical structures is
+that it breaks the separation of syntax and semantics: the various
+semantics of the =NEG= instruction have to be defined before the
+definition of the syntax of instructions; this is why they appear in
+file [[./src/syntax.v]].
+
