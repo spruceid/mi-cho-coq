@@ -757,6 +757,8 @@ this constructor "IF" but we can make a notation for it. *)
 | LSR {S} : instruction (nat ::: nat ::: S) (nat ::: S)
 | COMPARE {a : comparable_type} {S} : instruction (a ::: a ::: S) (int ::: S)
 | CONCAT {S a} {i : string_like.type a} : instruction (a ::: a ::: S) (a ::: S)
+| SIZE {i : size.type data} {S} :
+    instruction (size.collection _ i ::: S) (nat ::: S)
 | SLICE {S a} {i : string_like.type a} :
     instruction (nat ::: nat ::: a ::: S) (option_ string ::: S)
 | PAIR {a b S} : instruction (a ::: b ::: S) (pair a b :: S)
@@ -769,8 +771,6 @@ this constructor "IF" but we can make a notation for it. *)
     instruction (elt ::: update.opt_val _ _ i ::: update.collection _ _ i ::: S) (update.collection _ _ i ::: S)
 | ITER_set {elt : comparable_type} {A} :
     instruction (elt ::: A) A -> instruction (set_ elt :: A) A
-| SIZE {i : size.type data} {S} :
-    instruction (size.collection _ i ::: S) (nat ::: S)
 | EMPTY_MAP (key : comparable_type) (val : type) {S} :
     instruction S (map key val :: S)
 | GET {key : comparable_type} {i : get.type data key} {S} :
