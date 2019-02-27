@@ -1,6 +1,6 @@
 * Options                                                         :noexport:
 #+OPTIONS: H:2 texht:t toc:nil
-#+DATE: September 17, 2018
+#+DATE: January 8, 2018
 #+Title: Michelson in Coq
 ** Beamer
 #+STARTUP: beamer
@@ -111,30 +111,7 @@ Raphaël Cauderlier
   + directed by Catherine Dubois
   + at Deducteam (Inria, LSV, CNAM)
 - Postdoc at IRIF (Paris 7) with Mihaela Sighireanu
-
-** PhD on interoperability of proof systems
-
-- Operational semantics of FoCaLiZe-ML
-  + Contribution to the FoCaLiZe compiler
-    * 7800 lines of OCaml
-    * 2400 lines of Dedukti
-- Operational semantics of the \varsigma-calculus
-  + Developpement of a prototype
-    * 2000 lines of OCaml
-    * 800 lines of Dedukti
-    * 600 lines of Coq
-- Rewrite systems for proof transformation (tactics, axiom elimination, theorem transfer)
-** Postdoc on proofs of imperative programs
-
-- Separation Logic
-- Case study: 6400 lines of VeriFast
-- Contributions to VeriFast: better integration of SMT solvers
-    * 1000 lines of OCaml
-
-#+LaTeX:  \end{frame}
-#+LaTeX:  \begin{frame}[noframenumbering,plain]
-#+LaTeX:  \frametitle{Outline}
-#+LaTeX:  \tableofcontents
+- Joining Nomadic on February 25
 
 * Motivation
 ** What?
@@ -382,13 +359,7 @@ Syntax and typing simultaneously
 
   No major difficulty to formalize it in Coq
 
-- A small mistake detected in the specification of =LOOP_LEFT=
-
-  Now fixed but new suspicious line:
-
-#+BEGIN_SRC Coq
-SLICE :: nat : nat : bytes : 'S -> option string : 'S
-#+END_SRC
+- A few small mistakes detected in the specification
 
 ** Evolution
 
