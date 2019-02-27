@@ -221,13 +221,6 @@ Section semantics.
           let (z, SA) := SzA in
           bind (fun r => Return _ (r, SA))
                (update.op _ _ _ x y z)
-      | @REDUCE elt i b _ =>
-        fun SxyzA =>
-          let (x, SyzA) := SxyzA in
-          let (y, SzA) := SyzA in
-          let (z, SA) := SzA in
-          bind (fun r => Return _ (r, SA))
-               (@reduce.op _ i b x y z)
       | ITER_set body =>
         fun SxA =>
           let (x, SA) := SxA in
@@ -251,12 +244,6 @@ Section semantics.
           let (y, SA) := SyA in
           bind (fun r => Return _ (r, SA))
                (get.op _ _ _ x y)
-      | MAP =>
-        fun SxyA =>
-          let (x, SyA) := SxyA in
-          let (y, SA) := SyA in
-          bind (fun r => Return _ (r, SA))
-               (MAP.op _ _ _ x y)
       | MAP_map_body body =>
         fun SxA =>
           let (x, SA) := SxA in
