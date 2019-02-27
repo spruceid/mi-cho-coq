@@ -29,8 +29,8 @@ Section semantics.
          whole point of this instruction (compared to the FAIL macro)
          is to report the argument to the user. *)
 
-      | SEQ I C =>
-        fun SA => bind (eval C n) (eval I n SA)
+      | SEQ B C =>
+        fun SA => bind (eval C n) (eval B n SA)
       | IF_ bt bf =>
         fun SbA =>
           let (b, SA) := SbA in
