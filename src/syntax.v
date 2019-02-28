@@ -856,4 +856,13 @@ Fixpoint stack (t : stack_type) : Set :=
   | cons a A => data a * stack A
   end.
 
+
+Definition full_contract params storage :=
+  instruction ((pair params storage) ::: nil) ((pair (list_ operation) storage) ::: nil).
+
 End syntax.
+
+Notation "A ;; B" := (SEQ A B) (at level 100).
+
+(* For debugging purpose, a version of ;; with explicit stack type *)
+Notation "A ;;; S ;;;; B" := (@SEQ _ S _ A B) (at level 100).
