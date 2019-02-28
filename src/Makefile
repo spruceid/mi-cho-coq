@@ -1,5 +1,5 @@
 
-all: semantics.vo
+all: semantics.vo macros.vo
 
 .depend:
 	coqdep *.v > $@
