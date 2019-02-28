@@ -22,7 +22,10 @@ Section semantics.
     | O => fun SA => Failed _ Out_of_fuel
     | S n =>
       match i in instruction A B return stack A -> M (stack B) with
-      | @FAILWITH A B a x => fun _ => Failed _ (Assertion_Failure (data a) x)
+      | @FAILWITH A B a =>
+        fun xS =>
+          let (x, S) := xS in
+          Failed _ (Assertion_Failure (data a) x)
 
       (* According to the documentation, FAILWITH's argument should
          not be part of the state reached by the instruction but the
