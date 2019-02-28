@@ -715,6 +715,7 @@ Canonical Structure map_list (a : type) :=
          (fun B f l => map.list_map _ _ f l) |}.
 
 Inductive instruction : list type -> list type -> Set :=
+| NOOP {A} : instruction A A
 | FAILWITH {A B a} : data a -> instruction A B
 | SEQ {A B C} : instruction A B -> instruction B C -> instruction A C
 (* The instruction SEQ I C is written "{ I ; C }" in Michelson *)

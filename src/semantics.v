@@ -29,6 +29,7 @@ Section semantics.
          whole point of this instruction (compared to the FAIL macro)
          is to report the argument to the user. *)
 
+      | NOOP => fun SA => Return _ SA
       | SEQ B C =>
         fun SA => bind (eval C n) (eval B n SA)
       | IF_ bt bf =>
