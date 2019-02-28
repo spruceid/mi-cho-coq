@@ -546,7 +546,7 @@ Record node : Set :=
       sha256 : str -> M str;
       sha512 : str -> M str;
       check_signature :
-        data key -> (data signature * String.string) -> M Datatypes.bool
+        data key -> data signature -> String.string -> M Datatypes.bool
     }.
 
 Canonical Structure mem_set (key : comparable_type) :=
@@ -840,7 +840,7 @@ this constructor "IF" but we can make a notation for it. *)
 | BLAKE2B {S} : instruction (bytes ::: S) (bytes ::: S)
 | SHA256 {S} : instruction (bytes ::: S) (bytes ::: S)
 | SHA512 {S} : instruction (bytes ::: S) (bytes ::: S)
-| CHECK_SIGNATURE {S} : instruction (key ::: pair signature string ::: S) (bool ::: S).
+| CHECK_SIGNATURE {S} : instruction (key ::: signature ::: bytes ::: S) (bool ::: S).
 
 (* TODO: add the no-ops CAST and RENAME *)
 

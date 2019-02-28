@@ -440,11 +440,12 @@ Section semantics.
           bind (fun r => Return _ (r, SA))
                (sha512 nd x)
       | CHECK_SIGNATURE =>
-        fun SxyA =>
-          let (x, SyA) := SxyA in
-          let (y, SA) := SyA in
+        fun SxyzA =>
+          let (x, SyzA) := SxyzA in
+          let (y, SzA) := SyzA in
+          let (z, SA) := SzA in
           bind (fun r => Return _ (r, SA))
-               (check_signature nd x y)
+               (check_signature nd x y z)
       end
     end.
 End semantics.
