@@ -784,25 +784,26 @@ this constructor "IF" but we can make a notation for it. *)
     instruction (map elt val :: A) A
 | SOME {a S} : instruction (a :: S) (option_ a :: S)
 | NONE (a : type) {S} : instruction S (option_ a :: S)
-| IF_NONE {a b S} :
-    instruction S (b :: S) -> instruction (a :: S) (b :: S) ->
-    instruction (option_ a :: S) (b :: S)
+(* Not the one documented, see https://gitlab.com/tezos/tezos/issues/471 *)
+| IF_NONE {a A B} :
+    instruction A B -> instruction (a :: A) B ->
+    instruction (option_ a :: A) B
 | LEFT {a} (b : type) {S} : instruction (a :: S) (or a b :: S)
 | RIGHT (a : type) {b S} : instruction (b :: S) (or a b :: S)
-| IF_LEFT {a b c S} :
-    instruction (a :: S) (c :: S) ->
-    instruction (b :: S) (c :: S) ->
-    instruction (or a b :: S) (c :: S)
-| IF_RIGHT {a b c S} :
-    instruction (b :: S) (c :: S) ->
-    instruction (a :: S) (c :: S) ->
-    instruction (or a b :: S) (c :: S)
+| IF_LEFT {a b A B} :
+    instruction (a :: A) B ->
+    instruction (b :: A) B ->
+    instruction (or a b :: A) B
+| IF_RIGHT {a b A B} :
+    instruction (b :: A) B ->
+    instruction (a :: A) B ->
+    instruction (or a b :: A) B
 | CONS {a S} : instruction (a ::: list_ a ::: S) (list_ a :: S)
 | NIL (a : type) {S} : instruction S (list_ a :: S)
-| IF_CONS {a b S} :
-    instruction (a ::: list_ a ::: S) (b :: S) ->
-    instruction S (b :: S) ->
-    instruction (list_ a :: S) (b :: S)
+| IF_CONS {a A B} :
+    instruction (a ::: list_ a ::: A) B ->
+    instruction A B ->
+    instruction (list_ a :: A) B
 | MAP_list_body {elt b A} :
     instruction (elt ::: A) (b ::: A) ->
     instruction (list_ elt ::: A) (list_ b ::: A)
