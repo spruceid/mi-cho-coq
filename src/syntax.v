@@ -862,7 +862,7 @@ Definition full_contract params storage :=
 
 End syntax.
 
-Notation "A ;; B" := (SEQ A B) (at level 100).
+Notation "A ;; B" := (SEQ A B) (at level 100, right associativity).
 
 (* For debugging purpose, a version of ;; with explicit stack type *)
-Notation "A ;;; S ;;;; B" := (@SEQ _ S _ A B) (at level 100).
+Notation "A ;;; S ;;;; B" := (@SEQ _ S _ A B) (at level 100, only parsing).
