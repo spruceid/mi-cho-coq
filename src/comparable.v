@@ -46,6 +46,39 @@ Definition comparison_to_int (c : comparison) :=
   | Eq => 0%Z
   end.
 
+Lemma comparison_to_int_Lt c : comparison_to_int c = (-1)%Z <-> c = Lt.
+Proof.
+  split.
+  - destruct c; simpl.
+    + discriminate.
+    + reflexivity.
+    + discriminate.
+  - intro; subst c.
+    reflexivity.
+Qed.
+
+Lemma comparison_to_int_Gt c : comparison_to_int c = 1%Z <-> c = Gt.
+Proof.
+  split.
+  - destruct c; simpl.
+    + discriminate.
+    + discriminate.
+    + reflexivity.
+  - intro; subst c.
+    reflexivity.
+Qed.
+
+Lemma comparison_to_int_Eq c : comparison_to_int c = 0%Z <-> c = Eq.
+Proof.
+  split.
+  - destruct c; simpl.
+    + reflexivity.
+    + discriminate.
+    + discriminate.
+  - intro; subst c.
+    reflexivity.
+Qed.
+
 Definition bool_compare (b1 b2 : Datatypes.bool) : comparison :=
   match b1, b2 with
   | false, false => Eq
