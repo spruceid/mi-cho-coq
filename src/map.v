@@ -363,6 +363,9 @@ Section map.
         intuition.
   Qed.
 
+  Definition size (m : map) : nat :=
+    let (l, _) := m in List.length l.
+
 End map.
 
 Fixpoint list_map (B B' : Set) (f : B -> M B') (l : list B) : M (list B') :=

@@ -214,7 +214,7 @@ Section definition.
     assumption.
   Qed.
 
-  Definition update (x : A) (s : set) (b : bool) : set :=
+  Definition update (x : A) (b : bool) (s : set) : set :=
     if b then insert x s else remove x s.
 
   Fixpoint list_reduce (B : Set) (f : (A * B) -> M B) (b : B) (l : list A) : M B :=
@@ -235,5 +235,8 @@ Section definition.
   Next Obligation.
     inversion H; assumption.
   Defined.
+
+  Definition size (s : set) : nat :=
+    let (l, _) := s in List.length l.
 
 End definition.

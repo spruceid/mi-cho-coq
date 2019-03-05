@@ -6,26 +6,7 @@ Require String.
 Require Import ListSet.
 Require tez.
 Require Relations_1.
-
-Definition str := String.string.
-Inductive timestamp_constant : Set := Mk_timestamp : str -> timestamp_constant.
-Inductive signature_constant : Set := Mk_sig : str -> signature_constant.
-Inductive key_constant : Set := Mk_key : str -> key_constant.
-Inductive key_hash_constant : Set := Mk_key_hash : str -> key_hash_constant.
-Inductive tez_constant : Set := Mk_tez : str -> tez_constant.
-Inductive contract_constant : Set := Mk_contract : str -> contract_constant.
-Inductive address_constant : Set := Mk_address : str -> address_constant.
-Inductive operation_constant : Set := Mk_operation : str -> operation_constant.
-
-Inductive comparable_type : Set :=
-| string
-| nat
-| int
-| bytes
-| bool
-| mutez
-| key_hash
-| timestamp.
+Require Import syntax.
 
 Definition comparable_data (a : comparable_type) : Set :=
   match a with
@@ -280,7 +261,7 @@ Definition compare (a : comparable_type) : comparable_data a -> comparable_data 
 Definition lt (a : comparable_type) (x y : comparable_data a) : Prop :=
   compare a x y = Lt.
 
-Lemma lt_trans (a : comparable_type) : Relations_1.Transitive _ (lt a).
+Lemma lt_trans (a : comparable_type) : Relations_1.Transitive (lt a).
 Proof.
   unfold lt.
   destruct a; simpl; intros x y z.
@@ -298,7 +279,7 @@ Qed.
 Definition gt (a : comparable_type) (x y : comparable_data a) : Prop :=
   compare a x y = Gt.
 
-Lemma gt_trans (a : comparable_type) : Relations_1.Transitive _ (gt a).
+Lemma gt_trans (a : comparable_type) : Relations_1.Transitive (gt a).
 Proof.
   unfold gt.
   destruct a; simpl; intros x y z.
