@@ -655,5 +655,409 @@ Section semantics.
       apply eval_deterministic_le; assumption.
   Qed.
 
+  Definition eval_precond_body
+             (eval_precond_n : forall {A B}, instruction A B -> (stack B -> Prop) -> stack A -> Prop)
+             A B
+             (i : instruction A B) :
+    (stack B -> Prop) -> (stack A -> Prop) :=
+    match i with
+    | FAILWITH => fun _ _ => false
+    | NOOP => fun psi st => psi st
+    | SEQ B C => fun psi =>
+                   eval_precond_n B (eval_precond_n C psi)
+    | IF_ bt bf =>
+      fun psi '(b, SA) => if b then eval_precond_n bt psi SA
+                          else eval_precond_n bf psi SA
+    | LOOP body =>
+      fun psi '(b, SA) => if b then eval_precond_n (body;; (LOOP body)) psi SA
+                          else psi SA
+    | LOOP_LEFT body =>
+      fun psi '(ab, SA) =>
+        match ab with
+        | inl x => eval_precond_n (body;; LOOP_LEFT body) psi (x, SA)
+        | inr y => psi (y, SA)
+        end
+    | DIP i =>
+      fun psi '(y, SA) => eval_precond_n i (fun SB => psi (y, SB)) SA
+    | EXEC =>
+      fun psi '(x, (f, SA)) =>
+        eval_precond_n f (fun '(y, tt) => psi (y, SA)) (x, tt)
+    | DROP => fun psi '(_, SA) => psi SA
+    | DUP => fun psi '(x, SA) => psi (x, (x, SA))
+    | SWAP => fun psi '(x, (y, SA)) => psi (y, (x, SA))
+    | PUSH a x => fun psi SA => psi (concrete_data_to_data _ x, SA)
+    | UNIT => fun psi SA => psi (tt, SA)
+    | LAMBDA a b code => fun psi SA => psi (code, SA)
+    | EQ => fun psi '(x, SA) => psi ((x =? 0)%Z, SA)
+    | NEQ => fun psi '(x, SA) => psi (negb (x =? 0)%Z, SA)
+    | LT => fun psi '(x, SA) => psi ((x <? 0)%Z, SA)
+    | GT => fun psi '(x, SA) => psi ((x >? 0)%Z, SA)
+    | LE => fun psi '(x, SA) => psi ((x <=? 0)%Z, SA)
+    | GE => fun psi '(x, SA) => psi ((x >=? 0)%Z, SA)
+    | @OR _ _ s =>
+      fun psi '(x, (y, SA)) => psi (or_fun _ (bitwise_variant_field _ s) x y, SA)
+    | @AND _ _ s =>
+      fun psi '(x, (y, SA)) => psi (and _ (bitwise_variant_field _ s) x y, SA)
+    | @XOR _ _ s =>
+      fun psi '(x, (y, SA)) => psi (xor _ (bitwise_variant_field _ s) x y, SA)
+    | @NOT _ _ s =>
+      fun psi '(x, SA) => psi (not _ _ (not_variant_field _ s) x, SA)
+    | @NEG _ _ s =>
+      fun psi '(x, SA) => psi (neg _ (neg_variant_field _ s) x, SA)
+    | ABS => fun psi '(x, SA) => psi (Z.abs_N x, SA)
+    | @ADD _ _ _ s =>
+      fun psi '(x, (y, SA)) =>
+        precond (add _ _ _ (add_variant_field _ _ s) x y) (fun z => psi (z, SA))
+    | @SUB _ _ _ s =>
+      fun psi '(x, (y, SA)) =>
+        precond (sub _ _ _ (sub_variant_field _ _ s) x y) (fun z => psi (z, SA))
+    | @MUL _ _ _ s =>
+      fun psi '(x, (y, SA)) =>
+        precond (mul _ _ _ (mul_variant_field _ _ s) x y) (fun z => psi (z, SA))
+    | @EDIV _ _ _ s =>
+      fun psi '(x, (y, SA)) =>
+        psi (ediv _ _ _ _ (ediv_variant_field _ _ s) x y, SA)
+    | LSL => fun psi '(x, (y, SA)) => psi (N.shiftl x y, SA)
+    | LSR => fun psi '(x, (y, SA)) => psi (N.shiftr x y, SA)
+    | COMPARE =>
+      fun psi '(x, (y, SA)) => psi (comparison_to_int (compare _ x y), SA)
+    | @CONCAT _ _ s =>
+      fun psi '(x, (y, SA)) =>
+        psi (concat _ (stringlike_variant_field _ s) x y, SA)
+    | @SLICE _ _ i =>
+      fun psi '(n1, (n2, (s, SA))) =>
+        psi (slice _ (stringlike_variant_field _ i) n1 n2 s, SA)
+    | PAIR => fun psi '(x, (y, SA)) => psi ((x, y), SA)
+    | CAR => fun psi '((x, y), SA) => psi (x, SA)
+    | CDR => fun psi '((x, y), SA) => psi (y, SA)
+    | EMPTY_SET a => fun psi SA => psi (set.empty _ (compare a), SA)
+    | @MEM _ _ _ s =>
+      fun psi '(x, (y, SA)) =>
+        psi (mem _ _ (mem_variant_field _ _ s) x y, SA)
+    | @UPDATE _ _ _ _ s =>
+      fun psi '(x, (y, (z, SA))) =>
+        psi (update _ _ _ (update_variant_field _ _ _ s) x y z, SA)
+    | @ITER _ _ s _ body =>
+      fun psi '(x, SA) =>
+        match iter_destruct _ _ (iter_variant_field _ s) x with
+        | None => psi SA
+        | Some (a, y) =>
+          eval_precond_n body
+                       (fun SB => eval_precond_n (ITER body) psi (y, SB))
+                       (a, SA)
+        end
+    | @SIZE _ _ s =>
+      fun psi '(x, SA) => psi (N.of_nat (size _ (size_variant_field _ s) x), SA)
+    | EMPTY_MAP k val =>
+      fun psi SA => psi (map.empty (comparable_data k) (data val) _, SA)
+    | @GET _ _ _ s =>
+      fun psi '(x, (y, SA)) => psi (get _ _ _ (get_variant_field _ _ s) x y, SA)
+    | @MAP _ _ _ s _ body =>
+      let v := (map_variant_field _ _ s) in
+      fun psi '(x, SA) =>
+        match map_destruct _ _ _ _ v x with
+        | None => psi (map_empty _ _ _ _ v, SA)
+        | Some (a, y) =>
+          eval_precond_n body
+            (fun '(b, SB) =>
+               eval_precond_n (MAP body)
+                 (fun '(c, SC) => psi (map_insert _ _ _ _ v a b c, SC))
+                 (y, SB))
+            (a, SA)
+        end
+    | SOME => fun psi '(x, SA) => psi (Some x, SA)
+    | NONE _ => fun psi SA => psi (None, SA)
+    | IF_NONE bt bf =>
+      fun psi '(b, SA) =>
+        match b with
+        | None => eval_precond_n bt psi SA
+        | Some b => eval_precond_n bf psi (b, SA)
+        end
+    | LEFT _ => fun psi '(x, SA) => psi (inl x, SA)
+    | RIGHT _ => fun psi '(x, SA) => psi (inr x, SA)
+    | IF_LEFT bt bf =>
+      fun psi '(b, SA) =>
+        match b with
+        | inl a => eval_precond_n bt psi (a, SA)
+        | inr b => eval_precond_n bf psi (b, SA)
+        end
+    | IF_RIGHT bt bf =>
+      fun psi '(b, SA) =>
+        match b with
+        | inl a => eval_precond_n bf psi (a, SA)
+        | inr b => eval_precond_n bt psi (b, SA)
+        end
+    | CONS => fun psi '(x, (y, SA)) => psi (cons x y, SA)
+    | NIL _ => fun psi SA => psi (nil, SA)
+    | IF_CONS bt bf =>
+      fun psi '(l, SA) =>
+        match l with
+        | cons a b => eval_precond_n bt psi (a, (b, SA))
+        | nil => eval_precond_n bf psi SA
+        end
+    | CREATE_CONTRACT =>
+      fun psi '(a, (b, (c, (d, (e, (f, (g, SA))))))) =>
+        precond_ex (create_contract nd _ _ a b c d e f g)
+                   (fun '(oper, addr) => psi (oper, (addr, SA)))
+    | CREATE_CONTRACT_literal _ _ f =>
+      fun psi '(a, (b, (c, (d, (e, (g, SA)))))) =>
+        precond_ex (create_contract nd _ _ a b c d e f g)
+                   (fun '(oper, addr) => psi (oper, (addr, SA)))
+    | CREATE_ACCOUNT =>
+      fun psi '(a, (b, (c, (d, SA)))) =>
+        precond_ex (create_account nd a b c d)
+                   (fun '(oper, contr) => psi (oper, (contr, SA)))
+    | TRANSFER_TOKENS =>
+      fun psi '(a, (b, (c, SA))) =>
+        precond_ex (transfer_tokens nd _ a b c)
+                   (fun oper => psi (oper, SA))
+    | SET_DELEGATE =>
+      fun psi '(x, SA) =>
+        precond_ex (set_delegate nd x) (fun oper => psi (oper, SA))
+    | BALANCE =>
+      fun psi SA => precond_ex (balance nd) (fun r => psi (r, SA))
+    | ADDRESS =>
+      fun psi '(x, SA) => precond_ex (address_ nd _ x) (fun r => psi (r, SA))
+    | CONTRACT _ =>
+      fun psi '(x, SA) => precond_ex (contract_ nd _ x) (fun r => psi (r, SA))
+    | SOURCE => fun psi SA => precond_ex (source nd) (fun r => psi (r, SA))
+    | SENDER => fun psi SA => precond_ex (sender nd) (fun r => psi (r, SA))
+    | SELF => fun psi SA => precond_ex (self nd _) (fun r => psi (r, SA))
+    | AMOUNT => fun psi SA => precond_ex (amount nd) (fun r => psi (r, SA))
+    | IMPLICIT_ACCOUNT =>
+      fun psi '(x, SA) => precond_ex (implicit_account nd x) (fun r => psi (r, SA))
+    | STEPS_TO_QUOTA =>
+      fun psi SA => precond_ex (steps_to_quota nd) (fun r => psi (r, SA))
+    | NOW => fun psi SA => precond_ex (now nd) (fun r => psi (r, SA))
+    | PACK => fun psi '(x, SA) => precond_ex (pack nd _ x) (fun r => psi (r, SA))
+    | UNPACK =>
+      fun psi '(x, SA) => precond_ex (unpack nd _ x) (fun r => psi (r, SA))
+    | HASH_KEY =>
+      fun psi '(x, SA) => precond_ex (hash_key nd x) (fun r => psi (r, SA))
+    | BLAKE2B =>
+      fun psi '(x, SA) => precond_ex (blake2b nd x) (fun r => psi (r, SA))
+    | SHA256 => fun psi '(x, SA) => precond_ex (sha256 nd x) (fun r => psi (r, SA))
+    | SHA512 => fun psi '(x, SA) => precond_ex (sha512 nd x) (fun r => psi (r, SA))
+    | CHECK_SIGNATURE =>
+      fun psi '(x, (y, (z, SA))) =>
+        precond_ex (check_signature nd x y z) (fun r => psi (r, SA))
+    end.
+
+  Fixpoint eval_precond (fuel : Datatypes.nat) :
+    forall {A B},
+      instruction A B ->
+      (stack B -> Prop) -> (stack A -> Prop) :=
+    match fuel with
+    | O => fun _ _ _ _ _ => false
+    | S n =>
+      eval_precond_body (@eval_precond n)
+    end.
+
+  Lemma eval_precond_correct {A B} (i : instruction A B) n st psi :
+    precond (eval i n st) psi <-> eval_precond n i psi st.
+  Proof.
+    generalize A B i st psi; clear A B i st psi.
+    induction n; intros A B i st psi; [simpl; intuition|].
+    destruct i; simpl; fold data stack.
+    - reflexivity.
+    - destruct st; reflexivity.
+    - rewrite precond_bind.
+      rewrite <- IHn.
+      apply precond_eqv.
+      intro SB.
+      apply IHn.
+    - destruct st as ([|], st); auto.
+    - destruct st as ([|], st).
+      + apply IHn.
+      + simpl. reflexivity.
+    - destruct st as ([|], st); simpl.
+      + apply (IHn _ _ (i;; LOOP_LEFT i)).
+      + reflexivity.
+    - destruct st as (y, st).
+      rewrite precond_bind.
+      apply IHn.
+    - destruct st as (x, (f, st)).
+      rewrite precond_bind.
+      rewrite <- (IHn _ _ f (x, tt) (fun '(y, tt) => psi (y, st))).
+      apply precond_eqv.
+      intros (y, []).
+      simpl.
+      reflexivity.
+    - destruct st; reflexivity.
+    - destruct st; reflexivity.
+    - destruct st as (x, (y, st)); reflexivity.
+    - reflexivity.
+    - reflexivity.
+    - reflexivity.
+    - destruct st; reflexivity.
+    - destruct st; reflexivity.
+    - destruct st; reflexivity.
+    - destruct st; reflexivity.
+    - destruct st; reflexivity.
+    - destruct st; reflexivity.
+    - destruct st as (x, (y, st)); reflexivity.
+    - destruct st as (x, (y, st)); reflexivity.
+    - destruct st as (x, (y, st)); reflexivity.
+    - destruct st; reflexivity.
+    - destruct st; reflexivity.
+    - destruct st; reflexivity.
+    - destruct st as (x, (y, st)); rewrite precond_bind; reflexivity.
+    - destruct st as (x, (y, st)); rewrite precond_bind; reflexivity.
+    - destruct st as (x, (y, st)); rewrite precond_bind; reflexivity.
+    - destruct st as (x, (y, st)); reflexivity.
+    - destruct st as (x, (y, st)); reflexivity.
+    - destruct st as (x, (y, st)); reflexivity.
+    - destruct st as (x, (y, st)); reflexivity.
+    - destruct st as (x, (y, st)); reflexivity.
+    - destruct st; reflexivity.
+    - destruct st as (x, (y, (z, st))); reflexivity.
+    - destruct st as (x, (y, st)); reflexivity.
+    - destruct st as ((x, y), st); reflexivity.
+    - destruct st as ((x, y), st); reflexivity.
+    - reflexivity.
+    - destruct st as (x, (y, st)); reflexivity.
+    - destruct st as (x, (y, (z, st))); reflexivity.
+    - destruct st as (x, st).
+      destruct (iter_destruct (iter_elt_type collection i) collection
+                              (iter_variant_field collection i) x) as [(hd, tl)|].
+      + rewrite precond_bind.
+        rewrite <- IHn.
+        apply precond_eqv.
+        intro SA.
+        apply IHn.
+      + reflexivity.
+    - reflexivity.
+    - destruct st as (x, (y, st)); reflexivity.
+    - destruct st as (x, st).
+      destruct (map_destruct (map_in_type collection b i) b collection
+                             (map_out_collection_type collection b i)
+                             (map_variant_field collection b i) x) as [(hd, tl)|].
+      + rewrite precond_bind.
+        rewrite <- IHn.
+        apply precond_eqv.
+        intros (bb, SA).
+        rewrite precond_bind.
+        rewrite <- IHn.
+        apply precond_eqv.
+        intros (c, B).
+        reflexivity.
+      + reflexivity.
+    - destruct st; reflexivity.
+    - reflexivity.
+    - destruct st as ([|], st); apply IHn.
+    - destruct st; reflexivity.
+    - destruct st; reflexivity.
+    - destruct st as ([|], st); apply IHn.
+    - destruct st as ([|], st); apply IHn.
+    - destruct st as (x, (y, st)); reflexivity.
+    - reflexivity.
+    - destruct st as ([|], st); apply IHn.
+    - destruct st as (a, (b, (c, (d, (e, (f, (g0, SA))))))).
+      rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      intros (x, y).
+      reflexivity.
+    - destruct st as (a, (b, (c, (d, (e, (g0, SA)))))).
+      rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      intros (x, y).
+      reflexivity.
+    - destruct st as (a, (b, (c, (d, SA)))).
+      rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      intros (x, y).
+      reflexivity.
+    - destruct st as (a, (b, (c, SA))).
+      rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - destruct st as (a, SA).
+      rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - destruct st as (a, SA).
+      rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - destruct st as (a, SA).
+      rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - destruct st as (a, SA).
+      rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - destruct st as (x, SA).
+      rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - destruct st as (x, SA).
+      rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - destruct st as (x, SA).
+      rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - destruct st as (x, SA).
+      rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - destruct st as (x, SA).
+      rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - destruct st as (x, SA).
+      rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+    - destruct st as (a, (b, (c, SA))).
+      rewrite precond_bind.
+      rewrite <- precond_exists.
+      apply precond_eqv.
+      reflexivity.
+  Qed.
 
 End semantics.
