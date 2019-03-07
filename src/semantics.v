@@ -532,4 +532,128 @@ Section semantics.
           bind (fun r => Return _ (r, SA)) (check_signature nd x y z)
       end
     end.
+
+  (* The evaluator does not depend on the amount of fuel provided *)
+  Lemma eval_deterministic_le :
+    forall fuel1 fuel2,
+      fuel1 <= fuel2 ->
+      forall {A B} (i : instruction A B) st,
+        success (eval i fuel1 st) ->
+        eval i fuel1 st = eval i fuel2 st.
+  Proof.
+    induction fuel1; intros fuel2 Hle A B i st Hsucc.
+    - apply not_false in Hsucc.
+      contradiction.
+    - destruct fuel2.
+      + inversion Hle.
+      + apply le_S_n in Hle.
+        specialize (IHfuel1 fuel2 Hle).
+        simpl.
+        destruct i; try reflexivity.
+        * simpl in Hsucc.
+          destruct (success_bind _ _ Hsucc) as (x, (H1, H2)).
+          rewrite <- IHfuel1.
+          -- rewrite H1.
+             simpl.
+             apply IHfuel1.
+             assumption.
+          -- apply success_eq_return in H1.
+             exact H1.
+        * destruct st as ([], st); rewrite IHfuel1; try assumption; reflexivity.
+        * destruct st as ([], st).
+          -- rewrite IHfuel1; try assumption; reflexivity.
+          -- reflexivity.
+        * destruct st as ([x|y], st).
+          -- rewrite IHfuel1; try assumption; reflexivity.
+          -- reflexivity.
+        * destruct st; rewrite IHfuel1.
+          -- reflexivity.
+          -- simpl in Hsucc.
+             destruct (success_bind _ _ Hsucc) as (x, (H1, H2)).
+             apply success_eq_return in H1.
+             exact H1.
+        * destruct st as (x, (f, SA)).
+          f_equal.
+          rewrite IHfuel1.
+          -- reflexivity.
+          -- simpl in Hsucc.
+             apply success_bind_arg in Hsucc.
+             assumption.
+        * destruct st as (x, SA).
+          generalize Hsucc; clear Hsucc.
+          simpl.
+          destruct (iter_destruct (iter_elt_type collection i) collection
+                                  (iter_variant_field collection i) x).
+          -- destruct d.
+             fold stack.
+             intro Hsucc.
+             rewrite <- IHfuel1.
+             ++ destruct (success_bind _ _ Hsucc) as (SB, (Ha, Hb)).
+                rewrite Ha.
+                simpl.
+                apply IHfuel1.
+                assumption.
+             ++ apply success_bind_arg in Hsucc.
+                assumption.
+          -- reflexivity.
+        * destruct st as (x, SA).
+          generalize Hsucc; clear Hsucc.
+          simpl.
+          fold stack.
+          destruct (map_destruct (map_in_type collection b i)
+                                 b
+                                 collection
+                                 (map_out_collection_type collection b i)
+                                 (map_variant_field collection b i) x).
+          -- destruct d.
+             intro Hsucc.
+             rewrite <- IHfuel1.
+             ++ destruct (success_bind _ _ Hsucc) as ((c, SC), (Ha, Hb)).
+                destruct (success_bind _ _ Hb) as ((dd, SD), (Hm, _)).
+                rewrite Ha.
+                simpl.
+                rewrite <- IHfuel1.
+                ** reflexivity.
+                ** rewrite Hm.
+                   constructor.
+             ++ apply success_bind_arg in Hsucc.
+                assumption.
+          -- reflexivity.
+        * destruct st as ([|], SA); rewrite IHfuel1.
+          -- reflexivity.
+          -- exact Hsucc.
+          -- reflexivity.
+          -- exact Hsucc.
+        * destruct st as ([|], SA); rewrite IHfuel1.
+          -- reflexivity.
+          -- exact Hsucc.
+          -- reflexivity.
+          -- exact Hsucc.
+        * destruct st as ([|], SA); rewrite IHfuel1.
+          -- reflexivity.
+          -- exact Hsucc.
+          -- reflexivity.
+          -- exact Hsucc.
+        * destruct st as ([|], SA); rewrite IHfuel1.
+          -- reflexivity.
+          -- exact Hsucc.
+          -- reflexivity.
+          -- exact Hsucc.
+  Qed.
+
+  Lemma eval_deterministic_success_both fuel1 fuel2 {A B} (i : instruction A B) S :
+    success (eval i fuel1 S) ->
+    success (eval i fuel2 S) ->
+    eval i fuel1 S = eval i fuel2 S.
+  Proof.
+    case (le_ge_dec fuel1 fuel2).
+    - intros Hle Hsucc _.
+      apply eval_deterministic_le; assumption.
+    - unfold ge.
+      intros Hle _ Hsucc.
+      symmetry.
+      apply eval_deterministic_le; assumption.
+  Qed.
+
+
 End semantics.
