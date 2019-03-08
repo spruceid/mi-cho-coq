@@ -69,9 +69,7 @@ Section semantics.
         sha256 : data bytes -> data bytes;
         sha512 : data bytes -> data bytes;
         check_signature :
-          data key -> data signature -> data bytes -> data bool;
-        read_contract_constant a : forall cst : contract_constant,
-            get_contract_type cst = Return _ a -> data (contract a)
+          data key -> data signature -> data bytes -> data bool
       }.
 
   Variable nd : node.
