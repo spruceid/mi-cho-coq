@@ -126,25 +126,23 @@ Definition multisig_spec
     pack nd pack_ty
          (self_address, (counter, action)) = Return _ packed /\
     counter = stored_counter /\
-    length first_sigs = length keys /\
     sigs = (first_sigs ++ remaining_sigs)%list /\
+    length first_sigs = length keys /\
     check_all_signatures first_sigs keys
                          (fun k sig => check_signature nd k sig packed) /\
-    (threshold <= count_signatures first_sigs)%N /\
+    (count_signatures first_sigs >= threshold)%N /\
+    new_stored_counter = (1 + stored_counter)%N /\
     match action with
     | inl (amout, contr) =>
       exists oper, transfer_tokens nd unit tt amout contr = Return _ oper /\
-                   new_stored_counter = (1 + stored_counter)%N /\
                    new_threshold = threshold /\
                    new_keys = keys /\
                    returned_operations = (oper :: nil)%list
     | inr (inl kh) => exists oper, set_delegate nd kh = Return _ oper /\
-                                   new_stored_counter = (1 + stored_counter)%N /\
                                    new_threshold = threshold /\
                                    new_keys = keys /\
                                    returned_operations = (oper :: nil)%list
-    | inr (inr (nt, nks)) => new_stored_counter = (1 + stored_counter)%N /\
-                             new_threshold = nt /\
+    | inr (inr (nt, nks)) => new_threshold = nt /\
                              new_keys = nks /\
                              returned_operations = nil
     end.
@@ -155,6 +153,11 @@ Lemma forall_ex {A : Set} {phi psi : A -> Prop} :
 Proof.
   intro Hall.
   split; intros (x, Hx); exists x; specialize (Hall x); intuition.
+Qed.
+
+Lemma and_comm_3 {A B C} : A /\ (B /\ C) <-> B /\ (A /\ C).
+Proof.
+  tauto.
 Qed.
 
 Lemma ex_and_comm {A : Set} {P : Prop} {Q : A -> Prop} :
@@ -742,6 +745,7 @@ Proof.
     rewrite multisig_iter_correct.
     apply forall_ex; intro first_sigs.
     apply forall_ex; intro remaining_sigs.
+    rewrite and_comm_3.
     apply and_both.
     apply and_both.
     apply and_both.
@@ -749,34 +753,35 @@ Proof.
     rewrite <- eval_precond_correct.
     rewrite multisig_tail_correct.
     rewrite N.add_0_r.
+    rewrite N.ge_le_iff.
     apply and_both.
     destruct action as [(amount, contr)|[delegate_key_hash|(new_t, new_k)]].
-    + apply forall_ex; intro oper.
-      apply and_both.
+    + rewrite ex_and_comm.
+      apply forall_ex; intro oper.
       split.
-      * intro H.
+      * intros (Htransfer, H).
         injection H.
         intro; subst keys.
         intro; subst threshold.
         intro; subst new_stored_counter.
         intro; subst returned_operations.
         intuition reflexivity.
-      * intros (Hcounter, (Hthreshold, (Hkeys, Hoper))).
+      * intros (Hcounter, (Htransfer, (Hthreshold, (Hkeys, Hoper)))).
         subst new_stored_counter; subst keys; subst threshold; subst returned_operations.
-        reflexivity.
-    + apply forall_ex; intro oper.
-      apply and_both.
+        split; [assumption | reflexivity].
+    + rewrite ex_and_comm.
+      apply forall_ex; intro oper.
       split.
-      * intro H.
+      * intros (Hdelegate, H).
         injection H.
         intro; subst keys.
         intro; subst threshold.
         intro; subst new_stored_counter.
         intro; subst returned_operations.
         intuition reflexivity.
-      * intros (Hcounter, (Hthreshold, (Hkeys, Hoper))).
+      * intros (Hcounter, (Hdelegat, (Hthreshold, (Hkeys, Hoper)))).
         subst new_stored_counter; subst keys; subst threshold; subst returned_operations.
-        reflexivity.
+        split; [assumption | reflexivity].
     + split.
       * intro H.
         injection H.
