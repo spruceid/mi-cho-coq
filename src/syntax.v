@@ -440,9 +440,7 @@ concrete_data : type -> Set :=
 | Right {a b : type} : concrete_data b -> concrete_data (or a b)
 | Some_ {a : type} : concrete_data a -> concrete_data (option_ a)
 | None_ {a : type} : concrete_data (option_ a)
-
-(* Commented because not documented *)
-(* | Concrete_list {a} : Datatypes.list (concrete_data a) -> concrete_data (list_ a) *)
+| Concrete_list {a} : Datatypes.list (concrete_data a) -> concrete_data (list_ a)
 | Concrete_set {a : comparable_type} :
     Datatypes.list (concrete_data a) -> concrete_data (set_ a)
 | Concrete_map {a : comparable_type} {b} :

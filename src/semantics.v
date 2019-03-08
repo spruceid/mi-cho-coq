@@ -104,6 +104,7 @@ Section semantics.
     | Right b => inr (concrete_data_to_data _ b)
     | Some_ a => Some (concrete_data_to_data _ a)
     | None_ => None
+    | Concrete_list l => List.map (concrete_data_to_data _) l
     | @Concrete_set _ a l =>
       (fix concrete_data_set_to_data (l : list (concrete_data a)) :=
          match l with
