@@ -207,6 +207,21 @@ definition of the syntax of instructions; this is why they appear in
 file [[./src/syntax.v]].
 
 
+* TODO
+
+- Rename node into environment
+- Env functions cannot fail
+- Play with code extraction
+- Define an extension of Michelson where loops are annotated with invariants
+- check OCaml implem against the documentation
+- turn the type of operations into a Coq inductive
+
+  To do this we need to implement the syntactic restriction over the
+  types allowed for the storage to break the mutual dependency between
+  this new inductive and the "semantics.data" function because the
+  Create_contract operation requires an argument of type data
+  storage_ty.
+
 * Possible mistakes in Michelson specification
 
 - An empty sequence of instructions is used in some macros but only
