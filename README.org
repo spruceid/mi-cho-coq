@@ -224,37 +224,12 @@ file [[./src/syntax.v]].
 
 * Possible mistakes in Michelson specification
 
-- An empty sequence of instructions is used in some macros but only
-  the binary case is documented.
-- On the documentation of type annotations, =SOME t:= should be =SOME :t=
-- =CONTRACT :: address : 'S   ->   contract 'p : 'S=: should return an =option (contract 'p)=
-- =SLICE: Bytes access :: nat : nat : bytes : 'S -> option string : 'S=: should return an =option bytes=
 - Full Grammar:
-  + =EMPTY_SET <type>= should be =EMPTY_SET <comparable_type>=
-  + =FAILWITH= should be =FAILWITH <data>=
-  + =DIV= and =MOD= should be =EDIV=
+  + =FAILWITH <data>= should be =FAILWITH=
   + the =INT= instruction is undocumented
-  + the following instructions are missing:
-    * =SIZE=
-    * =SLICE=
-    * =IF_RIGHT { <instruction> ... } { <instruction> ... }=
-    * =CREATE_CONTRACT { <instruction> ... }=
-    * =ADDRESS=
-    * =CONTRACT <type>=
-    * =PACK=
-    * =UNPACK=
-    * =SHA256=
-    * =SHA512=
-  + the =address= type is missing
-  + the =bytes= comparable type is missing
-  + the =tez= comparable type should be =mutez=
-
-
-* New possible mistakes
 
 - NOOP should be documented
-- FAILWITH takes it arguments on the stack (error in the grammar)
-- ASSERT_NONE is ill-typed
+- The type of the IF_... instruction is erroneous
 - Typo : "these are macros are simply"
 - The IF_SOME macro is semantically defined instead of syntactically
-- No syntax is provided for concrete syntax for lists
+
