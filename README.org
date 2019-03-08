@@ -222,6 +222,10 @@ file [[./src/syntax.v]].
   Create_contract operation requires an argument of type data
   storage_ty.
 
+- replace section variables by functors
+
+- Put notations in their own notation scope
+
 * Possible mistakes in Michelson specification
 
 - Full Grammar:
