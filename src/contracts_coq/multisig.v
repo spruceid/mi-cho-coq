@@ -87,16 +87,13 @@ Definition multisig : full_contract parameter_ty storage_ty :=
 
 Fixpoint check_all_signatures (sigs : list (option (data signature)))
          (keys : list (data key))
-         (check_sig : data key -> data signature -> M Datatypes.bool) {struct keys} :=
+         (check_sig : data key -> data signature -> data bool) {struct keys} :=
   match sigs, keys with
   | nil, nil => true
   | nil, cons _ _ => false
   | cons _ _, nil => true
   | cons (Some sig) sigs, cons k keys =>
-    match check_sig k sig with
-    | Failed _ _ => false
-    | Return _ b => andb b (check_all_signatures sigs keys check_sig)
-    end
+    andb (check_sig k sig) (check_all_signatures sigs keys check_sig)
   | cons None sigs, cons _ keys =>
     check_all_signatures sigs keys check_sig
   end.
@@ -122,30 +119,32 @@ Definition multisig_spec
            (returned_operations : list (data operation)) :=
   let params : data parameter_ty := ((counter, action), sigs) in
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
-  exists self_address packed first_sigs remaining_sigs,
-    address_ nd parameter_ty (self nd) = Return _ self_address /\
-    pack nd pack_ty
-         (self_address, (counter, action)) = Return _ packed /\
-    counter = stored_counter /\
+  counter = stored_counter /\
+  exists first_sigs remaining_sigs,
     sigs = (first_sigs ++ remaining_sigs)%list /\
     length first_sigs = length keys /\
-    check_all_signatures first_sigs keys
-                         (fun k sig => check_signature nd k sig packed) /\
+    check_all_signatures
+      first_sigs keys
+      (fun k sig =>
+         check_signature
+           nd k sig
+           (pack nd pack_ty (address_ nd parameter_ty (self nd),
+                             (counter, action)))) /\
     (count_signatures first_sigs >= threshold)%N /\
     new_stored_counter = (1 + stored_counter)%N /\
     match action with
     | inl (amout, contr) =>
-      exists oper, transfer_tokens nd unit tt amout contr = Return _ oper /\
-                   new_threshold = threshold /\
-                   new_keys = keys /\
-                   returned_operations = (oper :: nil)%list
-    | inr (inl kh) => exists oper, set_delegate nd kh = Return _ oper /\
-                                   new_threshold = threshold /\
-                                   new_keys = keys /\
-                                   returned_operations = (oper :: nil)%list
-    | inr (inr (nt, nks)) => new_threshold = nt /\
-                             new_keys = nks /\
-                             returned_operations = nil
+      new_threshold = threshold /\
+      new_keys = keys /\
+      returned_operations = (transfer_tokens nd unit tt amout contr :: nil)%list
+    | inr (inl kh) =>
+      new_threshold = threshold /\
+      new_keys = keys /\
+      returned_operations = (set_delegate nd kh :: nil)%list
+    | inr (inr (nt, nks)) =>
+      new_threshold = nt /\
+      new_keys = nks /\
+      returned_operations = nil
     end.
 
 
@@ -208,24 +207,11 @@ Proof.
   - apply ex_and_comm2.
 Qed.
 
-Lemma and_both_eq {X A B : Set} {P : Prop} {Q : X -> X -> Prop} {R : X -> X -> A -> B -> Prop} {x y : X}:
-  (Q x x <-> exists (a : A) (b : B), R x x a b) ->
-  ((x = y /\ Q x y) <-> (exists a b, x = y /\ R x y a b)).
+Lemma and_both_2 (P Q R : Prop):
+  (P -> (Q <-> R)) ->
+  ((P /\ Q) <-> (P /\ R)).
 Proof.
-  intro H1.
-  split.
-  - intros (He, H2); subst x.
-    apply H1 in H2.
-    destruct H2 as (a, (b, H2)).
-    exists a; exists b.
-    split; [reflexivity|exact H2].
-  - intros (a, (b, (He, H2))).
-    subst x.
-    split; [reflexivity|].
-    apply H1.
-    exists a.
-    exists b.
-    exact H2.
+  intuition.
 Qed.
 
 Lemma and_left {P Q R : Prop} : P -> (Q <-> R) -> ((P /\ Q) <-> R).
@@ -330,12 +316,16 @@ Definition multisig_head_spec
   :=
   let params : data parameter_ty := ((counter, action), sigs) in
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
-  exists self_address packed,
-    address_ nd parameter_ty (self nd) = Return _ self_address /\
-    pack nd pack_ty
-         (self_address, (counter, action)) = Return _ packed /\
-    counter = stored_counter /\
-    precond (eval then_ fuel (threshold, (keys, (sigs, (packed, (action, (storage, tt))))))) psi.
+  counter = stored_counter /\
+  precond
+    (eval
+       then_ fuel
+       (threshold,
+        (keys,
+         (sigs,
+          (pack nd pack_ty
+                (address_ nd parameter_ty (self nd), (counter, action)),
+           (action, (storage, tt))))))) psi.
 
 Ltac mysimpl :=
   match goal with
@@ -390,18 +380,8 @@ Proof.
   unfold eval.
   rewrite eval_precond_correct.
   unfold multisig_head.
-  more_fuel.
   unfold "+", params, storage, multisig_head_spec.
-  mysimpl.
-  apply forall_ex; intro addr.
-  rewrite <- ex_and_comm.
-  apply and_both.
-  do 2 more_fuel; mysimpl.
-  apply forall_ex.
-  intro packed.
-  apply and_both.
-  do 6 more_fuel.
-  mysimpl.
+  do 9 (more_fuel; mysimpl).
   case_eq (BinInt.Z.eqb (comparison_to_int (stored_counter ?= counter)%N) Z0).
   - intro Heq.
     apply (eqb_eq nat) in Heq.
@@ -455,7 +435,7 @@ Lemma multisig_iter_body_correct k n sigs packed
     | nil => false
     | cons None sigs => psi (n, (sigs, (packed, st)))
     | cons (Some sig) sigs =>
-      check_signature nd k sig packed = Return _ true /\
+      check_signature nd k sig packed = true /\
       psi ((1 + n)%N, (sigs, (packed, st)))
     end.
 Proof.
@@ -466,13 +446,11 @@ Proof.
   mysimpl.
   destruct sigs as [|[sig|] sigs].
   - reflexivity.
-  - split.
-    + intros ([|], (Hckeck, H)).
-      * split; assumption.
-      * inversion H.
-    + intros (Hcheck, H).
-      exists true.
-      split; assumption.
+  - case (check_signature nd k sig packed).
+    + tauto.
+    + split.
+      * intro H; inversion H.
+      * intros (H, _); discriminate.
   - reflexivity.
 Qed.
 
@@ -560,8 +538,7 @@ Proof.
               intro Hsigs; subst sigs.
               intro Hsig; subst first_sig.
               simpl in Hchecks.
-              destruct (check_signature nd key sig packed) as [|[|]].
-              ** inversion Hchecks.
+              destruct (check_signature nd key sig packed).
               ** simpl in Hchecks.
                  split; [reflexivity|].
                  apply (IHkeys _ _ _ _ Hfuel2).
@@ -637,12 +614,10 @@ Lemma multisig_tail_correct
     precond (eval multisig_tail fuel (threshold, (n, (sigs, (packed, (action, ((counter, (threshold, keys)), tt))))))) psi <->
     ((threshold <= n)%N /\
      match action with
-    | inl (amout, contr) =>
-      exists oper, transfer_tokens nd unit tt amout contr = Return _ oper /\
-                   psi (((oper :: nil)%list, ((1 + counter)%N, (threshold, keys))), tt)
+     | inl (amout, contr) =>
+       psi (((transfer_tokens nd unit tt amout contr :: nil)%list, ((1 + counter)%N, (threshold, keys))), tt)
     | inr (inl kh) =>
-      exists oper, set_delegate nd kh = Return _ oper /\
-                   psi (((oper :: nil)%list, ((1 + counter)%N, (threshold, keys))), tt)
+      psi (((set_delegate nd kh :: nil)%list, ((1 + counter)%N, (threshold, keys))), tt)
     | inr (inr (nt, nks)) =>
       psi (nil, ((1 + counter)%N, (nt, nks)), tt)
     end).
@@ -712,12 +687,9 @@ Proof.
   unfold params, storage.
   rewrite multisig_head_correct.
   - unfold multisig_head_spec, multisig_spec.
-    apply forall_ex; intro address.
-    apply forall_ex; intro packed.
-    apply ex_and_comm_both2.
-    apply ex_and_comm_both2.
-    apply ex_and_comm_both2.
-    clear params counter.
+    apply and_both_2.
+    intro; subst counter.
+    clear params.
     unfold eval.
     rewrite eval_precond_correct.
     more_fuel; mysimpl.
@@ -749,32 +721,28 @@ Proof.
     rewrite N.ge_le_iff.
     apply and_both.
     destruct action as [(amount, contr)|[delegate_key_hash|(new_t, new_k)]].
-    + rewrite ex_and_comm.
-      apply forall_ex; intro oper.
-      split.
-      * intros (Htransfer, H).
+    + split.
+      * intro H.
         injection H.
         intro; subst keys.
         intro; subst threshold.
         intro; subst new_stored_counter.
         intro; subst returned_operations.
         intuition reflexivity.
-      * intros (Hcounter, (Htransfer, (Hthreshold, (Hkeys, Hoper)))).
+      * intros (Hcounter, (Hthreshold, (Hkeys, Hoper))).
         subst new_stored_counter; subst keys; subst threshold; subst returned_operations.
-        split; [assumption | reflexivity].
-    + rewrite ex_and_comm.
-      apply forall_ex; intro oper.
-      split.
-      * intros (Hdelegate, H).
+        reflexivity.
+    + split.
+      * intros H.
         injection H.
         intro; subst keys.
         intro; subst threshold.
         intro; subst new_stored_counter.
         intro; subst returned_operations.
         intuition reflexivity.
-      * intros (Hcounter, (Hdelegat, (Hthreshold, (Hkeys, Hoper)))).
+      * intros (Hcounter, (Hthreshold, (Hkeys, Hoper))).
         subst new_stored_counter; subst keys; subst threshold; subst returned_operations.
-        split; [assumption | reflexivity].
+        reflexivity.
     + split.
       * intro H.
         injection H.

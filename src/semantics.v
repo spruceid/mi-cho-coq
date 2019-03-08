@@ -40,38 +40,38 @@ Section semantics.
           option (comparable_data key_hash) ->
           Datatypes.bool -> Datatypes.bool -> tez.mutez ->
           data (lambda (pair p g) (pair (list_ operation) g)) ->
-          data g -> M (data (pair operation address));
+          data g -> data (pair operation address);
         create_account :
           comparable_data key_hash ->
           option (comparable_data key_hash) ->
           Datatypes.bool -> tez.mutez ->
-          M (data operation * data (contract unit));
+          data (pair operation (contract unit));
         transfer_tokens : forall p,
             data p -> tez.mutez -> data (contract p) ->
-            M (data operation);
+            data operation;
         set_delegate : option (comparable_data key_hash) ->
-                       M (data operation);
-        balance : M tez.mutez;
-        address_ : forall p, data (contract p) -> M (data address);
-        contract_ : forall p, data address -> M (option (data (contract p)));
-        source : M (data address);
-        sender : M (data address);
+                       data operation;
+        balance : tez.mutez;
+        address_ : forall p, data (contract p) -> data address;
+        contract_ : forall p, data address -> data (option_ (contract p));
+        source : data address;
+        sender : data address;
         self : data (contract parameter_ty);
-        amount : M tez.mutez;
+        amount : tez.mutez;
         implicit_account :
-          comparable_data key_hash -> M (data (contract unit));
-        steps_to_quota : M N;
-        now : M (comparable_data timestamp);
-        hash_key : data key -> M (comparable_data key_hash);
-        pack : forall a, data a -> M str;
-        unpack : forall a, str -> M (option (data a));
-        blake2b : str -> M str;
-        sha256 : str -> M str;
-        sha512 : str -> M str;
+          comparable_data key_hash -> data (contract unit);
+        steps_to_quota : N;
+        now : comparable_data timestamp;
+        hash_key : data key -> comparable_data key_hash;
+        pack : forall a, data a -> data bytes;
+        unpack : forall a, data bytes -> data (option_ a);
+        blake2b : data bytes -> data bytes;
+        sha256 : data bytes -> data bytes;
+        sha512 : data bytes -> data bytes;
         check_signature :
-          data key -> data signature -> String.string -> M Datatypes.bool;
+          data key -> data signature -> data bytes -> data bool;
         read_contract_constant a : forall cst : contract_constant,
-            get_contract_type cst = Return _ a -> M (data (contract a))
+            get_contract_type cst = Return _ a -> data (contract a)
       }.
 
   Variable nd : node.
@@ -489,47 +489,42 @@ Section semantics.
           end
       | CREATE_CONTRACT =>
         fun '(a, (b, (c, (d, (e, (f, (g, SA))))))) =>
-          bind (fun '(a, b) => Return _ (a, (b, SA)))
-               (create_contract nd _ _ a b c d e f g)
+          let (oper, addr) := create_contract nd _ _ a b c d e f g in
+          Return _ (oper, (addr, SA))
       | CREATE_CONTRACT_literal _ _ f =>
         fun '(a, (b, (c, (d, (e, (g, SA)))))) =>
-          bind (fun '(a, b) => Return _ (a, (b, SA)))
-               (create_contract nd _ _ a b c d e f g)
+          let (oper, addr) := create_contract nd _ _ a b c d e f g in
+          Return _ (oper, (addr, SA))
       | CREATE_ACCOUNT =>
         fun '(a, (b, (c, (d, SA)))) =>
-          bind (fun '(a, b) => Return _ (a, (b, SA)))
-               (create_account nd a b c d)
+          let (oper, contract) := create_account nd a b c d in
+          Return _ (oper, (contract, SA))
       | TRANSFER_TOKENS =>
-        fun '(a, (b, (c, SA))) =>
-          bind (fun r => Return _ (r, SA))
-               (transfer_tokens nd _ a b c)
-      | SET_DELEGATE =>
-        fun '(x, SA) =>
-          bind (fun r => Return _ (r, SA))
-               (set_delegate nd x)
-      | BALANCE => fun SA => bind (fun r => Return _ (r, SA)) (balance nd)
+        fun '(a, (b, (c, SA))) => Return _ (transfer_tokens nd _ a b c, SA)
+      | SET_DELEGATE => fun '(x, SA) => Return _ (set_delegate nd x, SA)
+      | BALANCE => fun SA => Return _ (balance nd, SA)
       | ADDRESS =>
-        fun '(x, SA) => bind (fun r => Return _ (r, SA)) (address_ nd _ x)
+        fun '(x, SA) => Return _ (address_ nd _ x, SA)
       | CONTRACT _ =>
-        fun '(x, SA) => bind (fun r => Return _ (r, SA)) (contract_ nd _ x)
-      | SOURCE => fun SA => bind (fun r => Return _ (r, SA)) (source nd)
-      | SENDER => fun SA => bind (fun r => Return _ (r, SA)) (sender nd)
+        fun '(x, SA) => Return _ (contract_ nd _ x, SA)
+      | SOURCE => fun SA => Return _ (source nd, SA)
+      | SENDER => fun SA => Return _ (sender nd, SA)
       | SELF => fun SA => Return _ (self nd, SA)
-      | AMOUNT => fun SA => bind (fun r => Return _ (r, SA)) (amount nd)
+      | AMOUNT => fun SA => Return _ (amount nd, SA)
       | IMPLICIT_ACCOUNT =>
-        fun '(x, SA) => bind (fun r => Return _ (r, SA)) (implicit_account nd x)
+        fun '(x, SA) => Return _ (implicit_account nd x, SA)
       | STEPS_TO_QUOTA =>
-        fun SA => bind (fun r => Return _ (r, SA)) (steps_to_quota nd)
-      | NOW => fun SA => bind (fun r => Return _ (r, SA)) (now nd)
-      | PACK => fun '(x, SA) => bind (fun r => Return _ (r, SA)) (pack nd _ x)
-      | UNPACK => fun '(x, SA) => bind (fun r => Return _ (r, SA)) (unpack nd _ x)
-      | HASH_KEY => fun '(x, SA) => bind (fun r => Return _ (r, SA)) (hash_key nd x)
-      | BLAKE2B => fun '(x, SA) => bind (fun r => Return _ (r, SA)) (blake2b nd x)
-      | SHA256 => fun '(x, SA) => bind (fun r => Return _ (r, SA)) (sha256 nd x)
-      | SHA512 => fun '(x, SA) => bind (fun r => Return _ (r, SA)) (sha512 nd x)
+        fun SA => Return _ (steps_to_quota nd, SA)
+      | NOW => fun SA => Return _ (now nd, SA)
+      | PACK => fun '(x, SA) => Return _ (pack nd _ x, SA)
+      | UNPACK => fun '(x, SA) => Return _ (unpack nd _ x, SA)
+      | HASH_KEY => fun '(x, SA) => Return _ (hash_key nd x, SA)
+      | BLAKE2B => fun '(x, SA) => Return _ (blake2b nd x, SA)
+      | SHA256 => fun '(x, SA) => Return _ (sha256 nd x, SA)
+      | SHA512 => fun '(x, SA) => Return _ (sha512 nd x, SA)
       | CHECK_SIGNATURE =>
         fun '(x, (y, (z, SA))) =>
-          bind (fun r => Return _ (r, SA)) (check_signature nd x y z)
+          Return _ (check_signature nd x y z, SA)
       end
     end.
 
@@ -797,50 +792,49 @@ Section semantics.
         end
     | CREATE_CONTRACT =>
       fun psi '(a, (b, (c, (d, (e, (f, (g, SA))))))) =>
-        precond_ex (create_contract nd _ _ a b c d e f g)
-                   (fun '(oper, addr) => psi (oper, (addr, SA)))
+        let (oper, addr) := create_contract nd _ _ a b c d e f g in
+        psi (oper, (addr, SA))
     | CREATE_CONTRACT_literal _ _ f =>
       fun psi '(a, (b, (c, (d, (e, (g, SA)))))) =>
-        precond_ex (create_contract nd _ _ a b c d e f g)
-                   (fun '(oper, addr) => psi (oper, (addr, SA)))
+        let (oper, addr) := create_contract nd _ _ a b c d e f g in
+        psi (oper, (addr, SA))
     | CREATE_ACCOUNT =>
       fun psi '(a, (b, (c, (d, SA)))) =>
-        precond_ex (create_account nd a b c d)
-                   (fun '(oper, contr) => psi (oper, (contr, SA)))
+        let (oper, contr) := create_account nd a b c d in
+        psi (oper, (contr, SA))
     | TRANSFER_TOKENS =>
       fun psi '(a, (b, (c, SA))) =>
-        precond_ex (transfer_tokens nd _ a b c)
-                   (fun oper => psi (oper, SA))
+        psi (transfer_tokens nd _ a b c, SA)
     | SET_DELEGATE =>
       fun psi '(x, SA) =>
-        precond_ex (set_delegate nd x) (fun oper => psi (oper, SA))
+        psi (set_delegate nd x, SA)
     | BALANCE =>
-      fun psi SA => precond_ex (balance nd) (fun r => psi (r, SA))
+      fun psi SA => psi (balance nd, SA)
     | ADDRESS =>
-      fun psi '(x, SA) => precond_ex (address_ nd _ x) (fun r => psi (r, SA))
+      fun psi '(x, SA) => psi (address_ nd _ x, SA)
     | CONTRACT _ =>
-      fun psi '(x, SA) => precond_ex (contract_ nd _ x) (fun r => psi (r, SA))
-    | SOURCE => fun psi SA => precond_ex (source nd) (fun r => psi (r, SA))
-    | SENDER => fun psi SA => precond_ex (sender nd) (fun r => psi (r, SA))
+      fun psi '(x, SA) => psi (contract_ nd _ x, SA)
+    | SOURCE => fun psi SA => psi (source nd, SA)
+    | SENDER => fun psi SA => psi (sender nd, SA)
     | SELF => fun psi SA => psi (self nd, SA)
-    | AMOUNT => fun psi SA => precond_ex (amount nd) (fun r => psi (r, SA))
+    | AMOUNT => fun psi SA => psi (amount nd, SA)
     | IMPLICIT_ACCOUNT =>
-      fun psi '(x, SA) => precond_ex (implicit_account nd x) (fun r => psi (r, SA))
+      fun psi '(x, SA) => psi (implicit_account nd x, SA)
     | STEPS_TO_QUOTA =>
-      fun psi SA => precond_ex (steps_to_quota nd) (fun r => psi (r, SA))
-    | NOW => fun psi SA => precond_ex (now nd) (fun r => psi (r, SA))
-    | PACK => fun psi '(x, SA) => precond_ex (pack nd _ x) (fun r => psi (r, SA))
+      fun psi SA => psi (steps_to_quota nd, SA)
+    | NOW => fun psi SA => psi (now nd, SA)
+    | PACK => fun psi '(x, SA) => psi (pack nd _ x, SA)
     | UNPACK =>
-      fun psi '(x, SA) => precond_ex (unpack nd _ x) (fun r => psi (r, SA))
+      fun psi '(x, SA) => psi (unpack nd _ x, SA)
     | HASH_KEY =>
-      fun psi '(x, SA) => precond_ex (hash_key nd x) (fun r => psi (r, SA))
+      fun psi '(x, SA) => psi (hash_key nd x, SA)
     | BLAKE2B =>
-      fun psi '(x, SA) => precond_ex (blake2b nd x) (fun r => psi (r, SA))
-    | SHA256 => fun psi '(x, SA) => precond_ex (sha256 nd x) (fun r => psi (r, SA))
-    | SHA512 => fun psi '(x, SA) => precond_ex (sha512 nd x) (fun r => psi (r, SA))
+      fun psi '(x, SA) => psi (blake2b nd x, SA)
+    | SHA256 => fun psi '(x, SA) => psi (sha256 nd x, SA)
+    | SHA512 => fun psi '(x, SA) => psi (sha512 nd x, SA)
     | CHECK_SIGNATURE =>
       fun psi '(x, (y, (z, SA))) =>
-        precond_ex (check_signature nd x y z) (fun r => psi (r, SA))
+        psi (check_signature nd x y z, SA)
     end.
 
   Fixpoint eval_precond (fuel : Datatypes.nat) :
@@ -953,107 +947,44 @@ Section semantics.
     - reflexivity.
     - destruct st as ([|], st); apply IHn.
     - destruct st as (a, (b, (c, (d, (e, (f, (g0, SA))))))).
-      rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
-      intros (x, y).
+      destruct (create_contract nd g p a b c d e f g0).
       reflexivity.
     - destruct st as (a, (b, (c, (d, (e, (g0, SA)))))).
-      rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
-      intros (x, y).
+      destruct (create_contract nd g p a b c d e i g0).
       reflexivity.
     - destruct st as (a, (b, (c, (d, SA)))).
-      rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
-      intros (x, y).
+      destruct (create_account nd a b c).
       reflexivity.
     - destruct st as (a, (b, (c, SA))).
-      rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
       reflexivity.
     - destruct st as (a, SA).
-      rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
-      reflexivity.
-    - rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
-      reflexivity.
-    - destruct st as (a, SA).
-      rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
-      reflexivity.
-    - destruct st as (a, SA).
-      rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
-      reflexivity.
-    - rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
-      reflexivity.
-    - rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
       reflexivity.
     - reflexivity.
-    - rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
+    - destruct st as (a, SA).
       reflexivity.
     - destruct st as (a, SA).
-      rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
       reflexivity.
-    - rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
+    - reflexivity.
+    - reflexivity.
+    - reflexivity.
+    - reflexivity.
+    - destruct st as (a, SA).
       reflexivity.
-    - rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
+    - reflexivity.
+    - reflexivity.
+    - destruct st as (x, SA).
       reflexivity.
     - destruct st as (x, SA).
-      rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
       reflexivity.
     - destruct st as (x, SA).
-      rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
       reflexivity.
     - destruct st as (x, SA).
-      rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
       reflexivity.
     - destruct st as (x, SA).
-      rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
       reflexivity.
     - destruct st as (x, SA).
-      rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
-      reflexivity.
-    - destruct st as (x, SA).
-      rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
       reflexivity.
     - destruct st as (a, (b, (c, SA))).
-      rewrite precond_bind.
-      rewrite <- precond_exists.
-      apply precond_eqv.
       reflexivity.
   Qed.
 
