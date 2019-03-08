@@ -297,6 +297,9 @@ Context {get_contract_type : contract_constant -> M type}.
 Inductive elt_pair (a b : Set) : Set :=
 | Elt : a -> b -> elt_pair a b.
 
+(* The type of the parameter of the current contract *)
+Context {self_type : type}.
+
 Inductive instruction : list type -> list type -> Set :=
 | NOOP {A} : instruction A A    (* Undocumented *)
 | FAILWITH {A B a} : instruction (a ::: A) B
@@ -406,7 +409,7 @@ this constructor "IF" but we can make a notation for it. *)
 (* Mistake in the doc: the return type must be an option *)
 | SOURCE {S} : instruction S (address :: S)
 | SENDER {S} : instruction S (address :: S)
-| SELF {p S} : instruction S (contract p :: S)
+| SELF {S} : instruction S (contract self_type :: S)
 (* p should be the current parameter type *)
 | AMOUNT {S} : instruction S (mutez ::: S)
 | IMPLICIT_ACCOUNT {S} : instruction (key_hash ::: S) (contract unit :: S)
@@ -455,10 +458,14 @@ Coercion int_constant := Int_constant.
 Coercion nat_constant := Nat_constant.
 Coercion string_constant := String_constant.
 
-Definition full_contract params storage :=
-  instruction ((pair params storage) ::: nil) ((pair (list_ operation) storage) ::: nil).
-
 End syntax.
+
+Definition full_contract {get_contract_type} params storage :=
+  @instruction
+    get_contract_type
+    params
+    ((pair params storage) ::: nil)
+    ((pair (list_ operation) storage) ::: nil).
 
 Notation "'IF'" := (IF_).
 Definition stack_type := list type.

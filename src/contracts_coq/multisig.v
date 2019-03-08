@@ -11,17 +11,6 @@ Print N.
 
 Section multisig.
 
-Context {get_contract_type : contract_constant -> error.M type} {nd : @node get_contract_type}.
-
-Definition instruction := @syntax.instruction get_contract_type.
-Definition data := @semantics.data get_contract_type.
-Definition stack := @semantics.stack get_contract_type.
-Definition eval {A B : stack_type} := @semantics.eval _ nd A B.
-Definition eval_precond := @semantics.eval_precond _ nd.
-
-Definition ADD_nat {S} : instruction (nat ::: nat ::: S) (nat ::: S) := ADD.
-
-Definition storage_ty := pair nat (pair nat (list_ key)).
 Definition action_ty := or (pair mutez (contract unit)) (or (option_ key_hash) (pair nat (list_ key))).
 
 Definition parameter_ty := (pair
@@ -29,6 +18,19 @@ Definition parameter_ty := (pair
                 nat
                 action_ty)
              (list_ (option_ signature))).
+
+Context {get_contract_type : contract_constant -> error.M type} {nd : @node get_contract_type parameter_ty}.
+
+Definition instruction := @syntax.instruction get_contract_type parameter_ty.
+Definition data := @semantics.data get_contract_type parameter_ty.
+Definition stack := @semantics.stack get_contract_type parameter_ty.
+Definition eval {A B : stack_type} := @semantics.eval _ _ nd A B.
+Definition eval_precond := @semantics.eval_precond _ _ nd.
+
+Definition ADD_nat {S} : instruction (nat ::: nat ::: S) (nat ::: S) := ADD.
+
+Definition storage_ty := pair nat (pair nat (list_ key)).
+
 
 Definition pack_ty := pair address (pair nat action_ty).
 
@@ -120,9 +122,8 @@ Definition multisig_spec
            (returned_operations : list (data operation)) :=
   let params : data parameter_ty := ((counter, action), sigs) in
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
-  exists self_contract self_address packed first_sigs remaining_sigs,
-    self nd parameter_ty = Return _ self_contract /\
-    address_ nd parameter_ty self_contract = Return _ self_address /\
+  exists self_address packed first_sigs remaining_sigs,
+    address_ nd parameter_ty (self nd) = Return _ self_address /\
     pack nd pack_ty
          (self_address, (counter, action)) = Return _ packed /\
     counter = stored_counter /\
@@ -329,9 +330,8 @@ Definition multisig_head_spec
   :=
   let params : data parameter_ty := ((counter, action), sigs) in
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
-  exists self_contract self_address packed,
-    self nd parameter_ty = Return _ self_contract /\
-    address_ nd parameter_ty self_contract = Return _ self_address /\
+  exists self_address packed,
+    address_ nd parameter_ty (self nd) = Return _ self_address /\
     pack nd pack_ty
          (self_address, (counter, action)) = Return _ packed /\
     counter = stored_counter /\
@@ -351,8 +351,8 @@ Ltac mysimpl :=
   end.
 
 Lemma fold_eval_precond fuel :
-  eval_precond_body nd (@semantics.eval_precond _ nd fuel) =
-  @semantics.eval_precond _ nd (S fuel).
+  eval_precond_body nd (@semantics.eval_precond _ _ nd fuel) =
+  @semantics.eval_precond _ _ nd (S fuel).
 Proof.
   reflexivity.
 Qed.
@@ -391,14 +391,9 @@ Proof.
   rewrite eval_precond_correct.
   unfold multisig_head.
   more_fuel.
-  unfold "+".
+  unfold "+", params, storage, multisig_head_spec.
   mysimpl.
-  apply forall_ex.
-  intro self; change (data (contract parameter_ty)) in self.
-  rewrite <- ex_and_comm2.
-  apply and_both.
-  apply forall_ex.
-  intro addr.
+  apply forall_ex; intro addr.
   rewrite <- ex_and_comm.
   apply and_both.
   do 2 more_fuel; mysimpl.
@@ -717,10 +712,8 @@ Proof.
   unfold params, storage.
   rewrite multisig_head_correct.
   - unfold multisig_head_spec, multisig_spec.
-    apply forall_ex; intro contract.
     apply forall_ex; intro address.
     apply forall_ex; intro packed.
-    apply ex_and_comm_both2.
     apply ex_and_comm_both2.
     apply ex_and_comm_both2.
     apply ex_and_comm_both2.

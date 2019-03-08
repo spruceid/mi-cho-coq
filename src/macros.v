@@ -3,9 +3,9 @@ Require Import comparable.
 
 Section macros.
 
-Context {get_contract_type : contract_constant -> error.M type}.
+Context {get_contract_type : contract_constant -> error.M type} {self_ty : type}.
 
-Definition instr := @instruction get_contract_type.
+Definition instr := @instruction get_contract_type self_ty.
 
 Definition CMPEQ {a : comparable_type} {S} :
   instr (a ::: a ::: S) (bool ::: S) := COMPARE ;; EQ.
