@@ -19,13 +19,13 @@ Definition parameter_ty := (pair
                 action_ty)
              (list_ (option_ signature))).
 
-Context {get_contract_type : contract_constant -> error.M type} {nd : @node get_contract_type parameter_ty}.
+Context {get_contract_type : contract_constant -> error.M type} {env : @proto_env get_contract_type parameter_ty}.
 
 Definition instruction := @syntax.instruction get_contract_type parameter_ty.
 Definition data := @semantics.data get_contract_type parameter_ty.
 Definition stack := @semantics.stack get_contract_type parameter_ty.
-Definition eval {A B : stack_type} := @semantics.eval _ _ nd A B.
-Definition eval_precond := @semantics.eval_precond _ _ nd.
+Definition eval {A B : stack_type} := @semantics.eval _ _ env A B.
+Definition eval_precond := @semantics.eval_precond _ _ env.
 
 Definition ADD_nat {S} : instruction (nat ::: nat ::: S) (nat ::: S) := ADD.
 
@@ -127,8 +127,8 @@ Definition multisig_spec
       first_sigs keys
       (fun k sig =>
          check_signature
-           nd k sig
-           (pack nd pack_ty (address_ nd parameter_ty (self nd),
+           env k sig
+           (pack env pack_ty (address_ env parameter_ty (self env),
                              (counter, action)))) /\
     (count_signatures first_sigs >= threshold)%N /\
     new_stored_counter = (1 + stored_counter)%N /\
@@ -136,11 +136,11 @@ Definition multisig_spec
     | inl (amout, contr) =>
       new_threshold = threshold /\
       new_keys = keys /\
-      returned_operations = (transfer_tokens nd unit tt amout contr :: nil)%list
+      returned_operations = (transfer_tokens env unit tt amout contr :: nil)%list
     | inr (inl kh) =>
       new_threshold = threshold /\
       new_keys = keys /\
-      returned_operations = (set_delegate nd kh :: nil)%list
+      returned_operations = (set_delegate env kh :: nil)%list
     | inr (inr (nt, nks)) =>
       new_threshold = nt /\
       new_keys = nks /\
@@ -323,17 +323,17 @@ Definition multisig_head_spec
        (threshold,
         (keys,
          (sigs,
-          (pack nd pack_ty
-                (address_ nd parameter_ty (self nd), (counter, action)),
+          (pack env pack_ty
+                (address_ env parameter_ty (self env), (counter, action)),
            (action, (storage, tt))))))) psi.
 
 Ltac mysimpl :=
   match goal with
     |- ?g =>
     match g with
-    | context c[semantics.eval_precond ?nd (S ?n) ?i ?psi] =>
+    | context c[semantics.eval_precond ?env (S ?n) ?i ?psi] =>
       is_var i ||
-             (let simplified := (eval simpl in (semantics.eval_precond nd (S n) i psi)) in
+             (let simplified := (eval simpl in (semantics.eval_precond env (S n) i psi)) in
               let full := context c[simplified] in
               let final := eval cbv beta zeta iota in full in
               change final)
@@ -341,8 +341,8 @@ Ltac mysimpl :=
   end.
 
 Lemma fold_eval_precond fuel :
-  eval_precond_body nd (@semantics.eval_precond _ _ nd fuel) =
-  @semantics.eval_precond _ _ nd (S fuel).
+  eval_precond_body env (@semantics.eval_precond _ _ env fuel) =
+  @semantics.eval_precond _ _ env (S fuel).
 Proof.
   reflexivity.
 Qed.
@@ -435,7 +435,7 @@ Lemma multisig_iter_body_correct k n sigs packed
     | nil => false
     | cons None sigs => psi (n, (sigs, (packed, st)))
     | cons (Some sig) sigs =>
-      check_signature nd k sig packed = true /\
+      check_signature env k sig packed = true /\
       psi ((1 + n)%N, (sigs, (packed, st)))
     end.
 Proof.
@@ -446,7 +446,7 @@ Proof.
   mysimpl.
   destruct sigs as [|[sig|] sigs].
   - reflexivity.
-  - case (check_signature nd k sig packed).
+  - case (check_signature env k sig packed).
     + tauto.
     + split.
       * intro H; inversion H.
@@ -474,7 +474,7 @@ Lemma multisig_iter_correct keys n sigs packed
         length first_sigs = length keys /\
         sigs = (first_sigs ++ remaining_sigs)%list /\
         check_all_signatures
-          first_sigs keys (fun k sig => check_signature nd k sig packed) /\
+          first_sigs keys (fun k sig => check_signature env k sig packed) /\
         psi ((count_signatures first_sigs + n)%N, (remaining_sigs, (packed, st)))).
 Proof.
   unfold eval.
@@ -538,7 +538,7 @@ Proof.
               intro Hsigs; subst sigs.
               intro Hsig; subst first_sig.
               simpl in Hchecks.
-              destruct (check_signature nd key sig packed).
+              destruct (check_signature env key sig packed).
               ** simpl in Hchecks.
                  split; [reflexivity|].
                  apply (IHkeys _ _ _ _ Hfuel2).
@@ -615,9 +615,9 @@ Lemma multisig_tail_correct
     ((threshold <= n)%N /\
      match action with
      | inl (amout, contr) =>
-       psi (((transfer_tokens nd unit tt amout contr :: nil)%list, ((1 + counter)%N, (threshold, keys))), tt)
+       psi (((transfer_tokens env unit tt amout contr :: nil)%list, ((1 + counter)%N, (threshold, keys))), tt)
     | inr (inl kh) =>
-      psi (((set_delegate nd kh :: nil)%list, ((1 + counter)%N, (threshold, keys))), tt)
+      psi (((set_delegate env kh :: nil)%list, ((1 + counter)%N, (threshold, keys))), tt)
     | inr (inr (nt, nks)) =>
       psi (nil, ((1 + counter)%N, (nt, nks)), tt)
     end).
@@ -694,15 +694,15 @@ Proof.
     rewrite eval_precond_correct.
     more_fuel; mysimpl.
     match goal with
-    | |- semantics.eval_precond nd fuel ?i ?t ?st <-> ?r =>
-      pose (t) as then_; change (semantics.eval_precond nd fuel i then_ st <-> r)
+    | |- semantics.eval_precond env fuel ?i ?t ?st <-> ?r =>
+      pose (t) as then_; change (semantics.eval_precond env fuel i then_ st <-> r)
     end.
     more_fuel; mysimpl.
     more_fuel; mysimpl.
     more_fuel; mysimpl.
     match goal with
-    | |- semantics.eval_precond nd fuel ?i ?t ?st <-> ?r =>
-      pose (t) as iter; change (semantics.eval_precond nd fuel i iter st <-> r)
+    | |- semantics.eval_precond env fuel ?i ?t ?st <-> ?r =>
+      pose (t) as iter; change (semantics.eval_precond env fuel i iter st <-> r)
     end.
     more_fuel; mysimpl.
     subst iter.

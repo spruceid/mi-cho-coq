@@ -32,8 +32,8 @@ Section semantics.
     | contract a => {s : contract_constant | get_contract_type s = Return _ a }
     end.
 
-  Record node : Set :=
-    mk_node
+  Record proto_env : Set :=
+    mk_proto_env
       {
         create_contract : forall g p,
           comparable_data key_hash ->
@@ -72,7 +72,7 @@ Section semantics.
           data key -> data signature -> data bytes -> data bool
       }.
 
-  Variable nd : node.
+  Variable env : proto_env.
 
   Fixpoint stack (t : stack_type) : Set :=
     match t with
@@ -487,42 +487,42 @@ Section semantics.
           end
       | CREATE_CONTRACT =>
         fun '(a, (b, (c, (d, (e, (f, (g, SA))))))) =>
-          let (oper, addr) := create_contract nd _ _ a b c d e f g in
+          let (oper, addr) := create_contract env _ _ a b c d e f g in
           Return _ (oper, (addr, SA))
       | CREATE_CONTRACT_literal _ _ f =>
         fun '(a, (b, (c, (d, (e, (g, SA)))))) =>
-          let (oper, addr) := create_contract nd _ _ a b c d e f g in
+          let (oper, addr) := create_contract env _ _ a b c d e f g in
           Return _ (oper, (addr, SA))
       | CREATE_ACCOUNT =>
         fun '(a, (b, (c, (d, SA)))) =>
-          let (oper, contract) := create_account nd a b c d in
+          let (oper, contract) := create_account env a b c d in
           Return _ (oper, (contract, SA))
       | TRANSFER_TOKENS =>
-        fun '(a, (b, (c, SA))) => Return _ (transfer_tokens nd _ a b c, SA)
-      | SET_DELEGATE => fun '(x, SA) => Return _ (set_delegate nd x, SA)
-      | BALANCE => fun SA => Return _ (balance nd, SA)
+        fun '(a, (b, (c, SA))) => Return _ (transfer_tokens env _ a b c, SA)
+      | SET_DELEGATE => fun '(x, SA) => Return _ (set_delegate env x, SA)
+      | BALANCE => fun SA => Return _ (balance env, SA)
       | ADDRESS =>
-        fun '(x, SA) => Return _ (address_ nd _ x, SA)
+        fun '(x, SA) => Return _ (address_ env _ x, SA)
       | CONTRACT _ =>
-        fun '(x, SA) => Return _ (contract_ nd _ x, SA)
-      | SOURCE => fun SA => Return _ (source nd, SA)
-      | SENDER => fun SA => Return _ (sender nd, SA)
-      | SELF => fun SA => Return _ (self nd, SA)
-      | AMOUNT => fun SA => Return _ (amount nd, SA)
+        fun '(x, SA) => Return _ (contract_ env _ x, SA)
+      | SOURCE => fun SA => Return _ (source env, SA)
+      | SENDER => fun SA => Return _ (sender env, SA)
+      | SELF => fun SA => Return _ (self env, SA)
+      | AMOUNT => fun SA => Return _ (amount env, SA)
       | IMPLICIT_ACCOUNT =>
-        fun '(x, SA) => Return _ (implicit_account nd x, SA)
+        fun '(x, SA) => Return _ (implicit_account env x, SA)
       | STEPS_TO_QUOTA =>
-        fun SA => Return _ (steps_to_quota nd, SA)
-      | NOW => fun SA => Return _ (now nd, SA)
-      | PACK => fun '(x, SA) => Return _ (pack nd _ x, SA)
-      | UNPACK => fun '(x, SA) => Return _ (unpack nd _ x, SA)
-      | HASH_KEY => fun '(x, SA) => Return _ (hash_key nd x, SA)
-      | BLAKE2B => fun '(x, SA) => Return _ (blake2b nd x, SA)
-      | SHA256 => fun '(x, SA) => Return _ (sha256 nd x, SA)
-      | SHA512 => fun '(x, SA) => Return _ (sha512 nd x, SA)
+        fun SA => Return _ (steps_to_quota env, SA)
+      | NOW => fun SA => Return _ (now env, SA)
+      | PACK => fun '(x, SA) => Return _ (pack env _ x, SA)
+      | UNPACK => fun '(x, SA) => Return _ (unpack env _ x, SA)
+      | HASH_KEY => fun '(x, SA) => Return _ (hash_key env x, SA)
+      | BLAKE2B => fun '(x, SA) => Return _ (blake2b env x, SA)
+      | SHA256 => fun '(x, SA) => Return _ (sha256 env x, SA)
+      | SHA512 => fun '(x, SA) => Return _ (sha512 env x, SA)
       | CHECK_SIGNATURE =>
         fun '(x, (y, (z, SA))) =>
-          Return _ (check_signature nd x y z, SA)
+          Return _ (check_signature env x y z, SA)
       end
     end.
 
@@ -790,49 +790,49 @@ Section semantics.
         end
     | CREATE_CONTRACT =>
       fun psi '(a, (b, (c, (d, (e, (f, (g, SA))))))) =>
-        let (oper, addr) := create_contract nd _ _ a b c d e f g in
+        let (oper, addr) := create_contract env _ _ a b c d e f g in
         psi (oper, (addr, SA))
     | CREATE_CONTRACT_literal _ _ f =>
       fun psi '(a, (b, (c, (d, (e, (g, SA)))))) =>
-        let (oper, addr) := create_contract nd _ _ a b c d e f g in
+        let (oper, addr) := create_contract env _ _ a b c d e f g in
         psi (oper, (addr, SA))
     | CREATE_ACCOUNT =>
       fun psi '(a, (b, (c, (d, SA)))) =>
-        let (oper, contr) := create_account nd a b c d in
+        let (oper, contr) := create_account env a b c d in
         psi (oper, (contr, SA))
     | TRANSFER_TOKENS =>
       fun psi '(a, (b, (c, SA))) =>
-        psi (transfer_tokens nd _ a b c, SA)
+        psi (transfer_tokens env _ a b c, SA)
     | SET_DELEGATE =>
       fun psi '(x, SA) =>
-        psi (set_delegate nd x, SA)
+        psi (set_delegate env x, SA)
     | BALANCE =>
-      fun psi SA => psi (balance nd, SA)
+      fun psi SA => psi (balance env, SA)
     | ADDRESS =>
-      fun psi '(x, SA) => psi (address_ nd _ x, SA)
+      fun psi '(x, SA) => psi (address_ env _ x, SA)
     | CONTRACT _ =>
-      fun psi '(x, SA) => psi (contract_ nd _ x, SA)
-    | SOURCE => fun psi SA => psi (source nd, SA)
-    | SENDER => fun psi SA => psi (sender nd, SA)
-    | SELF => fun psi SA => psi (self nd, SA)
-    | AMOUNT => fun psi SA => psi (amount nd, SA)
+      fun psi '(x, SA) => psi (contract_ env _ x, SA)
+    | SOURCE => fun psi SA => psi (source env, SA)
+    | SENDER => fun psi SA => psi (sender env, SA)
+    | SELF => fun psi SA => psi (self env, SA)
+    | AMOUNT => fun psi SA => psi (amount env, SA)
     | IMPLICIT_ACCOUNT =>
-      fun psi '(x, SA) => psi (implicit_account nd x, SA)
+      fun psi '(x, SA) => psi (implicit_account env x, SA)
     | STEPS_TO_QUOTA =>
-      fun psi SA => psi (steps_to_quota nd, SA)
-    | NOW => fun psi SA => psi (now nd, SA)
-    | PACK => fun psi '(x, SA) => psi (pack nd _ x, SA)
+      fun psi SA => psi (steps_to_quota env, SA)
+    | NOW => fun psi SA => psi (now env, SA)
+    | PACK => fun psi '(x, SA) => psi (pack env _ x, SA)
     | UNPACK =>
-      fun psi '(x, SA) => psi (unpack nd _ x, SA)
+      fun psi '(x, SA) => psi (unpack env _ x, SA)
     | HASH_KEY =>
-      fun psi '(x, SA) => psi (hash_key nd x, SA)
+      fun psi '(x, SA) => psi (hash_key env x, SA)
     | BLAKE2B =>
-      fun psi '(x, SA) => psi (blake2b nd x, SA)
-    | SHA256 => fun psi '(x, SA) => psi (sha256 nd x, SA)
-    | SHA512 => fun psi '(x, SA) => psi (sha512 nd x, SA)
+      fun psi '(x, SA) => psi (blake2b env x, SA)
+    | SHA256 => fun psi '(x, SA) => psi (sha256 env x, SA)
+    | SHA512 => fun psi '(x, SA) => psi (sha512 env x, SA)
     | CHECK_SIGNATURE =>
       fun psi '(x, (y, (z, SA))) =>
-        psi (check_signature nd x y z, SA)
+        psi (check_signature env x y z, SA)
     end.
 
   Fixpoint eval_precond (fuel : Datatypes.nat) :
@@ -945,13 +945,13 @@ Section semantics.
     - reflexivity.
     - destruct st as ([|], st); apply IHn.
     - destruct st as (a, (b, (c, (d, (e, (f, (g0, SA))))))).
-      destruct (create_contract nd g p a b c d e f g0).
+      destruct (create_contract env g p a b c d e f g0).
       reflexivity.
     - destruct st as (a, (b, (c, (d, (e, (g0, SA)))))).
-      destruct (create_contract nd g p a b c d e i g0).
+      destruct (create_contract env g p a b c d e i g0).
       reflexivity.
     - destruct st as (a, (b, (c, (d, SA)))).
-      destruct (create_account nd a b c).
+      destruct (create_account env a b c).
       reflexivity.
     - destruct st as (a, (b, (c, SA))).
       reflexivity.
