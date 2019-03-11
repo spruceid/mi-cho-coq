@@ -13,13 +13,15 @@ Michelson]]; more precisely, it is currently based on the following
 version of this specification:
 [[https://gitlab.com/tezos/tezos/blob/16bd2b036439d76a3e89dff8fdfbd36cf1d131fe/docs/whitedoc/michelson.rst]]
 
-* Type system
+* Syntax
+
+** Type system
 
 In Michelson, an important distinction is made between *comparable*
 types and non-comparable ones. Comparable types can be used to index
 maps and only sets of elements in comparable types are allowed.
 
-Here is the list of comparable types defined in [[./src/comparable.v]]:
+Here is the list of comparable types defined in [[./src/syntax.v]]:
 
 #+BEGIN_SRC coq
 Inductive comparable_type : Set :=
@@ -63,28 +65,46 @@ coercion.
 Coercion Comparable_type : comparable_type >-> type.
 #+END_SRC
 
-Finally, the semantics of these types is defined by interpreting them
-by predefined Coq types using the following table:
+** Instructions
 
-  | Michelson     | Coq              |
-  |---------------+------------------|
-  | =int=         | =Z=              |
-  | =nat=         | =N=              |
-  | =string=      | =string=         |
-  | =bytes=       | =string=         |
-  | =timestamp=   | =Z=              |
-  | =mutez=       | =int63=          |
-  | =bool=        | =bool=           |
-  | =unit=        | =unit=           |
-  | =pair a b=    | =a * b=          |
-  | =option a=    | =option a=       |
-  | =or a b=      | =sum a b=        |
-  | =list a=      | =list a=         |
-  | =set a=       | =set a (lt a)=   |
-  | =map a b=     | =map a b (lt a)= |
-  | =bigmap a b=  | idem             |
-  | =lambda a b=  | =a -> M b=       |
-  | anything else | axiomatized      |
+The syntax and typing of Michelson instructions is defined in file
+[[./src/syntax.v]]. We use a dependent inductive type to rule out
+ill-typed instructions.
+
+#+BEGIN_SRC coq
+Inductive instruction : list type -> list type -> Set :=
+| NOOP {A} : instruction A A
+| FAILWITH {A B a} : instruction (a ::: A) B
+| SEQ {A B C} : instruction A B -> instruction B C -> instruction A C
+| IF_ {A B} : instruction A B -> instruction A B -> instruction (bool ::: A) B
+| LOOP {A} : instruction A (bool ::: A) -> instruction (bool ::: A) A
+...
+#+END_SRC
+
+* Semantics
+
+The semantics of types is defined by interpreting them
+by predefined Coq types using the following table (function =data= in file [[./src/semantics.v]]:
+
+  | Michelson     | Coq                                   |
+  |---------------+---------------------------------------|
+  | =int=         | =Z=                                   |
+  | =nat=         | =N=                                   |
+  | =string=      | =string=                              |
+  | =bytes=       | =string=                              |
+  | =timestamp=   | =Z=                                   |
+  | =mutez=       | =int63=                               |
+  | =bool=        | =bool=                                |
+  | =unit=        | =unit=                                |
+  | =pair a b=    | =a * b=                               |
+  | =option a=    | =option a=                            |
+  | =or a b=      | =sum a b=                             |
+  | =list a=      | =list a=                              |
+  | =set a=       | =set a (lt a)=                        |
+  | =map a b=     | =map a b (lt a)=                      |
+  | =bigmap a b=  | idem                                  |
+  | =lambda a b=  | =instruction (a ::: nil) (b ::: nil)= |
+  | anything else | axiomatized                           |
 
 with
 #+BEGIN_SRC coq
@@ -96,22 +116,7 @@ with
    set (a * b) (fun x y => lt (fst x) (fst y))
 #+END_SRC
 
-* Syntax
 
-The syntax and typing of Michelson instructions is defined in file
-[[./src/syntax.v]]. We use a dependent inductive type to rule out
-ill-typed instructions.
-
-#+BEGIN_SRC coq
-Inductive instruction : list type -> list type -> Set :=
-| FAILWITH {A B a} : data a -> instruction A B
-| SEQ {A B C} : instruction A B -> instruction B C -> instruction A C
-| IF_ {A B} : instruction A B -> instruction A B -> instruction (bool ::: A) B
-| LOOP {A} : instruction A (bool ::: A) -> instruction (bool ::: A) A
-...
-#+END_SRC
-
-* Semantics
 
 We formalize the semantics of Michelson by defining an evaluator in
 file [[./src/semantics.v]]. Since evaluating a Michelson instruction might
@@ -150,33 +155,27 @@ Both versions of the =NEG= instruction are defined in [[./src/syntax.v]]
 as follows:
 
 #+BEGIN_SRC coq
-Module neg.
-  Record class (a : comparable_type) :=
-    Class { neg : comparable_data a -> M Z }.
-
-  Structure type (a : comparable_type) := Pack { class_of : class a }.
-
-  Definition op (a : comparable_type) {e : type a} : comparable_data a -> M Z :=
-    neg _ (class_of a e).
-End neg.
-
-Canonical Structure neg_nat : neg.type nat :=
-  neg.Pack nat (neg.Class nat (fun x => Return _ (- Z.of_N x)%Z)).
-
-Canonical Structure neg_int : neg.type int :=
-  neg.Pack int (neg.Class int (fun x => Return _ (- x)%Z)).
+(* NEG takes either a nat or an int as argument *)
+Inductive neg_variant : type -> Set :=
+| Neg_variant_nat : neg_variant nat
+| Neg_variant_int : neg_variant int.
+Structure neg_struct (a : type) := Mk_neg { neg_variant_field : neg_variant a }.
+Canonical Structure neg_nat : neg_struct nat :=
+  {| neg_variant_field := Neg_variant_nat |}.
+Canonical Structure neg_int : neg_struct int :=
+  {| neg_variant_field := Neg_variant_int |}.
 #+END_SRC
 
-The structure =neg.type= is then used in the =instruction= datatype as follows:
+The structure =neg_struct= is then used in the =instruction= datatype as follows:
 
 #+BEGIN_SRC coq
 Inductive instruction : list type -> list type -> Set :=
 ...
-| NEG {n} {s : neg.type n} {S} : instruction (n ::: S) (int ::: S)
+| NEG {n} {s : neg_struct n} {S} : instruction (n ::: S) (int ::: S)
 ...
 #+END_SRC
 
-so the =NEG= instruction receives a =neg.type= as an implicit argument
+so the =NEG= instruction receives a =neg_struct= as an implicit argument
 which is going to be provided by the canonical structure mechanism.
 
 Finally, the evaluator in file [[./src/semantics.v]] uses this implicit
@@ -184,6 +183,15 @@ argument to call the correct function depending on the chosen type for
 the =NEG= instruction:
 
 #+BEGIN_SRC coq
+
+  Definition neg a (v : neg_variant a) : data a -> data int :=
+    match v with
+    | Neg_variant_nat => fun x => (- Z.of_N x)%Z
+    | Neg_variant_int => fun x => (- x)%Z
+    end.
+
+  ...
+
   Fixpoint eval {A : stack_type} {B : stack_type}
            (i : instruction A B) (fuel : Datatypes.nat) {struct fuel} :
     stack A -> M (stack B) :=
@@ -192,20 +200,10 @@ the =NEG= instruction:
     | S n =>
       match i in instruction A B return stack A -> M (stack B) with
       ...
-      | @NEG b s _ =>
-        fun SxA =>
-          let (x, SA) := SxA in
-          bind (fun r => Return _ (r, SA))
-               (@neg.op b s x)
+      | @NEG _ _ _ s =>
+        fun '(x, SA) => Return _ (neg _ (neg_variant_field _ s) x, SA)
       ...
 #+END_SRC
-
-The main drawback of this approach based on canonical structures is
-that it breaks the separation of syntax and semantics: the various
-semantics of the =NEG= instruction have to be defined before the
-definition of the syntax of instructions; this is why they appear in
-file [[./src/syntax.v]].
-
 
 * TODO
 
