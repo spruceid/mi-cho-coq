@@ -209,8 +209,6 @@ file [[./src/syntax.v]].
 
 * TODO
 
-- Rename node into environment
-- Env functions cannot fail
 - Play with code extraction
 - Define an extension of Michelson where loops are annotated with invariants
 - check OCaml implem against the documentation
@@ -225,6 +223,12 @@ file [[./src/syntax.v]].
 - replace section variables by functors
 
 - Put notations in their own notation scope
+
+- Formalize gas (and remove fuel)
+
+  eval should return (stack SA -> M (stack SB * {remaining_gas | remaining_gas < gas }))
+
+- Handle :-, %-, and @-annotations
 
 * Possible mistakes in Michelson specification
 
