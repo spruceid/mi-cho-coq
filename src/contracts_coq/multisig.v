@@ -1,5 +1,4 @@
-Add LoadPath "../".
-Require Import macros.
+Require Import Michocoq.macros.
 Import syntax.
 Import comparable.
 Require Import NArith.
@@ -768,3 +767,5 @@ Proof.
     do 9 apply Le.le_n_S.
     apply le_0_n.
 Qed.
+
+End multisig.

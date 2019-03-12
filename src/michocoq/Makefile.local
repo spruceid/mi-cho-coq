@@ -1,0 +1,9 @@
+extract:
+	make -C extraction
+
+clean-extracted:
+	 make -C extraction clean-extracted
+
+cleanall:: clean-extracted
+
+post-all:: extract

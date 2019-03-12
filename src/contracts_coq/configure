@@ -1,0 +1,2 @@
+echo "-R ../michocoq Michocoq" > _CoqProject
+find -iname "*.v" >> _CoqProject

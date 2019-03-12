@@ -1,0 +1,31 @@
+%.v: %.ott
+	ott -coq_expand_list_types false  $(^:%.ott=-i %.ott) -o $@
+
+
+%.tex: %.ott
+	ott -coq_expand_list_types false  $(^:%.ott=-i %.ott) -o $@
+
+michelson.pdf: michelson.tex
+	pdflatex michelson.tex
+
+
+post-all:: michelson.vo michelson.pdf
+
+EMACS="emacs"
+%.txt: %.org
+	${EMACS} --batch -f package-initialize $<  -f org-ascii-export-to-ascii  --kill
+
+
+release: all README.txt
+	rm -frd michelson-ott michelson-ott.zip
+	mkdir -p michelson-ott
+	cp -v Makefile Formulas.v michelson.ott michelson.v  michelson_tests.v \
+	   michelson.pdf README.txt michelson_aexp.v michelson_extract.v michelson.ml  \
+	   michelson-ott/
+	zip -r michelson-ott.zip michelson-ott
+
+
+cleanall:: clean-extracted
+
+clean-extracted:
+	 	rm -f *.ml *.mli

@@ -1,0 +1,17 @@
+#! /bin/bash
+
+function fail {
+    echo "$1"; exit 1
+}
+
+DIRS="src src/michocoq  src/michocoq/extraction  src/contracts_coq  src/michocott"
+echo "Generating the main Makefile"
+coq_makefile -f _CoqProject -o Makefile || fail "fail while building main makefile"
+
+for i in $DIRS ; do
+    echo "Generating Makefile in $i"
+    cd $i &&\
+    if [ -x ./configure ] ; then ./configure ; fi &&\
+    coq_makefile -f _CoqProject -o Makefile &&\
+    cd -
+done

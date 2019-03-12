@@ -21,7 +21,7 @@ In Michelson, an important distinction is made between *comparable*
 types and non-comparable ones. Comparable types can be used to index
 maps and only sets of elements in comparable types are allowed.
 
-Here is the list of comparable types defined in [[./src/syntax.v]]:
+Here is the list of comparable types defined in [[./src/michocoq/syntax.v]]:
 
 #+BEGIN_SRC coq
 Inductive comparable_type : Set :=
@@ -36,7 +36,7 @@ Inductive comparable_type : Set :=
 #+END_SRC
 
 Each comparable type is trivially a Michelson type, here is the full
-list of Michelson types as defined in [[./src/syntax.v]]:
+list of Michelson types as defined in [[./src/michocoq/syntax.v]]:
 
 #+BEGIN_SRC coq
 Inductive type : Set :=
@@ -68,7 +68,7 @@ Coercion Comparable_type : comparable_type >-> type.
 ** Instructions
 
 The syntax and typing of Michelson instructions is defined in file
-[[./src/syntax.v]]. We use a dependent inductive type to rule out
+[[./src/michocoq/syntax.v]]. We use a dependent inductive type to rule out
 ill-typed instructions.
 
 #+BEGIN_SRC coq
@@ -84,7 +84,7 @@ Inductive instruction : list type -> list type -> Set :=
 * Semantics
 
 The semantics of types is defined by interpreting them
-by predefined Coq types using the following table (function =data= in file [[./src/semantics.v]]:
+by predefined Coq types using the following table (function =data= in file [[./src/michocoq/semantics.v]]:
 
   | Michelson     | Coq                                   |
   |---------------+---------------------------------------|
@@ -119,10 +119,10 @@ with
 
 
 We formalize the semantics of Michelson by defining an evaluator in
-file [[./src/semantics.v]]. Since evaluating a Michelson instruction might
+file [[./src/michocoq/semantics.v]]. Since evaluating a Michelson instruction might
 fail (which Coq functions cannot), we wrap the return type of this
 evaluator in the exception monad defined in file
-[[./src/error.v]]. Moreover, Coq forbids non-terminating function so we
+[[./src/michocoq/error.v]]. Moreover, Coq forbids non-terminating function so we
 use a common Coq trick to define the evalator on diverging
 instructions such as =LOOP=: we make the evaluator structurally
 recursive on an extra argument of type =Datatypes.nat= called the
@@ -151,7 +151,7 @@ use *canonical structures*, a Coq feature that let the Coq refiner
 solve the ambiguity by inferring the missing piece of information from
 the context.
 
-Both versions of the =NEG= instruction are defined in [[./src/syntax.v]]
+Both versions of the =NEG= instruction are defined in [[./src/michocoq/syntax.v]]
 as follows:
 
 #+BEGIN_SRC coq
@@ -178,7 +178,7 @@ Inductive instruction : list type -> list type -> Set :=
 so the =NEG= instruction receives a =neg_struct= as an implicit argument
 which is going to be provided by the canonical structure mechanism.
 
-Finally, the evaluator in file [[./src/semantics.v]] uses this implicit
+Finally, the evaluator in file [[./src/michocoq/semantics.v]] uses this implicit
 argument to call the correct function depending on the chosen type for
 the =NEG= instruction:
 
@@ -238,4 +238,3 @@ the =NEG= instruction:
 - The type of the IF_... instruction is erroneous
 - Typo : "these are macros are simply"
 - The IF_SOME macro is semantically defined instead of syntactically
-

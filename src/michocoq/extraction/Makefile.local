@@ -1,0 +1,6 @@
+
+clean-extracted:
+	rm -f *.ml *.mli
+
+cleanall::
+	make clean-extracted
