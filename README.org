@@ -1,4 +1,4 @@
-#+Title: Michelson in Coq
+#+Title: Mi-Cho-Coq
 
 This repository is a formalisation of the [[https://www.michelson-lang.com/][Michelson]] language using the
 [[https://coq.inria.fr/][Coq]] interactive theorem prover.
