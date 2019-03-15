@@ -1,7 +1,25 @@
 #+Title: Michelson in Coq
 
 This repository is a formalisation of the [[https://www.michelson-lang.com/][Michelson]] language using the
-[[https://coq.inria.fr/][Coq]] interactive theorem prover. The following parts of the language
+[[https://coq.inria.fr/][Coq]] interactive theorem prover.
+
+* Installation instructions
+
+The simplest way to install the project is to use the OPAM package manager:
+
+#+BEGIN_SRC bash
+
+# Add the coq-released opam repository because it contains the coq-ott dependency
+opam repo add coq-released https://coq.inria.fr/opam/released
+
+# Install mi-cho-coq and its dependencies (coq, ott, and coq-ott)
+opam pin add -k git mi-cho-coq ./
+
+#+END_SRC
+
+* Introduction
+
+The following parts of the language
 are formalized:
 
 - the type system
