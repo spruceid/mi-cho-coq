@@ -1,0 +1,32 @@
+parameter (or
+             (pair (bytes %callback) (option(bytes :map_data)))
+             (unit)
+          );
+storage (pair
+           (pair
+              (pair (contract %under_key unit) (contract %over_key unit))
+              (nat :rain_level)
+           )
+           (contract %oracle_contract
+              (or
+                 (pair (bytes :callback %callback)(string :lookup_key %client_lookup))
+                 (or (pair (string :lookup_key) (bytes :map_data))(unit))
+              )
+              )
+        );
+code
+  { UNPAIR;
+    IF_LEFT
+      { UNPAIR ; DROP ;  IF_NONE{FAIL}{};UNPACK nat; IF_NONE{FAIL}{};
+        DIP{DUP;CAR;UNPAIR;SWAP};
+        CMPLT; IF {CAR %under_key} {CDR %over_key};     # Select contract to receive tokens
+        BALANCE; UNIT ; TRANSFER_TOKENS @trans.op; # Setup and execute transfer
+        NIL operation ; SWAP ; CONS ;
+        PAIR
+      }
+      { DIP{DUP;CDR; PUSH mutez 1000; PUSH string  "weather/rain" };
+        PACK;PAIR;LEFT (or (pair (string :lookup_key) (bytes :map_data))(unit));
+        TRANSFER_TOKENS @trans.oracle;
+        NIL operation ; SWAP ; CONS ; PAIR
+      }
+  }

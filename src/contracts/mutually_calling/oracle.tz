@@ -1,0 +1,58 @@
+parameter (or
+             (pair (bytes :callback %callback)(string :lookup_key %client_lookup))
+             (or (pair (string :lookup_key) (bytes :map_data))(unit)));
+storage (pair
+           ( big_map :oracle_data (string :lookup_key) (bytes :map_data) )
+           ( contract unit )
+        )
+  ;
+code {
+       UNPAIR;
+       IF_RIGHT {
+                  IF_LEFT{
+                           DIP { # checking the data supplier is the oracle
+                                 UNPAIR ; SWAP ; DUP ; ADDRESS ; SENDER ;
+                                 COMPARE ; ASSERT_EQ; SWAP
+                               };
+                           UNPAIR; DIP{SOME};UPDATE; PAIR ; #updating the map
+                           NIL operation ;
+                         }
+                         { # withdrawing the money
+                           DROP ;
+                           UNPAIR ; SWAP ; DUP ;
+                           BALANCE; UNIT;
+                           TRANSFER_TOKENS;
+                           DIP { SWAP; PAIR ; NIL operation} ;
+                           CONS
+                         };
+                }
+                { # querying the oracle
+                  # checking the payment is big enough
+                  AMOUNT ; PUSH mutez 1000 ; ASSERT_CMPLT;
+                  # Getting the data
+                  UNPAIR; DIP{DIP{UNPAIR;DUP;DIP{PAIR}};GET}; PAIR;
+                  LEFT unit;
+                  # replying to the caller
+                  DIP
+                    {
+                      SOURCE;
+                      CONTRACT (or
+                                  (pair (bytes %callback) (option(bytes :map_data)))
+                                  (unit)
+                               ) ;
+                      IF_NONE {FAIL}{DUP;DROP};
+                      PUSH mutez 0
+                    };
+                  TRANSFER_TOKENS ; DIP{NIL operation}; CONS
+                };
+       PAIR
+     };
+
+# invariant:
+# - if parameter is left,
+#   transfert_token (callback,data) 0 source /\ new_balance >= old_balance
+#   || fail
+# - iff SENDER is oracle, parameter left/left,  then map updated
+# - iff SENDER is oracle, parameter left/right,  then balance retrieved
+
+# - balance retrievable by oracle
