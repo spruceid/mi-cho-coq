@@ -44,9 +44,9 @@ Section semantics.
     | unit => Datatypes.unit
     | pair a b => data a * data b
     | or a b => sum (data a) (data b)
-    | option_ a => option (data a)
-    | list_ a => list (data a)
-    | set_ a => set.set (comparable_data a) (compare a)
+    | option a => Datatypes.option (data a)
+    | list a => Datatypes.list (data a)
+    | set a => set.set (comparable_data a) (compare a)
     | map a b => map.map (comparable_data a) (data b) (compare a)
     | big_map a b => map.map (comparable_data a) (data b) (compare a)
     | lambda a b =>
@@ -59,23 +59,23 @@ Section semantics.
       {
         create_contract : forall g p,
           comparable_data key_hash ->
-          option (comparable_data key_hash) ->
+          Datatypes.option (comparable_data key_hash) ->
           Datatypes.bool -> Datatypes.bool -> tez.mutez ->
-          data (lambda (pair p g) (pair (list_ operation) g)) ->
+          data (lambda (pair p g) (pair (list operation) g)) ->
           data g -> data (pair operation address);
         create_account :
           comparable_data key_hash ->
-          option (comparable_data key_hash) ->
+          Datatypes.option (comparable_data key_hash) ->
           Datatypes.bool -> tez.mutez ->
           data (pair operation (contract unit));
         transfer_tokens : forall p,
             data p -> tez.mutez -> data (contract p) ->
             data operation;
-        set_delegate : option (comparable_data key_hash) ->
+        set_delegate : Datatypes.option (comparable_data key_hash) ->
                        data operation;
         balance : tez.mutez;
         address_ : forall p, data (contract p) -> data address;
-        contract_ : forall p, data address -> data (option_ (contract p));
+        contract_ : forall p, data address -> data (option (contract p));
         source : data address;
         sender : data address;
         self : data (contract parameter_ty);
@@ -86,7 +86,7 @@ Section semantics.
         now : comparable_data timestamp;
         hash_key : data key -> comparable_data key_hash;
         pack : forall a, data a -> data bytes;
-        unpack : forall a, data bytes -> data (option_ a);
+        unpack : forall a, data bytes -> data (option a);
         blake2b : data bytes -> data bytes;
         sha256 : data bytes -> data bytes;
         sha512 : data bytes -> data bytes;
@@ -125,7 +125,7 @@ Section semantics.
     | None_ => None
     | Concrete_list l => List.map (concrete_data_to_data _) l
     | @Concrete_set _ _ a l =>
-      (fix concrete_data_set_to_data (l : list (concrete_data a)) :=
+      (fix concrete_data_set_to_data (l : Datatypes.list (concrete_data a)) :=
          match l with
          | nil => set.empty _ _
          | cons x l =>
@@ -228,7 +228,7 @@ Section semantics.
   Definition ediv_N x y :=
     if (y =? 0)%N then None else Some (x / y, x mod y)%N.
 
-  Definition ediv a b c d (v : ediv_variant a b c d) : data a -> data b -> data (option_ (pair c d)) :=
+  Definition ediv a b c d (v : ediv_variant a b c d) : data a -> data b -> data (option (pair c d)) :=
     match v with
     | Ediv_variant_nat_nat => fun x y => ediv_N x y
     | Ediv_variant_nat_int => fun x y => ediv_Z (Z.of_N x) y
@@ -262,13 +262,13 @@ Section semantics.
     | Stringlike_variant_bytes => String.append
     end.
 
-  Definition slice a (v : stringlike_variant a) : data nat -> data nat -> data a -> data (option_ a) :=
+  Definition slice a (v : stringlike_variant a) : data nat -> data nat -> data a -> data (option a) :=
     match v with
     | Stringlike_variant_string =>
       fun (n1 n2 : N) (s : data string) =>
         if (n1 + n2 <=? N.of_nat (String.length s))%N then
           (Some (String.substring (N.to_nat n1) (N.to_nat n2) s)
-           : data (option_ string))
+           : data (option string))
         else None
     | Stringlike_variant_bytes =>
       fun n1 n2 s =>
@@ -280,7 +280,7 @@ Section semantics.
   Definition mem a b (v : mem_variant a b) : data a -> data b -> data bool :=
     match v with
     | Mem_variant_set a =>
-      fun (x : data a) (y : data (set_ a)) => set.mem _ _ (compare_eq_iff a) x y
+      fun (x : data a) (y : data (set a)) => set.mem _ _ (compare_eq_iff a) x y
     | Mem_variant_map _ _ => map.mem _ _ _
     | Mem_variant_bigmap _ _ => map.mem _ _ _
     end.
@@ -306,7 +306,7 @@ Section semantics.
     end.
 
   Definition iter_destruct a b (v : iter_variant a b)
-    : data b -> data (option_ (pair a b)) :=
+    : data b -> data (option (pair a b)) :=
     match v with
     | Iter_variant_set _ => set.destruct _ _
     | Iter_variant_map _ _ => set.destruct _ _
@@ -318,14 +318,14 @@ Section semantics.
     end.
 
   Definition get k val c (v : get_variant k val c)
-    : data k -> data c -> data (option_ val) :=
+    : data k -> data c -> data (option val) :=
     match v with
     | Get_variant_map _ _ => map.get _ _ _
     | Get_variant_bigmap _ _ => map.get _ _ _
     end.
 
   Definition map_destruct a b ca cb (v : map_variant a b ca cb)
-    : data ca -> data (option_ (pair a ca)) :=
+    : data ca -> data (option (pair a ca)) :=
     match v with
     | Map_variant_map _ _ _ => set.destruct _ _
     | Map_variant_list _ _ =>

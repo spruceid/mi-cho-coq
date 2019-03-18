@@ -32,13 +32,13 @@ Print N.
 
 Section multisig.
 
-Definition action_ty := or (pair mutez (contract unit)) (or (option_ key_hash) (pair nat (list_ key))).
+Definition action_ty := or (pair mutez (contract unit)) (or (option key_hash) (pair nat (list key))).
 
 Definition parameter_ty := (pair
              (pair
                 nat
                 action_ty)
-             (list_ (option_ signature))).
+             (list (option signature))).
 
 Context {get_contract_type : contract_constant -> error.M type} {env : @proto_env get_contract_type parameter_ty}.
 
@@ -50,7 +50,7 @@ Definition eval_precond := @semantics.eval_precond _ _ env.
 
 Definition ADD_nat {S} : instruction (nat ::: nat ::: S) (nat ::: S) := ADD.
 
-Definition storage_ty := pair nat (pair nat (list_ key)).
+Definition storage_ty := pair nat (pair nat (list key)).
 
 
 Definition pack_ty := pair address (pair nat action_ty).
@@ -106,8 +106,8 @@ Definition multisig : full_contract parameter_ty storage_ty :=
                 ( DIP ( SWAP ;; CAR ) ;; SWAP ;; PAIR ;; SWAP )) ;;
     PAIR ).
 
-Fixpoint check_all_signatures (sigs : list (option (data signature)))
-         (keys : list (data key))
+Fixpoint check_all_signatures (sigs : Datatypes.list (Datatypes.option (data signature)))
+         (keys : Datatypes.list (data key))
          (check_sig : data key -> data signature -> data bool) {struct keys} :=
   match sigs, keys with
   | nil, nil => true
@@ -119,7 +119,7 @@ Fixpoint check_all_signatures (sigs : list (option (data signature)))
     check_all_signatures sigs keys check_sig
   end.
 
-Fixpoint count_signatures (sigs : list (option (data signature))) :=
+Fixpoint count_signatures (sigs : Datatypes.list (Datatypes.option (data signature))) :=
   match sigs with
   | nil => 0%N
   | cons None sigs => count_signatures sigs
@@ -130,14 +130,14 @@ Fixpoint count_signatures (sigs : list (option (data signature))) :=
 Definition multisig_spec
            (counter : N)
            (action : data action_ty)
-           (sigs : list (option (data signature)))
+           (sigs : Datatypes.list (Datatypes.option (data signature)))
            (stored_counter : N)
            (threshold : N)
-           (keys : list (data key))
+           (keys : Datatypes.list (data key))
            (new_stored_counter : N)
            (new_threshold : N)
-           (new_keys : list (data key))
-           (returned_operations : list (data operation)) :=
+           (new_keys : Datatypes.list (data key))
+           (returned_operations : Datatypes.list (data operation)) :=
   let params : data parameter_ty := ((counter, action), sigs) in
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
   counter = stored_counter /\
@@ -302,9 +302,9 @@ Proof.
     + intro; split; reflexivity.
 Qed.
 
-Definition multisig_head (then_ : instruction (nat ::: list_ key ::: list_ (option_ signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) (pair (list_ operation) storage_ty ::: nil)) :
+Definition multisig_head (then_ : instruction (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) (pair (list operation) storage_ty ::: nil)) :
   instruction (pair parameter_ty storage_ty ::: nil)
-              (pair (list_ operation) storage_ty ::: nil)
+              (pair (list operation) storage_ty ::: nil)
 :=
     UNPAIR ;; SWAP ;; DUP ;; DIP SWAP ;;
     DIP
@@ -323,17 +323,17 @@ Definition multisig_head (then_ : instruction (nat ::: list_ key ::: list_ (opti
 Definition multisig_head_spec
            (counter : N)
            (action : data action_ty)
-           (sigs : list (option (data signature)))
+           (sigs : Datatypes.list (Datatypes.option (data signature)))
            (stored_counter : N)
            (threshold : N)
-           (keys : list (data key))
+           (keys : Datatypes.list (data key))
            (fuel : Datatypes.nat)
            (then_ :
               instruction
-                (nat ::: list_ key ::: list_ (option_ signature) ::: bytes :::
+                (nat ::: list key ::: list (option signature) ::: bytes :::
                      action_ty ::: storage_ty ::: nil)
-                (pair (list_ operation) storage_ty ::: nil))
-           (psi : stack (pair (list_ operation) storage_ty ::: nil) -> Prop)
+                (pair (list operation) storage_ty ::: nil))
+           (psi : stack (pair (list operation) storage_ty ::: nil) -> Prop)
   :=
   let params : data parameter_ty := ((counter, action), sigs) in
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
@@ -358,16 +358,16 @@ Qed.
 Lemma multisig_head_correct
       (counter : N)
       (action : data action_ty)
-      (sigs : list (option (data signature)))
+      (sigs : Datatypes.list (Datatypes.option (data signature)))
       (stored_counter : N)
       (threshold : N)
-      (keys : list (data key))
+      (keys : Datatypes.list (data key))
       (then_ :
          instruction
-           (nat ::: list_ key ::: list_ (option_ signature) ::: bytes :::
+           (nat ::: list key ::: list (option signature) ::: bytes :::
                 action_ty ::: storage_ty ::: nil)
-           (pair (list_ operation) storage_ty ::: nil))
-      (psi : stack (pair (list_ operation) storage_ty ::: nil) -> Prop) :
+           (pair (list operation) storage_ty ::: nil))
+      (psi : stack (pair (list operation) storage_ty ::: nil) -> Prop) :
   let params : data parameter_ty := ((counter, action), sigs) in
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
   forall fuel, 9 <= fuel ->
@@ -404,9 +404,9 @@ Qed.
 
 Definition multisig_iter_body :
   instruction
-    (key ::: nat ::: list_ (option_ signature) ::: bytes ::: action_ty :::
+    (key ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
-    (nat ::: list_ (option_ signature) ::: bytes ::: action_ty :::
+    (nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
   :=
   (DIP SWAP ;; SWAP ;;
@@ -456,9 +456,9 @@ Qed.
 
 Definition multisig_iter :
   instruction
-    (list_ key ::: nat ::: list_ (option_ signature) ::: bytes ::: action_ty :::
+    (list key ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
-    (nat ::: list_ (option_ signature) ::: bytes ::: action_ty :::
+    (nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
   :=
   ITER multisig_iter_body.
@@ -587,9 +587,9 @@ Qed.
 
 Definition multisig_tail :
   instruction
-    (nat ::: nat ::: list_ (option_ signature) ::: bytes ::: action_ty :::
+    (nat ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
-    (pair (list_ operation) storage_ty ::: nil) :=
+    (pair (list operation) storage_ty ::: nil) :=
       ASSERT_CMPLE ;;
     DROP ;; DROP ;;
 
@@ -622,7 +622,7 @@ Lemma multisig_tail_correct
     end).
 Proof.
   intro Hfuel.
-  change (data (list_ key)) in keys.
+  change (data (list key)) in keys.
   unfold eval.
   rewrite eval_precond_correct.
   unfold multisig_tail.
@@ -661,14 +661,14 @@ Qed.
 Lemma multisig_correct
       (counter : N)
       (action : data action_ty)
-      (sigs : list (option (data signature)))
+      (sigs : Datatypes.list (Datatypes.option (data signature)))
       (stored_counter : N)
       (threshold : N)
-      (keys : list (data key))
+      (keys : Datatypes.list (data key))
       (new_stored_counter : N)
       (new_threshold : N)
-      (new_keys : list (data key))
-      (returned_operations : list (data operation))
+      (new_keys : Datatypes.list (data key))
+      (returned_operations : Datatypes.list (data operation))
       (fuel : Datatypes.nat) :
   let params : data parameter_ty := ((counter, action), sigs) in
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in

@@ -46,9 +46,9 @@ Inductive type : Set :=
 | key : type
 | unit : type
 | signature : type
-| option_ : type -> type
-| list_ : type -> type
-| set_ : comparable_type -> type
+| option : type -> type
+| list : type -> type
+| set : comparable_type -> type
 | contract : type -> type
 | address : type
 | operation : type
@@ -210,18 +210,18 @@ Canonical Structure stringlike_bytes : stringlike_struct bytes :=
 
 (* SIZE *)
 Inductive size_variant : type -> Set :=
-| Size_variant_set a : size_variant (set_ a)
+| Size_variant_set a : size_variant (set a)
 | Size_variant_map key val : size_variant (map key val)
-| Size_variant_list a : size_variant (list_ a)
+| Size_variant_list a : size_variant (list a)
 | Size_variant_string : size_variant string
 | Size_variant_bytes : size_variant bytes.
 Structure size_struct (a : type) :=
   Mk_size { size_variant_field : size_variant a }.
-Canonical Structure size_set a : size_struct (set_ a) :=
+Canonical Structure size_set a : size_struct (set a) :=
   {| size_variant_field := Size_variant_set a |}.
 Canonical Structure size_map key val : size_struct (map key val) :=
   {| size_variant_field := Size_variant_map key val |}.
-Canonical Structure size_list a : size_struct (list_ a) :=
+Canonical Structure size_list a : size_struct (list a) :=
   {| size_variant_field := Size_variant_list a |}.
 Canonical Structure size_string : size_struct string :=
   {| size_variant_field := Size_variant_string |}.
@@ -230,12 +230,12 @@ Canonical Structure size_bytes : size_struct bytes :=
 
 (* MEM *)
 Inductive mem_variant : comparable_type -> type -> Set :=
-| Mem_variant_set a : mem_variant a (set_ a)
+| Mem_variant_set a : mem_variant a (set a)
 | Mem_variant_map key val : mem_variant key (map key val)
 | Mem_variant_bigmap key val : mem_variant key (big_map key val).
 Structure mem_struct (key : comparable_type) (a : type) :=
   Mk_mem { mem_variant_field : mem_variant key a }.
-Canonical Structure mem_set a : mem_struct a (set_ a) :=
+Canonical Structure mem_set a : mem_struct a (set a) :=
   {| mem_variant_field := Mem_variant_set a |}.
 Canonical Structure mem_map key val : mem_struct key (map key val) :=
   {| mem_variant_field := Mem_variant_map key val |}.
@@ -244,12 +244,12 @@ Canonical Structure mem_bigmap key val : mem_struct key (big_map key val) :=
 
 (* UPDATE *)
 Inductive update_variant : comparable_type -> type -> type -> Set :=
-| Update_variant_set a : update_variant a bool (set_ a)
-| Update_variant_map key val : update_variant key (option_ val) (map key val)
-| Update_variant_bigmap key val : update_variant key (option_ val) (big_map key val).
+| Update_variant_set a : update_variant a bool (set a)
+| Update_variant_map key val : update_variant key (option val) (map key val)
+| Update_variant_bigmap key val : update_variant key (option val) (big_map key val).
 Structure update_struct key val collection :=
   Mk_update { update_variant_field : update_variant key val collection }.
-Canonical Structure update_set a : update_struct a bool (set_ a) :=
+Canonical Structure update_set a : update_struct a bool (set a) :=
   {| update_variant_field := Update_variant_set a |}.
 Canonical Structure update_mao key val :=
   {| update_variant_field := Update_variant_map key val |}.
@@ -258,17 +258,17 @@ Canonical Structure update_bigmap key val :=
 
 (* ITER *)
 Inductive iter_variant : type -> type -> Set :=
-| Iter_variant_set (a : comparable_type) : iter_variant a (set_ a)
+| Iter_variant_set (a : comparable_type) : iter_variant a (set a)
 | Iter_variant_map (key : comparable_type) val : iter_variant (pair key val) (map key val)
-| Iter_variant_list a : iter_variant a (list_ a).
+| Iter_variant_list a : iter_variant a (list a).
 Structure iter_struct collection :=
   Mk_iter { iter_elt_type : type;
             iter_variant_field : iter_variant iter_elt_type collection }.
-Canonical Structure iter_set a : iter_struct (set_ a) :=
+Canonical Structure iter_set a : iter_struct (set a) :=
   {| iter_variant_field := Iter_variant_set a |}.
 Canonical Structure iter_map key val : iter_struct (map key val) :=
   {| iter_variant_field := Iter_variant_map key val |}.
-Canonical Structure iter_list a : iter_struct (list_ a) :=
+Canonical Structure iter_list a : iter_struct (list a) :=
   {| iter_variant_field := Iter_variant_list a |}.
 
 (* GET *)
@@ -288,14 +288,14 @@ Inductive map_variant : type -> type -> type -> type -> Set :=
 | Map_variant_map (key : comparable_type) val b :
     map_variant (pair key val) b (map key val) (map key b)
 | Map_variant_list a b :
-    map_variant a b (list_ a) (list_ b).
+    map_variant a b (list a) (list b).
 Structure map_struct collection b :=
   Mk_map { map_in_type : type; map_out_collection_type : type;
            map_variant_field :
              map_variant map_in_type b collection map_out_collection_type }.
 Canonical Structure map_map key val b : map_struct (map key val) b :=
   {| map_variant_field := Map_variant_map key val b |}.
-Canonical Structure map_list a b : map_struct (list_ a) b :=
+Canonical Structure map_list a b : map_struct (list a) b :=
   {| map_variant_field := Map_variant_list a b |}.
 
 End Overloading.
@@ -322,7 +322,7 @@ Inductive elt_pair (a b : Set) : Set :=
 (* The type of the parameter of the current contract *)
 Context {self_type : type}.
 
-Inductive instruction : list type -> list type -> Set :=
+Inductive instruction : Datatypes.list type -> Datatypes.list type -> Set :=
 | NOOP {A} : instruction A A    (* Undocumented *)
 | FAILWITH {A B a} : instruction (a ::: A) B
 | SEQ {A B C} : instruction A B -> instruction B C -> instruction A C
@@ -361,7 +361,7 @@ this constructor "IF" but we can make a notation for it. *)
     instruction (a ::: b ::: S) (sub_ret_type _ _ s ::: S)
 | MUL {a b} {s : mul_struct a b} {S} :
     instruction (a ::: b ::: S) (mul_ret_type _ _ s ::: S)
-| EDIV {a b} {s : ediv_struct a b} {S} : instruction (a ::: b ::: S) (option_ (pair (ediv_quo_type _ _ s) (ediv_rem_type _ _ s)) :: S)
+| EDIV {a b} {s : ediv_struct a b} {S} : instruction (a ::: b ::: S) (option (pair (ediv_quo_type _ _ s) (ediv_rem_type _ _ s)) :: S)
 | LSL {S} : instruction (nat ::: nat ::: S) (nat ::: S)
 | LSR {S} : instruction (nat ::: nat ::: S) (nat ::: S)
 | COMPARE {a : comparable_type} {S} : instruction (a ::: a ::: S) (int ::: S)
@@ -369,11 +369,11 @@ this constructor "IF" but we can make a notation for it. *)
 | SIZE {a} {i : size_struct a} {S} :
     instruction (a ::: S) (nat ::: S)
 | SLICE {a} {i : stringlike_struct a} {S} :
-    instruction (nat ::: nat ::: a ::: S) (option_ a ::: S)
+    instruction (nat ::: nat ::: a ::: S) (option a ::: S)
 | PAIR {a b S} : instruction (a ::: b ::: S) (pair a b :: S)
 | CAR {a b S} : instruction (pair a b :: S) (a :: S)
 | CDR {a b S} : instruction (pair a b :: S) (b :: S)
-| EMPTY_SET elt {S} : instruction S (set_ elt ::: S)
+| EMPTY_SET elt {S} : instruction S (set elt ::: S)
 | MEM {elt a} {i : mem_struct elt a} {S} :
     instruction (elt ::: a ::: S) (bool ::: S)
 | UPDATE {elt val collection} {i : update_struct elt val collection} {S} :
@@ -383,16 +383,16 @@ this constructor "IF" but we can make a notation for it. *)
 | EMPTY_MAP (key : comparable_type) (val : type) {S} :
     instruction S (map key val :: S)
 | GET {key collection} {i : get_struct key collection} {S} :
-    instruction (key ::: collection ::: S) (option_ (get_val_type _ _ i) :: S)
+    instruction (key ::: collection ::: S) (option (get_val_type _ _ i) :: S)
 | MAP {collection b} {i : map_struct collection b} {A} :
     instruction (map_in_type _ _ i :: A) (b :: A) ->
     instruction (collection :: A) (map_out_collection_type _ _ i :: A)
-| SOME {a S} : instruction (a :: S) (option_ a :: S)
-| NONE (a : type) {S} : instruction S (option_ a :: S)
+| SOME {a S} : instruction (a :: S) (option a :: S)
+| NONE (a : type) {S} : instruction S (option a :: S)
 (* Not the one documented, see https://gitlab.com/tezos/tezos/issues/471 *)
 | IF_NONE {a A B} :
     instruction A B -> instruction (a :: A) B ->
-    instruction (option_ a :: A) B
+    instruction (option a :: A) B
 | LEFT {a} (b : type) {S} : instruction (a :: S) (or a b :: S)
 | RIGHT (a : type) {b S} : instruction (b :: S) (or a b :: S)
 | IF_LEFT {a b A B} :
@@ -403,31 +403,31 @@ this constructor "IF" but we can make a notation for it. *)
     instruction (b :: A) B ->
     instruction (a :: A) B ->
     instruction (or a b :: A) B
-| CONS {a S} : instruction (a ::: list_ a ::: S) (list_ a :: S)
-| NIL (a : type) {S} : instruction S (list_ a :: S)
+| CONS {a S} : instruction (a ::: list a ::: S) (list a :: S)
+| NIL (a : type) {S} : instruction S (list a :: S)
 | IF_CONS {a A B} :
-    instruction (a ::: list_ a ::: A) B ->
+    instruction (a ::: list a ::: A) B ->
     instruction A B ->
-    instruction (list_ a :: A) B
+    instruction (list a :: A) B
 | CREATE_CONTRACT {p g S} :
     instruction
-      (key_hash ::: option_ key_hash ::: bool ::: bool ::: mutez :::
-       lambda (pair p g) (pair (list_ operation) g) ::: g ::: S)
+      (key_hash ::: option key_hash ::: bool ::: bool ::: mutez :::
+       lambda (pair p g) (pair (list operation) g) ::: g ::: S)
       (operation ::: address ::: S)
 | CREATE_CONTRACT_literal {S} (g p : type) :
-    instruction (pair p g :: nil) (pair (list_ operation) g :: nil) ->
-    instruction (key_hash ::: option_ key_hash ::: bool ::: bool ::: mutez ::: g ::: S)
+    instruction (pair p g :: nil) (pair (list operation) g :: nil) ->
+    instruction (key_hash ::: option key_hash ::: bool ::: bool ::: mutez ::: g ::: S)
                 (operation ::: address ::: S)
 | CREATE_ACCOUNT {S} :
-    instruction (key_hash ::: option_ key_hash ::: bool ::: mutez ::: S)
+    instruction (key_hash ::: option key_hash ::: bool ::: mutez ::: S)
                 (operation ::: contract unit ::: S)
 | TRANSFER_TOKENS {p S} :
     instruction (p ::: mutez ::: contract p ::: S) (operation ::: S)
 | SET_DELEGATE {S} :
-    instruction (option_ key_hash ::: S) (operation ::: S)
+    instruction (option key_hash ::: S) (operation ::: S)
 | BALANCE {S} : instruction S (mutez ::: S)
 | ADDRESS {p S} : instruction (contract p ::: S) (address ::: S)
-| CONTRACT {S} p : instruction (address ::: S) (option_ (contract p) ::: S)
+| CONTRACT {S} p : instruction (address ::: S) (option (contract p) ::: S)
 (* Mistake in the doc: the return type must be an option *)
 | SOURCE {S} : instruction S (address :: S)
 | SENDER {S} : instruction S (address :: S)
@@ -438,7 +438,7 @@ this constructor "IF" but we can make a notation for it. *)
 | STEPS_TO_QUOTA {S} : instruction S (nat ::: S)
 | NOW {S} : instruction S (timestamp ::: S)
 | PACK {a S} : instruction (a ::: S) (bytes ::: S)
-| UNPACK {a S} : instruction (bytes ::: S) (option_ a ::: S)
+| UNPACK {a S} : instruction (bytes ::: S) (option a ::: S)
 | HASH_KEY {S} : instruction (key ::: S) (key_hash ::: S)
 | BLAKE2B {S} : instruction (bytes ::: S) (bytes ::: S)
 | SHA256 {S} : instruction (bytes ::: S) (bytes ::: S)
@@ -463,11 +463,11 @@ concrete_data : type -> Set :=
 | Pair {a b : type} : concrete_data a -> concrete_data b -> concrete_data (pair a b)
 | Left {a b : type} : concrete_data a -> concrete_data (or a b)
 | Right {a b : type} : concrete_data b -> concrete_data (or a b)
-| Some_ {a : type} : concrete_data a -> concrete_data (option_ a)
-| None_ {a : type} : concrete_data (option_ a)
-| Concrete_list {a} : Datatypes.list (concrete_data a) -> concrete_data (list_ a)
+| Some_ {a : type} : concrete_data a -> concrete_data (option a)
+| None_ {a : type} : concrete_data (option a)
+| Concrete_list {a} : Datatypes.list (concrete_data a) -> concrete_data (list a)
 | Concrete_set {a : comparable_type} :
-    Datatypes.list (concrete_data a) -> concrete_data (set_ a)
+    Datatypes.list (concrete_data a) -> concrete_data (set a)
 | Concrete_map {a : comparable_type} {b} :
     Datatypes.list (elt_pair (concrete_data a) (concrete_data b)) ->
     concrete_data (map a b)
@@ -487,10 +487,10 @@ Definition full_contract {get_contract_type} params storage :=
     get_contract_type
     params
     ((pair params storage) ::: nil)
-    ((pair (list_ operation) storage) ::: nil).
+    ((pair (list operation) storage) ::: nil).
 
 Notation "'IF'" := (IF_).
-Definition stack_type := list type.
+Definition stack_type := Datatypes.list type.
 
 Notation "A ;; B" := (SEQ A B) (at level 100, right associativity).
 

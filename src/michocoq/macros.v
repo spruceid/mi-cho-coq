@@ -86,10 +86,10 @@ Definition ASSERT_CMPLE {a : comparable_type} {S} :
 Definition ASSERT_CMPGE {a : comparable_type} {S} :
   instr (a ::: a ::: S) S := IFCMPGE NOOP FAIL.
 
-Definition ASSERT_NONE {a S} : instr (option_ a ::: S) S :=
+Definition ASSERT_NONE {a S} : instr (option a ::: S) S :=
   IF_NONE NOOP FAIL.
 
-Definition ASSERT_SOME {a S} : instr (option_ a ::: S) (a ::: S) :=
+Definition ASSERT_SOME {a S} : instr (option a ::: S) (a ::: S) :=
   IF_NONE FAIL NOOP.
 
 Definition ASSERT_LEFT {a b S} : instr (or a b ::: S) (a ::: S) :=
@@ -131,7 +131,7 @@ Definition CDAR {a b c S} : instr (pair a (pair b c) ::: S) (b ::: S) :=
 Definition CDDR {a b c S} : instr (pair a (pair b c) ::: S) (c ::: S) :=
   CDR ;; CDR.
 
-Definition IF_SOME {a SA SB} bt bf : instr (option_ a ::: SA) SB :=
+Definition IF_SOME {a SA SB} bt bf : instr (option a ::: SA) SB :=
   IF_NONE bf bt.
 
 Definition SET_CAR {a b S} : instr (pair a b ::: a ::: S) (pair a b ::: S) :=
