@@ -22,8 +22,15 @@
 
 (* The error monad *)
 
+Record location := Mk_loc { line : nat; column : nat }.
+
 Inductive exception : Prop :=
-  Out_of_fuel | Overflow | Assertion_Failure (A : Set) (a : A).
+| Out_of_fuel
+| Overflow
+| Assertion_Failure (A : Set) (a : A)
+| Lexing (_ : location)
+| Parsing (_ : location)
+| Typing (_ : location).
 
 Inductive M (A : Set) : Set :=
 | Failed : exception -> M A
