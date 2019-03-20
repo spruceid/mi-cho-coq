@@ -29,14 +29,15 @@ Inductive exception : Prop :=
 | Overflow
 | Assertion_Failure (A : Set) (a : A)
 | Lexing (_ : location)
-| Parsing (_ : location)
+| Parsing
+| Parsing_Out_of_Fuel
 | Typing (_ : location).
 
-Inductive M (A : Set) : Set :=
+Inductive M (A : Type) : Type :=
 | Failed : exception -> M A
 | Return : A -> M A.
 
-Definition bind {A B : Set} (f : A -> M B) (m : M A) :=
+Definition bind {A B} (f : A -> M B) (m : M A) :=
   match m with
   | Failed _ e => Failed B e
   | Return _ SB => f SB
@@ -80,7 +81,7 @@ Proof.
     destruct (not_false H).
 Qed.
 
-Lemma success_bind {A B : Set} (f : A -> M B) m :
+Lemma success_bind {A B} (f : A -> M B) m :
   success (bind f m) ->
   exists x, m = Return _ x /\ success (f x).
 Proof.
@@ -102,7 +103,7 @@ Proof.
   apply ITT.
 Qed.
 
-Lemma success_bind_arg {A B : Set} (f : A -> M B) m :
+Lemma success_bind_arg {A B} (f : A -> M B) m :
   success (bind f m) ->
   success m.
 Proof.
@@ -123,7 +124,7 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma bind_eq_return {A B : Set} f m b :
+Lemma bind_eq_return {A B} f m b :
   bind f m = Return B b ->
   exists a : A, m = Return A a /\ f a = Return B b.
 Proof.
@@ -135,7 +136,7 @@ Proof.
 Qed.
 
 
-Definition precond {A : Set} (m : M A) p :=
+Definition precond {A} (m : M A) p :=
   match m with
   | Failed _ _ => is_true false
   | Return _ a => p a

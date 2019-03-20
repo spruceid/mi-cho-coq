@@ -2,19 +2,8 @@ Require Import String.
 Require Import Ascii.
 Require Import ZArith.
 Require error.
-
-Inductive token :=
-| LBRACE
-| RBRACE
-| SEMICOLON
-| LPAREN
-| RPAREN
-| PRIM : string -> token
-| STR : string -> token
-| NUMBER : Z -> token
-| BYTES : string -> token.
-
-
+Require micheline_parser.
+Require Import micheline_tokens.
 
 Definition char_is_num (c : ascii) :=
   match c with
@@ -160,3 +149,17 @@ lex_micheline_multiline_comment (input : string) loc :=
     lex_micheline_multiline_comment s loc
   | Empty_string => error.Failed _ (error.Lexing loc)
   end.
+
+
+Fixpoint tokens_to_parser (ts : list (error.location * token)) : error.M (Streams.Stream parser_token) :=
+  match ts with
+  | nil => error.Return _ (Streams.const (token_to_parser EOF))
+  | cons (_, t) ts =>
+    error.bind
+      (fun s => error.Return _ (Streams.Cons (token_to_parser t) s))
+      (tokens_to_parser ts)
+  end.
+
+Definition lex_micheline_to_parser (input : string)
+  : error.M (Streams.Stream parser_token) :=
+  error.bind tokens_to_parser (lex_micheline input location_start).

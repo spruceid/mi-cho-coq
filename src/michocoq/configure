@@ -23,4 +23,4 @@
 
 
 echo "-R . Michocoq" > _CoqProject
-find . -iname "*.v" | grep -v extraction   >> _CoqProject
+find . -iname "*.v" -o -iname "*.vy" | sed 's/vy$/v/' | sort | uniq >> _CoqProject

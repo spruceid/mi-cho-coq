@@ -24,8 +24,16 @@ extract:
 	make -C extraction
 
 clean-extracted:
-	 make -C extraction clean-extracted
+	make -C extraction clean-extracted
 
 cleanall:: clean-extracted
 
 post-all:: extract
+
+%.v: %.vy
+	menhir --coq $<
+
+VYS=$(wildcard *.vy)
+
+clean::
+	rm -f $(VYS:%.vy=%.v)

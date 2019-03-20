@@ -19,6 +19,8 @@ depends: [
   "coq" {>= "8.8"}
   "coq-ott"
   "ott"
+  "menhir"
+  "coq-menhirlib"
 ]
 
 tags: [
