@@ -22,5 +22,7 @@
 # DEALINGS IN THE SOFTWARE.
 
 
+# shellcheck disable=SC2039
+## Shellcheck misinterprets "-R" as an echo flag
 echo "-R . Michocoq" > _CoqProject
 find -iname "*.v" | grep -v extraction   >> _CoqProject
