@@ -1,6 +1,8 @@
-#! /bin/bash
+#! /bin/sh
 
-function fail {
+set -e
+
+fail () {
     echo "$1"; exit 1
 }
 
@@ -10,8 +12,10 @@ coq_makefile -f _CoqProject -o Makefile || fail "fail while building main makefi
 
 for i in $DIRS ; do
     echo "Generating Makefile in $i"
-    cd $i &&\
-    if [ -x ./configure ] ; then ./configure ; fi &&\
-    coq_makefile -f _CoqProject -o Makefile &&\
-    cd -
+    (
+        set -e
+        cd "$i"
+        if [ -x ./configure ] ; then sh configure ; fi
+        coq_makefile -f _CoqProject -o Makefile
+    )
 done
