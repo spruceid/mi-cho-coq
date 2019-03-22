@@ -1,4 +1,5 @@
 #! /bin/sh
 
 echo "-R . Michocott" > _CoqProject
-find . -iname "*.v" | grep -v Formulas.v >> _CoqProject
+find . -iname "*.v" -o -iname "*.ott" | sed 's/ott$/v/' | grep -v Formulas.v | sort | uniq >> _CoqProject
+

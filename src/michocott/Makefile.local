@@ -21,8 +21,12 @@ release: all doc README.txt
 	   michelson-ott/
 	zip -r michelson-ott.zip michelson-ott
 
-
 cleanall:: clean-extracted
 
 clean-extracted:
-	 	rm -f *.ml *.mli
+	rm -f *.ml *.mli
+
+OTTS=$(wildcard *.ott)
+
+clean::
+	rm -f $(OTTS:%.ott=%.v) *.pdf *.out *.aux *.log *.ml *.mli
