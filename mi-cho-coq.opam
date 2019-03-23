@@ -11,4 +11,4 @@ license: "MIT"
 build: [ [ "./configure" ] [ make ] ]
 install: [ ]
 remove: [ ]
-depends: [ "coq" "coq-ott" "ott" ]
+depends: [ "coq" {>= "8.8"} "coq-ott" "ott" ]
