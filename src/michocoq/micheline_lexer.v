@@ -1,9 +1,6 @@
-Require Import String.
-Require Import Ascii.
-Require Import ZArith.
-Require error.
-Require micheline_parser.
-Require Import micheline_tokens.
+Require Import String Ascii ZArith.
+Require error micheline_parser.
+Require Import micheline_tokens location.
 
 Definition char_is_num (c : ascii) :=
   match c with
@@ -15,7 +12,8 @@ Definition char_is_num (c : ascii) :=
 Definition char_is_alpha (c : ascii) :=
   let leb a b := (N.leb (N_of_ascii a) (N_of_ascii b)) in
   orb (andb (leb "a"%char c) (leb c "z"%char))
-      (andb (leb "A"%char c) (leb c "Z"%char)).
+      (orb (andb (leb "A"%char c) (leb c "Z"%char))
+           (eqb "_"%char c)).
 
 Definition Z_of_char (c : ascii) (acc : Z) : Z :=
   match c with
@@ -32,99 +30,92 @@ Definition Z_of_char (c : ascii) (acc : Z) : Z :=
   | c => 0%Z
   end.
 
-Definition location_start : error.location :=
-  {| error.line := 0; error.column := 0 |}.
-
-Definition location_incr (loc : error.location) : error.location :=
-  {| error.line := error.line loc; error.column := S (error.column loc) |}.
-
-Definition location_newline (loc : error.location) : error.location :=
-  {| error.line := S (error.line loc); error.column := 0 |}.
 
 Definition string_snoc s c := (s ++ String c "")%string.
 
-Fixpoint lex_micheline (input : string) (loc : error.location) : error.M (list (error.location * token)) :=
+Fixpoint lex_micheline (input : string) (loc : location) : error.M (list (location.location * location.location * token)) :=
   match input with
   | String first_char input =>
-    let loc := location_incr loc in
+    let nloc := location_incr loc in
     match first_char with
     | "{"%char =>
       error.bind
-        (fun l => error.Return _ (cons (loc, LBRACE) l))
+        (fun l => error.Return _ (cons (loc, nloc, LBRACE) l))
         (lex_micheline input loc)
     | "}"%char =>
       error.bind
-        (fun l => error.Return _ (cons (loc, RBRACE) l))
+        (fun l => error.Return _ (cons (loc, nloc, RBRACE) l))
         (lex_micheline input loc)
     | "("%char =>
       error.bind
-        (fun l => error.Return _ (cons (loc, LPAREN) l))
+        (fun l => error.Return _ (cons (loc, nloc, LPAREN) l))
         (lex_micheline input loc)
     | ")"%char =>
       error.bind
-        (fun l => error.Return _ (cons (loc, RPAREN) l))
+        (fun l => error.Return _ (cons (loc, nloc, RPAREN) l))
         (lex_micheline input loc)
     | ";"%char =>
       error.bind
-        (fun l => error.Return _ (cons (loc, SEMICOLON) l))
+        (fun l => error.Return _ (cons (loc, nloc, SEMICOLON) l))
         (lex_micheline input loc)
     | """"%char =>
-      lex_micheline_string input ""%string loc
+      lex_micheline_string input ""%string loc nloc
     | "#"%char =>
-      lex_micheline_inline_comment input loc
+      lex_micheline_inline_comment input nloc
     | " "%char =>
-      lex_micheline input loc
+      lex_micheline input nloc
     | "010"%char (* newline *) =>
       lex_micheline input (location_newline loc)
     | "/"%char =>
       match input with
       | String "*"%char s =>
-        lex_micheline_multiline_comment s loc
+        lex_micheline_multiline_comment s (location_incr nloc)
       | _ =>
         error.Failed _ (error.Lexing loc)
       end
     | c =>
       if char_is_num c then
-        (fix lex_micheline_number (input : string) (acc : Z) loc :=
+        (fix lex_micheline_number (input : string) (acc : Z) start loc :=
            match input with
            | String c s =>
              let loc := location_incr loc in
              if char_is_num c then
-               lex_micheline_number s (Z_of_char c acc) loc
+               lex_micheline_number s (Z_of_char c acc) start loc
              else
-               (error.bind (fun l => error.Return _ (cons (loc, NUMBER acc) l))
+               (error.bind (fun l =>
+                              error.Return _ (cons (start, loc, NUMBER acc) l))
                            (lex_micheline input loc))
            | s => lex_micheline s loc
-           end) input (Z_of_char c 0%Z) loc
+           end) input (Z_of_char c 0%Z) loc loc
       else
         if char_is_alpha c then
-          (fix lex_micheline_prim (input : string) (acc : string) loc :=
+          (fix lex_micheline_prim (input : string) (acc : string) start loc :=
              match input with
              | String c s =>
                let loc := location_incr loc in
                if char_is_alpha c then
-                 lex_micheline_prim s (string_snoc acc c) loc
+                 lex_micheline_prim s (string_snoc acc c) start loc
                else
-                 (error.bind (fun l => error.Return _ (cons (loc, PRIM acc) l))
+                 (error.bind (fun l => error.Return _ (cons (start, loc, PRIM acc) l))
                              (lex_micheline input loc))
              | s => lex_micheline s loc
-             end) input (String c ""%string) loc
+             end) input (String c ""%string) loc loc
         else
           error.Failed _ (error.Lexing loc)
     end
   | EmptyString => error.Return _ nil
   end
 with
-lex_micheline_string (input : string) (acc : string) loc :=
+lex_micheline_string (input : string) (acc : string) start loc :=
   match input with
   | String """"%char s =>
     let loc := location_incr loc in
     error.bind
-      (fun l => error.Return _ (cons (loc, STR acc) l))
+      (fun l => error.Return _ (cons (start, loc, STR acc) l))
       (lex_micheline s loc)
   | String c s =>
     let loc := location_incr loc in
-    lex_micheline_string s (string_snoc acc c) loc
+    lex_micheline_string s (string_snoc acc c) start loc
   | EmptyString =>
     error.Failed _ (error.Lexing loc)
   end
@@ -144,6 +135,9 @@ lex_micheline_multiline_comment (input : string) loc :=
     let loc := location_incr loc in
     let loc := location_incr loc in
     lex_micheline s loc
+  | String "010"%char (* newline *) s =>
+    let loc := location_newline loc in
+    lex_micheline_multiline_comment s loc
   | String _ s =>
     let loc := location_incr loc in
     lex_micheline_multiline_comment s loc
@@ -151,10 +145,10 @@ lex_micheline_multiline_comment (input : string) loc :=
   end.
 
 
-Fixpoint tokens_to_parser (ts : list (error.location * token)) : error.M (Streams.Stream parser_token) :=
+Fixpoint tokens_to_parser (ts : list (location * location * token)) : error.M (Streams.Stream parser_token) :=
   match ts with
-  | nil => error.Return _ (Streams.const (token_to_parser EOF))
-  | cons (_, t) ts =>
+  | nil => error.Return _ (Streams.const (token_to_parser (location_start, location_start, EOF)))
+  | cons t ts =>
     error.bind
       (fun s => error.Return _ (Streams.Cons (token_to_parser t) s))
       (tokens_to_parser ts)

@@ -1,40 +1,61 @@
 %{Require Import String ZArith.
-Require Import micheline_syntax.
+Require Import micheline_syntax location.
 %}
 
-%token LBRACE RBRACE SEMICOLON LPAREN RPAREN
-%token <string> PRIM STR BYTES
-%token <Z> NUMBER
-%token EOF
+%token <location * location> LBRACE RBRACE SEMICOLON LPAREN RPAREN EOF
+%token <location * location * string> PRIM STR BYTES
+%token <location * location * Z> NUMBER
 
-%start <micheline> file
+%start <loc_micheline> file
 
-%type <list micheline> seq args
-%type <micheline> arg atom app micheline
+%type <location * location * list (loc_micheline) > args
+%type <list (loc_micheline) > seq
+%type <loc_micheline> arg atom app micheline
 
 %%
 
 atom:
-    STR { STR $1 }
-  | BYTES { BYTES $1 }
-  | NUMBER { NUMBER $1 }
-  | LBRACE seq RBRACE { SEQ $2 }
+    STR {
+      let '((b, e), s) := $1 in
+      Mk_loc_micheline (b, e, STR s)
+    }
+  | BYTES {
+      let '((b, e), s) := $1 in
+      Mk_loc_micheline (b, e, BYTES s)
+    }
+  | NUMBER {
+      let '((b, e), z) := $1 in
+      Mk_loc_micheline (b, e, NUMBER z) }
+  | LBRACE seq RBRACE {
+      let '(b, _) := $1 in
+      let '(_, e) := $3 in
+      Mk_loc_micheline (b, e, SEQ $2) }
 ;
 
 arg:
     atom { $1 }
   | LPAREN app RPAREN { $2 }
-  | PRIM { PRIM $1 nil }
+  | PRIM {
+      let '((b, e), _) := $1 in
+      Mk_loc_micheline (b, e, PRIM $1 nil)
+    }
 ;
 
 args:
-    arg { cons $1 nil }
-  | arg args { cons $1 $2 }
+    arg { let '(Mk_loc_micheline ((b, e), _)) := $1 in (b, e, cons $1 nil) }
+  | arg args {
+      let '(Mk_loc_micheline ((b, _), _)) := $1 in
+      let '((_, e), l) := $2 in
+      (b, e, cons $1 l)
+    }
 ;
 
 micheline:
     atom { $1 }
-  | PRIM { PRIM $1 nil }
+  | PRIM {
+      let '((b, e), _) := $1 in
+      Mk_loc_micheline (b, e, PRIM $1 nil)
+    }
   | app { $1 }
 ;
 
@@ -44,7 +65,11 @@ seq:
 ;
 
 app:
-    PRIM args { PRIM $1 $2 }
+    PRIM args {
+      let '((b, _), _) := $1 in
+      let '((_, e), l) := $2 in
+      Mk_loc_micheline (b, e, PRIM $1 l)
+    }
 ;
 
 file: micheline EOF { $1 }

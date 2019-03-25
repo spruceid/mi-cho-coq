@@ -27,136 +27,138 @@ Module Macros(ST:SelfType)(C:ContractContext).
 Module syntax := Syntax ST C.
 Export syntax.
 
-Definition CMPEQ {a : comparable_type} {S} :
-  instruction (a ::: a ::: S) (bool ::: S) := COMPARE ;; EQ.
-Definition CMPNEQ {a : comparable_type} {S} :
-  instruction (a ::: a ::: S) (bool ::: S) := COMPARE ;; NEQ.
-Definition CMPLT {a : comparable_type} {S} :
-  instruction (a ::: a ::: S) (bool ::: S) := COMPARE ;; LT.
-Definition CMPGT {a : comparable_type} {S} :
-  instruction (a ::: a ::: S) (bool ::: S) := COMPARE ;; GT.
-Definition CMPLE {a : comparable_type} {S} :
-  instruction (a ::: a ::: S) (bool ::: S) := COMPARE ;; LE.
-Definition CMPGE {a : comparable_type} {S} :
-  instruction (a ::: a ::: S) (bool ::: S) := COMPARE ;; GE.
+Definition CMPop (a : comparable_type) S (op : instruction Datatypes.false (int ::: S) (bool ::: S))
+           : instruction Datatypes.false (a ::: a ::: S) (bool ::: S) := COMPARE ;; op.
 
-Definition IFEQ {SA SB} (bt bf : instruction SA SB) := EQ ;; IF_ bt bf.
-Definition IFNEQ {SA SB} (bt bf : instruction SA SB) := NEQ ;; IF_ bt bf.
-Definition IFLT {SA SB} (bt bf : instruction SA SB) := LT ;; IF_ bt bf.
-Definition IFGT {SA SB} (bt bf : instruction SA SB) := GT ;; IF_ bt bf.
-Definition IFLE {SA SB} (bt bf : instruction SA SB) := LE ;; IF_ bt bf.
-Definition IFGE {SA SB} (bt bf : instruction SA SB) := GE ;; IF_ bt bf.
+Definition CMPEQ {a S} := CMPop a S EQ.
+Definition CMPNEQ {a S} := CMPop a S NEQ.
+Definition CMPLT {a S} := CMPop a S LT.
+Definition CMPGT {a S} := CMPop a S GT.
+Definition CMPLE {a S} := CMPop a S LE.
+Definition CMPGE {a S} := CMPop a S GE.
 
-Definition IFCMPEQ {a : comparable_type} {SA SB} bt bf :
-  instruction (a ::: a ::: SA) SB := COMPARE ;; EQ ;; IF_ bt bf.
-Definition IFCMPNEQ {a : comparable_type} {SA SB} bt bf :
-  instruction (a ::: a ::: SA) SB := COMPARE ;; NEQ ;; IF_ bt bf.
-Definition IFCMPLT {a : comparable_type} {SA SB} bt bf :
-  instruction (a ::: a ::: SA) SB := COMPARE ;; LT ;; IF_ bt bf.
-Definition IFCMPGT {a : comparable_type} {SA SB} bt bf :
-  instruction (a ::: a ::: SA) SB := COMPARE ;; GT ;; IF_ bt bf.
-Definition IFCMPLE {a : comparable_type} {SA SB} bt bf :
-  instruction (a ::: a ::: SA) SB := COMPARE ;; LE ;; IF_ bt bf.
-Definition IFCMPGE {a : comparable_type} {SA SB} bt bf :
-  instruction (a ::: a ::: SA) SB := COMPARE ;; GE ;; IF_ bt bf.
+Definition IFop SA SB tffa tffb
+           (bt : instruction tffa SA SB) (bf : instruction tffb SA SB)
+           (op : instruction Datatypes.false (int ::: SA) (bool ::: SA)) :=
+  op ;; IF_ bt bf.
 
-Definition FAIL {SA SB} : instruction SA SB := UNIT ;; FAILWITH.
+Definition IFEQ {SA SB tffa tffb} bt bf := IFop SA SB tffa tffb bt bf EQ.
+Definition IFNEQ {SA SB tffa tffb} bt bf := IFop SA SB tffa tffb bt bf NEQ.
+Definition IFLT {SA SB tffa tffb} bt bf := IFop SA SB tffa tffb bt bf LT.
+Definition IFGT {SA SB tffa tffb} bt bf := IFop SA SB tffa tffb bt bf GT.
+Definition IFLE {SA SB tffa tffb} bt bf := IFop SA SB tffa tffb bt bf LE.
+Definition IFGE {SA SB tffa tffb} bt bf := IFop SA SB tffa tffb bt bf GE.
 
-Definition ASSERT {S} : instruction (bool ::: S) S := IF_ NOOP FAIL.
+Definition IFCMPop (a : comparable_type) SA SB tffa tffb
+           (bt : instruction tffa SA SB) (bf : instruction tffb SA SB)
+           (op : instruction Datatypes.false (int ::: SA) (bool ::: SA)) :
+  instruction (tffa && tffb) (a ::: a ::: SA) SB :=
+  COMPARE ;; op ;; IF_ bt bf.
 
-Definition ASSERT_EQ {S} : instruction (int ::: S) S := IFEQ NOOP FAIL.
-Definition ASSERT_NEQ {S} : instruction (int ::: S) S := IFNEQ NOOP FAIL.
-Definition ASSERT_LT {S} : instruction (int ::: S) S := IFLT NOOP FAIL.
-Definition ASSERT_GT {S} : instruction (int ::: S) S := IFGT NOOP FAIL.
-Definition ASSERT_LE {S} : instruction (int ::: S) S := IFLE NOOP FAIL.
-Definition ASSERT_GE {S} : instruction (int ::: S) S := IFGE NOOP FAIL.
+Definition IFCMPEQ {a SA SB tffa tffb} bt bf := IFCMPop a SA SB tffa tffb bt bf EQ.
+Definition IFCMPNEQ {a SA SB tffa tffb} bt bf := IFCMPop a SA SB tffa tffb bt bf NEQ.
+Definition IFCMPLT {a SA SB tffa tffb} bt bf := IFCMPop a SA SB tffa tffb bt bf LT.
+Definition IFCMPGT {a SA SB tffa tffb} bt bf := IFCMPop a SA SB tffa tffb bt bf GT.
+Definition IFCMPLE {a SA SB tffa tffb} bt bf := IFCMPop a SA SB tffa tffb bt bf LE.
+Definition IFCMPGE {a SA SB tffa tffb} bt bf := IFCMPop a SA SB tffa tffb bt bf GE.
 
-Definition ASSERT_CMPEQ {a : comparable_type} {S} :
-  instruction (a ::: a ::: S) S := IFCMPEQ NOOP FAIL.
-Definition ASSERT_CMPNEQ {a : comparable_type} {S} :
-  instruction (a ::: a ::: S) S := IFCMPNEQ NOOP FAIL.
-Definition ASSERT_CMPLT {a : comparable_type} {S} :
-  instruction (a ::: a ::: S) S := IFCMPLT NOOP FAIL.
-Definition ASSERT_CMPGT {a : comparable_type} {S} :
-  instruction (a ::: a ::: S) S := IFCMPGT NOOP FAIL.
-Definition ASSERT_CMPLE {a : comparable_type} {S} :
-  instruction (a ::: a ::: S) S := IFCMPLE NOOP FAIL.
-Definition ASSERT_CMPGE {a : comparable_type} {S} :
-  instruction (a ::: a ::: S) S := IFCMPGE NOOP FAIL.
+Definition FAIL {SA SB} : instruction Datatypes.true SA SB := UNIT ;; FAILWITH.
 
-Definition ASSERT_NONE {a S} : instruction (option a ::: S) S :=
+Definition ASSERT {S} : instruction Datatypes.false (bool ::: S) S := IF_ NOOP FAIL.
+
+Definition ASSERT_op S (op : instruction Datatypes.false (int ::: S) (bool ::: S)) : instruction Datatypes.false (int ::: S) S :=
+  IFop _ _ _ _ NOOP FAIL op.
+
+Definition ASSERT_EQ {S} := ASSERT_op S EQ.
+Definition ASSERT_NEQ {S} := ASSERT_op S NEQ.
+Definition ASSERT_LT {S} := ASSERT_op S LT.
+Definition ASSERT_GT {S} := ASSERT_op S GT.
+Definition ASSERT_LE {S} := ASSERT_op S LE.
+Definition ASSERT_GE {S} := ASSERT_op S GE.
+
+Definition ASSERT_CMPop (a : comparable_type) S (op : instruction Datatypes.false (int ::: S) (bool ::: S))
+  : instruction Datatypes.false (a ::: a ::: S) S := IFCMPop _ _ _ _ _ NOOP FAIL op.
+
+Definition ASSERT_CMPEQ {a S} := ASSERT_CMPop a S EQ.
+Definition ASSERT_CMPNEQ {a S} := ASSERT_CMPop a S NEQ.
+Definition ASSERT_CMPLT {a S} := ASSERT_CMPop a S LT.
+Definition ASSERT_CMPGT {a S} := ASSERT_CMPop a S GT.
+Definition ASSERT_CMPLE {a S} := ASSERT_CMPop a S LE.
+Definition ASSERT_CMPGE {a S} := ASSERT_CMPop a S GE.
+
+Definition ASSERT_NONE {a S} : instruction Datatypes.false (option a ::: S) S :=
   IF_NONE NOOP FAIL.
 
-Definition ASSERT_SOME {a S} : instruction (option a ::: S) (a ::: S) :=
+Definition ASSERT_SOME {a S} : instruction Datatypes.false (option a ::: S) (a ::: S) :=
   IF_NONE FAIL NOOP.
 
-Definition ASSERT_LEFT {a b S} : instruction (or a b ::: S) (a ::: S) :=
+Definition ASSERT_LEFT {a b S} : instruction Datatypes.false (or a b ::: S) (a ::: S) :=
   IF_LEFT NOOP FAIL.
-Definition ASSERT_RIGHT {a b S} : instruction (or a b ::: S) (b ::: S) :=
+Definition ASSERT_RIGHT {a b S} : instruction Datatypes.false (or a b ::: S) (b ::: S) :=
   IF_LEFT FAIL NOOP.
 
-Definition DROP1 {a SA} : instruction (a ::: SA) SA :=
+Definition DROP1 {a SA} : instruction Datatypes.false (a ::: SA) SA :=
   DROP (A := a ::: nil) 1 eq_refl.
 
-Definition DIP1 {a SA SB} code : instruction (a ::: SA) (a ::: SB) :=
+Definition DIP1 {a SA SB} code : instruction _ (a ::: SA) (a ::: SB) :=
   DIP (A := (a ::: nil)) 1 eq_refl code.
-Definition DIIP {a b SA SB} code : instruction (a ::: b ::: SA) (a ::: b ::: SB) :=
+Definition DIIP {a b SA SB} code : instruction _ (a ::: b ::: SA) (a ::: b ::: SB) :=
   DIP (A := (a ::: b ::: nil)) 2 eq_refl code.
 Definition DIIIP {a b c SA SB} code :
-  instruction (a ::: b ::: c ::: SA) (a ::: b ::: c ::: SB) :=
+  instruction _ (a ::: b ::: c ::: SA) (a ::: b ::: c ::: SB) :=
   DIP (A := (a ::: b ::: c ::: nil)) 3 eq_refl code.
 Definition DIIIIP {a b c d SA SB} code :
-  instruction (a ::: b ::: c ::: d ::: SA) (a ::: b ::: c ::: d ::: SB) :=
+  instruction _ (a ::: b ::: c ::: d ::: SA) (a ::: b ::: c ::: d ::: SB) :=
   DIP (A := (a ::: b ::: c ::: d ::: nil)) 4 eq_refl code.
 
-Definition DUUP {a b S} : instruction (a ::: b ::: S) (b ::: a ::: b ::: S) :=
+Definition DUUP {a b S} : instruction Datatypes.false (a ::: b ::: S) (b ::: a ::: b ::: S) :=
   DIP1 DUP ;; SWAP.
 
-Definition DUPn {A b C} n (H : length A = n) : instruction (A +++ b ::: C) (b ::: A +++ b ::: C) :=
+Definition DUPn {A b C} n (H : length A = n) : instruction Datatypes.false (A +++ b ::: C) (b ::: A +++ b ::: C) :=
   DIG n H ;; DUP ;; DIP1 (DUG n H).
 
-Definition DUUUP {a b c S} : instruction (a ::: b ::: c ::: S) (c ::: a ::: b ::: c ::: S) :=
+Definition DUUUP {a b c S} : instruction Datatypes.false (a ::: b ::: c ::: S) (c ::: a ::: b ::: c ::: S) :=
   DUPn (A := a ::: b ::: nil) 2 eq_refl.
 
-Definition DUUUUP {a b c d S} : instruction (a ::: b ::: c ::: d ::: S) (d ::: a ::: b ::: c ::: d ::: S) :=
+Definition DUUUUP {a b c d S} : instruction Datatypes.false (a ::: b ::: c ::: d ::: S) (d ::: a ::: b ::: c ::: d ::: S) :=
   DUPn (A := a ::: b ::: c ::: nil) 3 eq_refl.
 
 (* Missing: PAPPAIIR and such *)
 
-Definition UNPAIR {a b S} : instruction (pair a b ::: S) (a ::: b ::: S) :=
+Definition UNPAIR {a b S} : instruction Datatypes.false (pair a b ::: S) (a ::: b ::: S) :=
   DUP ;; CAR ;; DIP1 CDR.
 
-Definition CAAR {a b c S} : instruction (pair (pair a b) c ::: S) (a ::: S) :=
+Definition CAAR {a b c S} : instruction Datatypes.false (pair (pair a b) c ::: S) (a ::: S) :=
   CAR ;; CAR.
 
-Definition CADR {a b c S} : instruction (pair (pair a b) c ::: S) (b ::: S) :=
+Definition CADR {a b c S} : instruction Datatypes.false (pair (pair a b) c ::: S) (b ::: S) :=
   CAR ;; CDR.
 
-Definition CDAR {a b c S} : instruction (pair a (pair b c) ::: S) (b ::: S) :=
+Definition CDAR {a b c S} : instruction Datatypes.false (pair a (pair b c) ::: S) (b ::: S) :=
   CDR ;; CAR.
 
-Definition CDDR {a b c S} : instruction (pair a (pair b c) ::: S) (c ::: S) :=
+Definition CDDR {a b c S} : instruction Datatypes.false (pair a (pair b c) ::: S) (c ::: S) :=
   CDR ;; CDR.
 
-Definition IF_SOME {a SA SB} bt bf : instruction (option a ::: SA) SB :=
+Definition IF_SOME {a SA SB tffa tffb} (bt : instruction tffa _ _) (bf : instruction tffb _ _) : instruction _ (option a ::: SA) SB :=
   IF_NONE bf bt.
 
-Definition SET_CAR {a b S} : instruction (pair a b ::: a ::: S) (pair a b ::: S) :=
+Definition SET_CAR {a b S} : instruction Datatypes.false (pair a b ::: a ::: S) (pair a b ::: S) :=
   CDR ;; SWAP ;; PAIR.
 
-Definition SET_CDR {a b S} : instruction (pair a b ::: b ::: S) (pair a b ::: S) :=
+Definition SET_CDR {a b S} : instruction Datatypes.false (pair a b ::: b ::: S) (pair a b ::: S) :=
   CAR ;; PAIR.
 
-Definition MAP_CAR {a1 a2 b S} (code : instruction (a1 ::: S) (a2 ::: S)) :
-  instruction (pair a1 b ::: S) (pair a2 b ::: S) :=
+Definition MAP_CAR {a1 a2 b S} (code : instruction Datatypes.false (a1 ::: S) (a2 ::: S)) :
+  instruction Datatypes.false (pair a1 b ::: S) (pair a2 b ::: S) :=
   DUP ;; CDR ;; DIP1 (CAR ;; code) ;; SWAP ;; PAIR.
 
-Definition MAP_CDR {a b1 b2 S} (code : instruction (b1 ::: pair a b1 ::: S) (b2 ::: pair a b1 ::: S)) :
-  instruction (pair a b1 ::: S) (pair a b2 ::: S) :=
+Definition MAP_CDR {a b1 b2 S} (code : instruction Datatypes.false (b1 ::: pair a b1 ::: S) (b2 ::: pair a b1 ::: S)) :
+  instruction Datatypes.false (pair a b1 ::: S) (pair a b2 ::: S) :=
   DUP ;; CDR ;; code ;; SWAP ;; CAR ;; PAIR.
 
 
-Definition UNPAPAIR {a b c S} : instruction (pair a (pair b c) :: S) (a ::: b ::: c ::: S) := UNPAIR ;; DIP1 UNPAIR.
-Definition PAPAIR {a b c S} : instruction (a ::: b ::: c ::: S) (pair a (pair b c) :: S) := DIP1 PAIR;; PAIR.
+Definition UNPAPAIR {a b c S} : instruction Datatypes.false (pair a (pair b c) :: S) (a ::: b ::: c ::: S) := UNPAIR ;; DIP1 UNPAIR.
+Definition PAPAIR {a b c S} : instruction Datatypes.false (a ::: b ::: c ::: S) (pair a (pair b c) :: S) := DIP1 PAIR;; PAIR.
 
 End Macros.

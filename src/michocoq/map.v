@@ -520,7 +520,7 @@ Section map.
     - (* h::t *)
       simpl. simpl in H.
       destruct a as [k' v']. destruct (compare k k').
-      + (* Eq *) exact ITT.
+      + (* Eq *) constructor.
       + (* Lt *) inversion H.
       + (* Gt *) apply IHl. inversion s. assumption. assumption.
   Qed.
@@ -642,39 +642,42 @@ Section map.
             assert (compare k'' k'' = Eq) as Hk'' by (apply compare_eq_iff; reflexivity);
             try inversion H;
             try rewrite Hk''; try rewrite Hkk''; try exact ITT.
-      + apply set.compare_gt_lt in Hk'k''; try assumption. rewrite Hk'k''. exact ITT.
+      + constructor.
       + apply set.compare_gt_lt in Hk'k''; try assumption.
-        unfold Relations_1.Transitive in gt_trans.
-        assert (compare k k' = Gt) as Hkk' by (eapply gt_trans; eassumption).
-        rewrite Hkk'. exact ITT.
-      + apply IHl. assumption.
+        rewrite Hk'k''.
+        constructor.
+      + constructor.
+      + assumption.
+      + apply set.compare_gt_lt in Hk'k''; try assumption.
+        rewrite (gt_trans _ _ _ Hkk'' Hk'k'').
+        assumption.
+      + apply IHl; assumption.
   Qed.
+
+  Ltac comparison_case k1 k2 H Hmem :=
+    case_eq (compare k1 k2); intro H; simpl in Hmem; try rewrite H in Hmem;
+    [ rewrite compare_eq_iff in H; try assumption | | ].
 
   Lemma map_updatemem_rev : forall k k' m v,
       k <> k' ->
       mem k (map.update k' (Some v) m) ->
       mem k m.
   Proof.
-    intros.
-    destruct m as [l]. unfold map.get, map.update. simpl. simpl in H0.
-    induction l; simpl; simpl in H0.
+    intros k k' m v Hkk' Hmem.
+    destruct m as [l].
+    simpl in *.
+    induction l as [|(k'', v'') l]; simpl in *.
     - (* nil *)
-      rewrite <- (compare_diff k k') in H.
-      destruct H; rewrite H in H0; inversion H0.
+      comparison_case k k' H Hmem.
+      + congruence.
+      + inversion Hmem.
+      + inversion Hmem.
     - (* h::t *)
-      destruct a as [k'' v''].
-      destruct (compare k k'') eqn:Hkk''; destruct (compare k' k'') eqn:Hk'k''; try exact ITT;
-        inversion H0; try rewrite compare_eq_iff in Hk'k''; subst;
-          try rewrite Hkk'' in H2; inversion H2; try clear H3.
-      + rewrite <- (compare_diff k k') in H.
-        destruct H; rewrite H in H2; inversion H2.
-      + exact ITT.
-      + apply set.compare_gt_lt in Hk'k''; try assumption.
-        unfold Relations_1.Transitive in gt_trans.
-        assert (compare k k' = Gt) by (eapply gt_trans; eassumption). rewrite H1 in H2.
-        unfold is_true. rewrite <- H2. exact ITT.
-      + inversion s; subst. apply IHl. assumption.
-        unfold is_true. rewrite <- H2. exact ITT.
+      comparison_case k' k'' Hk'k'' Hmem;
+        [ subst k'' | comparison_case k k'' Hkk'' Hmem | comparison_case k k'' Hkk'' Hmem ]; simpl in Hmem; comparison_case k k' Hckk' Hmem;
+          try constructor; simpl in *; try (exact Hmem); try (destruct Hmem);
+            try congruence;
+            inversion s; apply IHl; assumption.
   Qed.
 
 End map.

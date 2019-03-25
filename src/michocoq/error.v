@@ -21,26 +21,48 @@
 
 
 (* The error monad *)
+Require Bool String.
+Require Import location.
 
-Record location := Mk_loc { line : nat; column : nat }.
-
-Inductive exception : Prop :=
+Inductive exception : Set :=
 | Out_of_fuel
 | Overflow
-| Assertion_Failure (A : Set) (a : A)
+| Assertion_Failure (_ : String.string)
 | Lexing (_ : location)
 | Parsing
 | Parsing_Out_of_Fuel
-| Typing (_ : location).
+| Expansion (_ _ : location)
+| Typing.
 
 Inductive M (A : Type) : Type :=
 | Failed : exception -> M A
 | Return : A -> M A.
 
+Lemma exception_dec (x y : exception) : {x = y} + {x <> y}.
+Proof.
+  generalize String.string_dec location_dec.
+  decide equality.
+Qed.
+
+Lemma M_dec {A} :
+  (forall x y : A, {x = y} + {x <> y}) ->
+  forall x y : M A, {x = y} + {x <> y}.
+Proof.
+  intros H x y.
+  generalize exception_dec.
+  decide equality.
+Qed.
+
 Definition bind {A B} (f : A -> M B) (m : M A) :=
   match m with
   | Failed _ e => Failed B e
   | Return _ SB => f SB
+  end.
+
+Definition try {A} (m1 m2 : M A) : M A :=
+  match m1 with
+  | Failed _ _ => m2
+  | Return _ _ => m1
   end.
 
 Definition success {A} (m : M A) :=
@@ -49,21 +71,18 @@ Definition success {A} (m : M A) :=
   | Return _ _ => true
   end.
 
-Inductive Is_true : bool -> Prop := ITT : Is_true true.
+Definition Is_true := Bool.Is_true.
 
 Coercion is_true := Is_true.
 
 Lemma IT_eq (b : bool) : b -> b = true.
 Proof.
-  intros [].
-  reflexivity.
+  destruct b; auto.
 Qed.
 
-Lemma not_false : ~ false.
+Lemma IT_eq_rev (b : bool) : b = true -> b.
 Proof.
-  intro H.
-  apply IT_eq in H.
-  discriminate.
+  intro H; subst b; exact I.
 Qed.
 
 Lemma Is_true_and_left b1 b2 : (b1 && b2)%bool -> b1.
@@ -78,21 +97,28 @@ Proof.
   destruct b1; simpl.
   - auto.
   - intro H.
-    destruct (not_false H).
+    inversion H.
 Qed.
+Definition extract {A : Type} (m : M A) : success m -> A :=
+  match m with
+  | Return _ x => fun 'I => x
+  | Failed _ _ => fun H => match H with end
+  end.
+
+Definition IT_if {A : Type} (b : bool) (th : b -> A) (els : A) : A :=
+  (if b as b0 return b = b0 -> A then
+     fun H => th (IT_eq_rev _ H)
+   else fun _ => els) eq_refl.
 
 Lemma success_bind {A B} (f : A -> M B) m :
   success (bind f m) ->
   exists x, m = Return _ x /\ success (f x).
 Proof.
-  destruct m; simpl.
-  - intro H.
-    destruct (not_false H).
+  destruct m.
+  - contradiction.
   - intro H.
     exists a.
-    split.
-    + reflexivity.
-    + exact H.
+    auto.
 Qed.
 
 Lemma success_eq_return A x m :
@@ -100,7 +126,7 @@ Lemma success_eq_return A x m :
 Proof.
   intro He.
   rewrite He.
-  apply ITT.
+  exact I.
 Qed.
 
 Lemma success_bind_arg {A B} (f : A -> M B) m :
@@ -118,8 +144,7 @@ Lemma success_eq_return_rev A m :
   success m -> exists x, m = Return A x.
 Proof.
   destruct m.
-  - intro H.
-    destruct (not_false H).
+  - contradiction.
   - exists a.
     reflexivity.
 Qed.
@@ -152,7 +177,7 @@ Definition precond_ex {A} (m : M A) p := exists a, m = Return _ a /\ p a.
 Lemma precond_exists {A} (m : M A) p : precond m p <-> precond_ex m p.
 Proof.
   destruct m; simpl; split.
-  - intro H; destruct (not_false H).
+  - contradiction.
   - intros (a, (Hf, _)).
     discriminate.
   - intro H.
@@ -174,7 +199,7 @@ Lemma return_precond {A} (m : M A) a :
 Proof.
   destruct m; simpl; split.
   - discriminate.
-  - intro Hf; destruct (not_false Hf).
+  - contradiction.
   - intro H; injection H; auto.
   - congruence.
 Qed.

@@ -48,7 +48,7 @@ Definition storage_ty := pair nat (pair nat (list key)).
 
 Module semantics := Semantics ST C E. Import semantics.
 
-Definition ADD_nat {S} : instruction (nat ::: nat ::: S) (nat ::: S) := ADD.
+Definition ADD_nat {S} : instruction _ (nat ::: nat ::: S) (nat ::: S) := ADD.
 
 Definition multisig : full_contract storage_ty :=
   (
@@ -160,7 +160,7 @@ Definition multisig_spec
     (count_signatures sigs >= threshold)%N /\
     new_stored_counter = (1 + stored_counter)%N /\
     match action with
-    | inl lam =>
+    | inl (existT _ _ lam) =>
       match (eval lam fuel (tt, tt)) with
       | Return _ (operations, tt) =>
         new_threshold = threshold /\
@@ -175,8 +175,8 @@ Definition multisig_spec
     end
   end.
 
-Definition multisig_head {A} (then_ : instruction (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) A) :
-  instruction (pair (pair nat action_ty) (list (option signature)) ::: pair nat (pair nat (list key)) ::: nil) A
+Definition multisig_head {A} (then_ : instruction Datatypes.false (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) A) :
+  instruction _ (pair (pair nat action_ty) (list (option signature)) ::: pair nat (pair nat (list key)) ::: nil) A
 :=
     PUSH mutez (0 ~mutez);; AMOUNT;; ASSERT_CMPEQ;;
     SWAP ;; DUP ;; DIP1 SWAP ;;
@@ -203,7 +203,7 @@ Definition multisig_head_spec
            (keys : Datatypes.list (data key))
            (fuel : Datatypes.nat)
            (then_ :
-              instruction
+              instruction Datatypes.false
                 (nat ::: list key ::: list (option signature) ::: bytes :::
                      action_ty ::: storage_ty ::: nil)
                 A)
@@ -235,7 +235,7 @@ Lemma multisig_head_correct
       (threshold : N)
       (keys : Datatypes.list (data key))
       (then_ :
-         instruction
+         instruction _
            (nat ::: list key ::: list (option signature) ::: bytes :::
                 action_ty ::: storage_ty ::: nil)
            A)
@@ -264,7 +264,7 @@ Proof.
 Qed.
 
 Definition multisig_iter_body :
-  instruction
+  instruction _
     (key ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
     (nat ::: list (option signature) ::: bytes ::: action_ty :::
@@ -315,7 +315,7 @@ Proof.
 Qed.
 
 Definition multisig_iter :
-  instruction
+  instruction _
     (list key ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
     (nat ::: list (option signature) ::: bytes ::: action_ty :::
@@ -439,7 +439,7 @@ Proof.
 Qed.
 
 Definition multisig_tail :
-  instruction
+  instruction _
     (nat ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
     (pair (list operation) storage_ty ::: nil) :=
@@ -475,7 +475,7 @@ Lemma multisig_tail_correct
   sigs = nil /\
   ((threshold <= n)%N /\
    match action with
-   | inl lam =>
+   | inl (existT _ _ lam) =>
      match eval lam (2 + fuel) (tt, tt) with
      | Return _ (operations, tt) =>
        psi ((operations, ((1 + counter)%N, (threshold, keys))), tt)
@@ -499,7 +499,7 @@ Proof.
       rewrite <- N.le_lteq in Hle.
       apply (and_right eq_refl).
       apply (and_right Hle).
-      destruct action as [lam|(new_threshold, new_keys)].
+      destruct action as [(tff, lam)|(new_threshold, new_keys)].
       * do 2 fold_eval_precond.
         rewrite <- eval_precond_correct.
         unfold precond.
@@ -586,7 +586,7 @@ Proof.
       rewrite N.add_0_r in Hcount.
       apply N.le_ge in Hcount.
       split; [assumption|].
-      destruct action as [lam|(nt, nks)].
+      destruct action as [(tff, lam)|(nt, nks)].
       * change (2 + (4 + fuel)) with (S (S (S (S (S (S fuel)))))) in Haction.
         destruct (eval lam (S (S (S (S (S (S fuel)))))) (tt, tt)) as [|(ops, [])].
         -- destruct Haction.
@@ -609,7 +609,7 @@ Proof.
       apply N.ge_le in Hcount.
       split; [assumption|].
       destruct Haction as (Hcounter, Haction).
-      destruct action as [lam|(nt, nks)].
+      destruct action as [(tff, lam)|(nt, nks)].
       * change (2 + fuel) with (S (S fuel)).
         destruct (eval lam (S (S fuel)) (tt, tt)) as [|(ops, [])].
         -- exact Haction.

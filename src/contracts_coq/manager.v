@@ -80,7 +80,7 @@ Definition manager_spec
     (* %default: anybody can send tokens this does not modify the
     storage and produces no operation. *)
     new_storage = storage /\ returned_operations = nil
-  | inl lam =>
+  | inl (existT _ _ lam) =>
     (* %do is only available to the stored manager and rejects non-null amounts*)
     amount env = (0 ~Mutez) /\
     sender env = address_ env unit (implicit_account env storage) /\
@@ -132,7 +132,7 @@ Lemma if_false_is_and (b : Datatypes.bool) P : (if b then P else false) <-> b = 
 Proof.
   destruct b.
   - intuition.
-  - generalize not_false.
+  - simpl.
     intuition discriminate.
 Qed.
 
@@ -153,7 +153,7 @@ Proof.
   rewrite eval_precond_correct.
   unfold manager_spec.
   do 5 (more_fuel; simplify_instruction).
-  destruct param as [lam|[]].
+  destruct param as [(tff, lam)|[]].
   - do 5 (more_fuel; simplify_instruction).
     simplify_instruction.
     rewrite if_false_is_and.

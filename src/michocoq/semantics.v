@@ -47,7 +47,7 @@ Module EnvDef(ST : SelfType)(C:ContractContext).
     | map a b => map.map (comparable_data a) (data b) (compare a)
     | big_map a b => map.map (comparable_data a) (data b) (compare a)
     | lambda a b =>
-      instruction (a ::: nil) (b ::: nil)
+      {tff : Datatypes.bool & instruction tff (a ::: nil) (b ::: nil)}
     | contract a => {s : contract_constant | C.get_contract_type s = Return _ a }
     | chain_id => chain_id_constant
     end.
@@ -228,7 +228,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
              (Some (concrete_data_to_data _ y))
              (concrete_data_map_to_data l)
          end) l
-    | Instruction i => i
+    | Instruction _ i => existT _ _ i
     | Chain_id_constant x => x
     end.
 
@@ -275,10 +275,8 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
                              l)
     | contract _, H, exist _ x Hx =>
       Contract_constant x Hx
-    | operation, H, _ =>
-      match H in Is_true false with end
-    | big_map _ _, H, _ =>
-      match H in Is_true false with end
+    | operation, H, _ => match H with end
+    | big_map _ _, H, _ => match H with end
     | pair a b, H, (x, y) =>
       Pair (data_to_concrete_data a (Is_true_and_left _ _ H) x)
            (data_to_concrete_data b (Is_true_and_right _ _ H) y)
@@ -286,7 +284,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       Left (data_to_concrete_data a (Is_true_and_left _ _ H) x)
     | or a b, H, inr x =>
       Right (data_to_concrete_data b (Is_true_and_right _ _ H) x)
-    | lambda a b, _, f => Instruction f
+    | lambda a b, _, (existT _ tff f) => Instruction tff f
     | chain_id, _, x => Chain_id_constant x
     end.
 
@@ -501,20 +499,20 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       fun _ => cons
     end.
 
-
+  Definition data_to_string {a} (x : data a) : String.string := "".
 
   (* The gas argument is used to ensure termination, it is not the
   amount of gas that is actually required to run the contract because
   in the SEQ case, both instructions are run with gas n *)
-  Fixpoint eval {A : stack_type} {B : stack_type}
-           (i : instruction A B) (fuel : Datatypes.nat) {struct fuel} :
+  Fixpoint eval {tff0} {A : stack_type} {B : stack_type}
+           (i : instruction tff0 A B) (fuel : Datatypes.nat) {struct fuel} :
     stack A -> M (stack B) :=
     match fuel with
     | O => fun SA => Failed _ Out_of_fuel
     | S n =>
-      match i in instruction A B return stack A -> M (stack B) with
+      match i in instruction tff0 A B return stack A -> M (stack B) with
       | @FAILWITH A B a =>
-        fun '(x, _) => Failed _ (Assertion_Failure (data a) x)
+        fun '(x, _) => Failed _ (Assertion_Failure (data_to_string x))
 
       (* According to the documentation, FAILWITH's argument should
          not be part of the state reached by the instruction but the
@@ -535,16 +533,16 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
           | inr y => Return _ (y, SA)
           end
       | EXEC =>
-        fun '(x, (f, SA)) =>
+        fun '(x, (existT _ _ f, SA)) =>
           bind (fun '(y, tt) => Return _ (y, SA)) (eval f n (x, tt))
       | @APPLY a b c D i =>
-        fun '(x, (f, SA)) =>
-          Return _ ((PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f), SA)
+        fun '(x, (existT _ _ f, SA)) =>
+          Return _ (existT _ _ (PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f), SA)
       | DUP => fun '(x, SA) => Return _ (x, (x, SA))
       | SWAP => fun '(x, (y, SA)) => Return _ (y, (x, SA))
       | PUSH a x => fun SA => Return _ (concrete_data_to_data _ x, SA)
       | UNIT => fun SA => Return _ (tt, SA)
-      | LAMBDA a b code => fun SA => Return _ (code, SA)
+      | LAMBDA a b code => fun SA => Return _ (existT _ _ code, SA)
       | EQ => fun '(x, SA) => Return _ ((x =? 0)%Z, SA)
       | NEQ => fun '(x, SA) => Return _ (negb (x =? 0)%Z, SA)
       | LT => fun '(x, SA) => Return _ ((x <? 0)%Z, SA)
@@ -660,7 +658,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
           end
       | CREATE_CONTRACT _ _ f =>
         fun '(a, (b, (c, SA))) =>
-          let (oper, addr) := create_contract env _ _ a b f c in
+          let (oper, addr) := create_contract env _ _ a b (existT _ _ f) c in
           Return _ (oper, (addr, SA))
       | TRANSFER_TOKENS =>
         fun '(a, (b, (c, SA))) => Return _ (transfer_tokens env _ a b c, SA)
@@ -678,7 +676,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         fun '(x, SA) => Return _ (implicit_account env x, SA)
       | NOW => fun SA => Return _ (now env, SA)
       | PACK => fun '(x, SA) => Return _ (pack env _ x, SA)
-      | UNPACK => fun '(x, SA) => Return _ (unpack env _ x, SA)
+      | UNPACK ty => fun '(x, SA) => Return _ (unpack env ty x, SA)
       | HASH_KEY => fun '(x, SA) => Return _ (hash_key env x, SA)
       | BLAKE2B => fun '(x, SA) => Return _ (blake2b env x, SA)
       | SHA256 => fun '(x, SA) => Return _ (sha256 env x, SA)
@@ -705,13 +703,12 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
   Lemma eval_deterministic_le :
     forall fuel1 fuel2,
       fuel1 <= fuel2 ->
-      forall {A B} (i : instruction A B) st,
+      forall {tff0 A B} (i : instruction tff0 A B) st,
         success (eval i fuel1 st) ->
         eval i fuel1 st = eval i fuel2 st.
   Proof.
-    induction fuel1; intros fuel2 Hle A B i st Hsucc.
-    - apply not_false in Hsucc.
-      contradiction.
+    induction fuel1; intros fuel2 Hle tff0 A B i st Hsucc.
+    - contradiction.
     - destruct fuel2.
       + inversion Hle.
       + apply le_S_n in Hle.
@@ -734,7 +731,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         * destruct st as ([x|y], st).
           -- rewrite IHfuel1; try assumption; reflexivity.
           -- reflexivity.
-        * destruct st as (x, (f, SA)).
+        * destruct st as (x, ((tff, f), SA)).
           f_equal.
           rewrite IHfuel1.
           -- reflexivity.
@@ -809,7 +806,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
              exact H1.
   Qed.
 
-  Lemma eval_deterministic_success_both fuel1 fuel2 {A B} (i : instruction A B) S :
+  Lemma eval_deterministic_success_both fuel1 fuel2 {A B tff0} (i : instruction tff0 A B) S :
     success (eval i fuel1 S) ->
     success (eval i fuel2 S) ->
     eval i fuel1 S = eval i fuel2 S.
@@ -824,9 +821,9 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
   Qed.
 
   Definition eval_precond_body
-             (eval_precond_n : forall {A B}, instruction A B -> (stack B -> Prop) -> stack A -> Prop)
-             A B
-             (i : instruction A B) :
+             (eval_precond_n : forall {tff0 A B}, instruction tff0 A B -> (stack B -> Prop) -> stack A -> Prop)
+             tff0 A B
+             (i : instruction tff0 A B) :
     (stack B -> Prop) -> (stack A -> Prop) :=
     match i with
     | FAILWITH => fun _ _ => false
@@ -846,16 +843,16 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         | inr y => psi (y, SA)
         end
     | EXEC =>
-      fun psi '(x, (f, SA)) =>
+      fun psi '(x, (existT _ _ f, SA)) =>
         eval_precond_n f (fun '(y, tt) => psi (y, SA)) (x, tt)
     | @APPLY a b c D i =>
-      fun psi '(x, (f, SA)) =>
-        psi ((PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f), SA)
+      fun psi '(x, (existT _ _ f, SA)) =>
+        psi (existT _ _ (PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f), SA)
     | DUP => fun psi '(x, SA) => psi (x, (x, SA))
     | SWAP => fun psi '(x, (y, SA)) => psi (y, (x, SA))
     | PUSH a x => fun psi SA => psi (concrete_data_to_data _ x, SA)
     | UNIT => fun psi SA => psi (tt, SA)
-    | LAMBDA a b code => fun psi SA => psi (code, SA)
+    | LAMBDA a b code => fun psi SA => psi (existT _ _ code, SA)
     | EQ => fun psi '(x, SA) => psi ((x =? 0)%Z, SA)
     | NEQ => fun psi '(x, SA) => psi (negb (x =? 0)%Z, SA)
     | LT => fun psi '(x, SA) => psi ((x <? 0)%Z, SA)
@@ -967,7 +964,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         end
     | CREATE_CONTRACT _ _ f =>
       fun psi '(a, (b, (c, SA))) =>
-        let (oper, addr) := create_contract env _ _ a b f c in
+        let (oper, addr) := create_contract env _ _ a b (existT _ _ f) c in
         psi (oper, (addr, SA))
     | TRANSFER_TOKENS =>
       fun psi '(a, (b, (c, SA))) =>
@@ -989,8 +986,8 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       fun psi '(x, SA) => psi (implicit_account env x, SA)
     | NOW => fun psi SA => psi (now env, SA)
     | PACK => fun psi '(x, SA) => psi (pack env _ x, SA)
-    | UNPACK =>
-      fun psi '(x, SA) => psi (unpack env _ x, SA)
+    | UNPACK ty =>
+      fun psi '(x, SA) => psi (unpack env ty x, SA)
     | HASH_KEY =>
       fun psi '(x, SA) => psi (hash_key env x, SA)
     | BLAKE2B =>
@@ -1016,20 +1013,20 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     end.
 
   Fixpoint eval_precond (fuel : Datatypes.nat) :
-    forall {A B},
-      instruction A B ->
+    forall {tff0 A B},
+      instruction tff0 A B ->
       (stack B -> Prop) -> (stack A -> Prop) :=
     match fuel with
-    | O => fun _ _ _ _ _ => false
+    | O => fun _ _ _ _ _ _ => false
     | S n =>
       eval_precond_body (@eval_precond n)
     end.
 
-  Lemma eval_precond_correct {A B} (i : instruction A B) n st psi :
+  Lemma eval_precond_correct {tff0 A B} (i : instruction tff0 A B) n st psi :
     precond (eval i n st) psi <-> eval_precond n i psi st.
   Proof.
-    generalize A B i st psi; clear A B i st psi.
-    induction n; intros A B i st psi; [simpl; intuition|].
+    generalize tff0 A B i st psi; clear tff0 A B i st psi.
+    induction n; intros tff0 A B i st psi; [simpl; intuition|].
     destruct i; simpl; fold data stack.
     - reflexivity.
     - destruct st; reflexivity.
@@ -1043,16 +1040,16 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       + apply IHn.
       + simpl. reflexivity.
     - destruct st as ([|], st); simpl.
-      + apply (IHn _ _ (i;; LOOP_LEFT i)).
+      + apply (IHn _ _ _ (i;; LOOP_LEFT i)).
       + reflexivity.
-    - destruct st as (x, (f, st)).
+    - destruct st as (x, ((tff, f), st)).
       rewrite precond_bind.
-      rewrite <- (IHn _ _ f (x, tt) (fun '(y, tt) => psi (y, st))).
+      rewrite <- (IHn _ _ _ f (x, tt) (fun '(y, tt) => psi (y, st))).
       apply precond_eqv.
       intros (y, []).
       simpl.
       reflexivity.
-    - destruct st as (x, (y, st)); reflexivity.
+    - destruct st as (x, ((tff, y), st)); reflexivity.
     - destruct st; reflexivity.
     - destruct st as (x, (y, st)); reflexivity.
     - reflexivity.
@@ -1124,7 +1121,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     - reflexivity.
     - destruct st as ([|], st); apply IHn.
     - destruct st as (a, (b, (c, SA))).
-      destruct (create_contract env g p a b i c).
+      destruct (create_contract env g p a b (existT _ _ i) c).
       reflexivity.
     - destruct st as (a, (b, (c, SA))).
       reflexivity.

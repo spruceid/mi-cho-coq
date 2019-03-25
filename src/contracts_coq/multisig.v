@@ -46,7 +46,7 @@ Module multisig(C:ContractContext)(E:Env ST C).
 
 Module semantics := Semantics ST C E. Import semantics.
 
-Definition ADD_nat {S} : instruction (nat ::: nat ::: S) (nat ::: S) := ADD.
+Definition ADD_nat {S} : instruction _ (nat ::: nat ::: S) (nat ::: S) := ADD.
 
 Definition pack_ty := pair (pair chain_id address) (pair nat action_ty).
 
@@ -162,8 +162,9 @@ Definition multisig_spec
       returned_operations = nil
     end.
 
-Definition multisig_head (then_ : instruction (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) (pair (list operation) storage_ty ::: nil)) :
-  instruction (pair parameter_ty storage_ty ::: nil)
+Definition multisig_head (then_ : instruction Datatypes.false (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) (pair (list operation) storage_ty ::: nil)) :
+  instruction _
+              (pair parameter_ty storage_ty ::: nil)
               (pair (list operation) storage_ty ::: nil)
 :=
     UNPAIR ;; SWAP ;; DUP ;; DIP1 SWAP ;;
@@ -189,7 +190,7 @@ Definition multisig_head_spec
            (keys : Datatypes.list (data key))
            (fuel : Datatypes.nat)
            (then_ :
-              instruction
+              instruction Datatypes.false
                 (nat ::: list key ::: list (option signature) ::: bytes :::
                      action_ty ::: storage_ty ::: nil)
                 (pair (list operation) storage_ty ::: nil))
@@ -223,7 +224,7 @@ Lemma multisig_head_correct
       (threshold : N)
       (keys : Datatypes.list (data key))
       (then_ :
-         instruction
+         instruction _
            (nat ::: list key ::: list (option signature) ::: bytes :::
                 action_ty ::: storage_ty ::: nil)
            (pair (list operation) storage_ty ::: nil))
@@ -261,7 +262,7 @@ Proof.
 Qed.
 
 Definition multisig_iter_body :
-  instruction
+  instruction _
     (key ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
     (nat ::: list (option signature) ::: bytes ::: action_ty :::
@@ -312,7 +313,7 @@ Proof.
 Qed.
 
 Definition multisig_iter :
-  instruction
+  instruction _
     (list key ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
     (nat ::: list (option signature) ::: bytes ::: action_ty :::
@@ -442,7 +443,7 @@ Proof.
 Qed.
 
 Definition multisig_tail :
-  instruction
+  instruction _
     (nat ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
     (pair (list operation) storage_ty ::: nil) :=
