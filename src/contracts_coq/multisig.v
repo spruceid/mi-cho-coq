@@ -574,7 +574,6 @@ Proof.
               ** simpl in Hchecks.
                  inversion Hchecks.
            ++ simpl in Happ.
-              injection Happ.
               discriminate.
       * rewrite (IHkeys _ _ _ _ Hfuel2).
         split;
@@ -588,7 +587,7 @@ Proof.
            exact H.
         -- destruct first_sigs as [|[first_sig|] first_sigs].
            ++ simpl in Hlen; discriminate.
-           ++ simpl in Happ; injection Happ; discriminate.
+           ++ simpl in Happ; discriminate.
            ++ exists first_sigs.
               exists remaining_sigs.
               simpl in Hlen.
