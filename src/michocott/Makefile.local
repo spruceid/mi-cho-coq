@@ -9,7 +9,7 @@ michelson.pdf: michelson.tex
 	pdflatex michelson.tex
 
 
-post-all:: michelson.vo michelson.pdf
+post-all:: michelson.vo
 
 EMACS="emacs"
 %.txt: %.org
