@@ -3,4 +3,4 @@
 # shellcheck disable=SC2039
 ## Shellcheck misinterprets "-R" as an echo flag
 echo "-R . Michocott" > _CoqProject
-find -iname "*.v" | grep -v Formulas.v >> _CoqProject
+find . -iname "*.v" | grep -v Formulas.v >> _CoqProject
