@@ -37,7 +37,6 @@ Section semantics.
   Fixpoint data (a : type) {struct a} : Set :=
     match a with
     | Comparable_type b => comparable_data b
-    | address => address_constant
     | signature => signature_constant
     | operation => operation_constant
     | key => key_constant

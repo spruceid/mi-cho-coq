@@ -38,6 +38,7 @@ Inductive comparable_type : Set :=
 | bytes
 | bool
 | mutez
+| address
 | key_hash
 | timestamp.
 
@@ -50,7 +51,6 @@ Inductive type : Set :=
 | list : type -> type
 | set : comparable_type -> type
 | contract : type -> type
-| address : type
 | operation : type
 | pair : type -> type -> type
 | or : type -> type -> type
@@ -429,8 +429,8 @@ this constructor "IF" but we can make a notation for it. *)
 | ADDRESS {p S} : instruction (contract p ::: S) (address ::: S)
 | CONTRACT {S} p : instruction (address ::: S) (option (contract p) ::: S)
 (* Mistake in the doc: the return type must be an option *)
-| SOURCE {S} : instruction S (address :: S)
-| SENDER {S} : instruction S (address :: S)
+| SOURCE {S} : instruction S (address ::: S)
+| SENDER {S} : instruction S (address ::: S)
 | SELF {S} : instruction S (contract self_type :: S)
 (* p should be the current parameter type *)
 | AMOUNT {S} : instruction S (mutez ::: S)

@@ -38,6 +38,7 @@ Definition comparable_data (a : comparable_type) : Set :=
   | timestamp => Z
   | mutez => tez.mutez
   | bool => Datatypes.bool
+  | address => address_constant
   | key_hash => key_hash_constant
   end.
 
@@ -262,6 +263,11 @@ Proof.
   apply (string_compare_Lt_trans _ s2); assumption.
 Qed.
 
+Definition address_compare (a1 a2 : address_constant) : comparison :=
+  match a1, a2 with
+  | Mk_address s1, Mk_address s2 => string_compare s1 s2
+  end.
+
 Definition key_hash_compare (h1 h2 : key_hash_constant) : comparison :=
   match h1, h2 with
   | Mk_key_hash s1, Mk_key_hash s2 => string_compare s1 s2
@@ -275,6 +281,7 @@ Definition compare (a : comparable_type) : comparable_data a -> comparable_data 
   | string => string_compare
   | bytes => string_compare
   | mutez => tez.compare
+  | address => address_compare
   | key_hash => key_hash_compare
   | timestamp => Z.compare
   end.
@@ -292,6 +299,8 @@ Proof.
   - apply string_compare_Lt_trans.
   - destruct x; destruct y; destruct z; simpl; congruence.
   - apply Z.lt_trans.
+  - destruct x as [x]; destruct y as [y]; destruct z as [z].
+    apply string_compare_Lt_trans.
   - destruct x as [x]; destruct y as [y]; destruct z as [z].
     apply string_compare_Lt_trans.
   - apply Z.lt_trans.
@@ -316,6 +325,8 @@ Proof.
   - apply Zcompare_Gt_trans.
   - destruct x as [x]; destruct y as [y]; destruct z as [z].
     apply string_compare_Gt_trans.
+  - destruct x as [x]; destruct y as [y]; destruct z as [z].
+    apply string_compare_Gt_trans.
   - apply Zcompare_Gt_trans.
 Qed.
 
@@ -328,6 +339,9 @@ Proof.
   - apply string_compare_Eq_correct.
   - destruct c1; destruct c2; split; simpl; congruence.
   - apply tez.compare_eq_iff.
+  - destruct c1 as [s1]; destruct c2 as [s2]. simpl.
+    rewrite string_compare_Eq_correct.
+    split; congruence.
   - destruct c1 as [s1]; destruct c2 as [s2]. simpl.
     rewrite string_compare_Eq_correct.
     split; congruence.

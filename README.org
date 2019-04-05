@@ -256,3 +256,5 @@ the =NEG= instruction:
 - The type of the IF_... instruction is erroneous
 - Typo : "these are macros are simply"
 - The IF_SOME macro is semantically defined instead of syntactically
+
+- The type address should be comparable
