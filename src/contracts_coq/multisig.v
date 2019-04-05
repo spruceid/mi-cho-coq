@@ -24,6 +24,7 @@ Import syntax.
 Import comparable.
 Require Import NArith.
 Require Import semantics.
+Require Import util.
 Import error.
 Require List.
 
@@ -347,33 +348,12 @@ Definition multisig_head_spec
                 (address_ env parameter_ty (self env), (counter, action)),
            (action, (storage, tt))))))) psi.
 
-Ltac mysimpl :=
-  match goal with
-    |- ?g =>
-    match g with
-    | context c[semantics.eval_precond ?env (S ?n) ?i ?psi] =>
-      is_var i ||
-             (let simplified := (eval simpl in (semantics.eval_precond env (S n) i psi)) in
-              let full := context c[simplified] in
-              let final := eval cbv beta zeta iota in full in
-              change final)
-    end
-  end.
-
 Lemma fold_eval_precond fuel :
   eval_precond_body env (@semantics.eval_precond _ _ env fuel) =
   @semantics.eval_precond _ _ env (S fuel).
 Proof.
   reflexivity.
 Qed.
-
-Ltac more_fuel :=
-  match goal with
-    | Hfuel : (_ <= ?fuel) |- _ =>
-      destruct fuel as [|fuel];
-      [inversion Hfuel; fail
-      | apply le_S_n in Hfuel]
-  end.
 
 Lemma multisig_head_correct
       (counter : N)
@@ -401,7 +381,7 @@ Proof.
   rewrite eval_precond_correct.
   unfold multisig_head.
   unfold "+", params, storage, multisig_head_spec.
-  do 9 (more_fuel; mysimpl).
+  do 9 (more_fuel; simplify_instruction).
   case_eq (BinInt.Z.eqb (comparison_to_int (stored_counter ?= counter)%N) Z0).
   - intro Heq.
     apply (eqb_eq nat) in Heq.
@@ -463,7 +443,7 @@ Proof.
   unfold eval.
   rewrite eval_precond_correct.
   do 14 more_fuel.
-  mysimpl.
+  simplify_instruction.
   destruct sigs as [|[sig|] sigs].
   - reflexivity.
   - case (check_signature env k sig packed).
@@ -503,7 +483,7 @@ Proof.
   induction keys as [|key keys]; intros n sigs packed fuel Hfuel.
   - simpl in Hfuel.
     more_fuel.
-    mysimpl.
+    simplify_instruction.
     split.
     + intro H.
       exists nil.
@@ -521,7 +501,7 @@ Proof.
     more_fuel.
     change (13 + (length keys * 14 + 1) <= fuel) in Hfuel.
     assert (length keys * 14 + 1 <= fuel) as Hfuel2 by (transitivity (13 + (length keys * 14 + 1)); [repeat constructor| apply Hfuel]).
-    mysimpl.
+    simplify_instruction.
     rewrite <- eval_precond_correct.
     rewrite multisig_iter_body_correct.
     + destruct sigs as [|[sig|] sigs].
@@ -647,7 +627,7 @@ Proof.
   rewrite eval_precond_correct.
   unfold multisig_tail.
   do 4 more_fuel.
-  mysimpl.
+  simplify_instruction.
   case_eq (BinInt.Z.leb (comparison_to_int (threshold ?= n)%N) Z0).
   - intro Hle.
     rewrite (leb_le nat) in Hle.
@@ -656,7 +636,7 @@ Proof.
     rewrite <- N.le_lteq in Hle.
     apply (and_right Hle).
     do 6 more_fuel.
-    mysimpl.
+    simplify_instruction.
     destruct action as [(amount, contract)|[delegate_key_hash|(new_threshold, new_keys)]].
     + do 3 more_fuel.
       reflexivity.
@@ -665,7 +645,7 @@ Proof.
     + do 3 more_fuel.
       reflexivity.
   - do 3 more_fuel.
-    mysimpl.
+    simplify_instruction.
     intro Hle.
     apply (leb_gt nat) in Hle.
     rename Hle into Hgt.
@@ -711,19 +691,19 @@ Proof.
     clear params.
     unfold eval.
     rewrite eval_precond_correct.
-    more_fuel; mysimpl.
+    more_fuel; simplify_instruction.
     match goal with
     | |- semantics.eval_precond env fuel ?i ?t ?st <-> ?r =>
       pose (t) as then_; change (semantics.eval_precond env fuel i then_ st <-> r)
     end.
-    more_fuel; mysimpl.
-    more_fuel; mysimpl.
-    more_fuel; mysimpl.
+    more_fuel; simplify_instruction.
+    more_fuel; simplify_instruction.
+    more_fuel; simplify_instruction.
     match goal with
     | |- semantics.eval_precond env fuel ?i ?t ?st <-> ?r =>
       pose (t) as iter; change (semantics.eval_precond env fuel i iter st <-> r)
     end.
-    more_fuel; mysimpl.
+    more_fuel. simplify_instruction.
     subst iter.
     rewrite <- eval_precond_correct.
     rewrite multisig_iter_correct.
