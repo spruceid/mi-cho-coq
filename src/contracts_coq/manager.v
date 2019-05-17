@@ -32,7 +32,7 @@ Require List.
 
 Section manager.
 
-Definition parameter_ty := (or (pair key_hash mutez) (or key_hash (or unit key_hash))).
+Definition parameter_ty := option (or (pair key_hash mutez) (or key_hash (or unit key_hash))).
 
 Context {get_contract_type : contract_constant -> error.M type} {env : @proto_env get_contract_type parameter_ty}.
 
@@ -47,7 +47,7 @@ Definition storage_ty := key_hash.
 
 Definition manager : full_contract parameter_ty storage_ty :=
   (UNPAIR ;;
-   (* Check the sender is the manager *)
+   IF_SOME (
    DUUP ;;
    IMPLICIT_ACCOUNT ;; ADDRESS ;;
    SENDER ;;
@@ -60,23 +60,28 @@ Definition manager : full_contract parameter_ty storage_ty :=
            (SOME ;; SET_DELEGATE ;; CONS ;; PAIR)
            (IF_LEFT
               (DROP ;; NONE key_hash ;; SET_DELEGATE ;; CONS ;; PAIR)
-              (DIIP DROP;; SWAP ;; PAIR))))).
+              (DIIP DROP;; SWAP ;; PAIR)))))
+   (NIL operation;; PAIR)).
 
 Definition manager_spec
            (storage : data storage_ty)
            (param : data parameter_ty)
            (new_storage : data storage_ty)
            (returned_operations : data (list operation)) :=
-  sender env = address_ env unit (implicit_account env storage) /\
   match param with
-  | inl (destination, amount) =>
-    new_storage = storage /\ returned_operations = (transfer_tokens env unit tt amount (implicit_account env destination) :: nil)%list
-  | inr (inl new_delegate) =>
-    new_storage = storage /\ returned_operations = (set_delegate env (Some new_delegate) :: nil)%list
-  | inr (inr (inl tt)) =>
-    new_storage = storage /\ returned_operations = (set_delegate env None :: nil)%list
-  | inr (inr (inr new_manager)) =>
-    new_storage = new_manager /\ returned_operations = nil
+  | None => new_storage = storage /\ returned_operations = nil
+  | Some param =>
+    sender env = address_ env unit (implicit_account env storage) /\
+    match param with
+    | inl (destination, amount) =>
+      new_storage = storage /\ returned_operations = (transfer_tokens env unit tt amount (implicit_account env destination) :: nil)%list
+    | inr (inl new_delegate) =>
+      new_storage = storage /\ returned_operations = (set_delegate env (Some new_delegate) :: nil)%list
+    | inr (inr (inl tt)) =>
+      new_storage = storage /\ returned_operations = (set_delegate env None :: nil)%list
+    | inr (inr (inr new_manager)) =>
+      new_storage = new_manager /\ returned_operations = nil
+    end
   end.
 
 Lemma eqb_eq a c1 c2 :
@@ -122,25 +127,29 @@ Proof.
   unfold eval.
   rewrite return_precond.
   rewrite eval_precond_correct.
-  do 8 (more_fuel; simplify_instruction).
   unfold manager_spec.
-  case_eq (BinInt.Z.eqb (comparison_to_int (address_compare (sender env) (address_ env unit (implicit_account env storage)))) Z0).
-  - intro Htrue.
-    apply (eqb_eq address) in Htrue.
-    apply and_right.
-    + assumption.
-    + simpl.
-      do 3 (more_fuel; simplify_instruction).
-      destruct param as [(destination, amount)|[new_delegate|[()|new_manager]]];
-        repeat (more_fuel; simplify_instruction); intuition congruence.
-  - intro Hfalse.
-    apply (eqb_neq address) in Hfalse.
-    simpl.
-    repeat (more_fuel; simplify_instruction).
-    split.
-    + intros Hf; inversion Hf.
-    + intros (H, _).
-      contradiction.
+  do 5 (more_fuel; simplify_instruction).
+  destruct param as [param|].
+  - do 4 (more_fuel; simplify_instruction).
+    case_eq (BinInt.Z.eqb (comparison_to_int (address_compare (sender env) (address_ env unit (implicit_account env storage)))) Z0).
+    + intro Htrue.
+      apply (eqb_eq address) in Htrue.
+      apply and_right.
+
+      * assumption.
+      * simpl.
+        do 3 (more_fuel; simplify_instruction).
+        destruct param as [(destination, amount)|[new_delegate|[()|new_manager]]];
+          repeat (more_fuel; simplify_instruction); intuition congruence.
+    + intro Hfalse.
+      apply (eqb_neq address) in Hfalse.
+      simpl.
+      repeat (more_fuel; simplify_instruction).
+      split.
+      * intros Hf; inversion Hf.
+      * intros (H, _).
+        contradiction.
+  - intuition congruence.
 Qed.
 
 End manager.
