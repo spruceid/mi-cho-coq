@@ -1,0 +1,22 @@
+parameter
+  (or
+     (pair key_hash mutez)
+     (or key_hash
+         (or unit
+             key_hash)));
+storage key_hash;
+code {
+       UNPAIR ;
+       DUUP ;
+       IMPLICIT_ACCOUNT ; ADDRESS ;
+       SENDER ;
+       IFCMPNEQ
+         { SENDER ; PUSH string "Only the owner can operate." ; PAIR ; FAILWITH }
+         { DIP { NIL operation } ;
+           IF_LEFT
+             { DUP ; DIP { CAR ; IMPLICIT_ACCOUNT } ; CDR ; UNIT ; TRANSFER_TOKENS ; CONS ; PAIR }
+             { IF_LEFT
+                 { SOME ; SET_DELEGATE ; CONS ; PAIR }
+                 { IF_LEFT
+                     { DROP ; NONE key_hash ; SET_DELEGATE ; CONS ; PAIR }
+                     { DIIP { DROP }; SWAP ; PAIR }}}}}
