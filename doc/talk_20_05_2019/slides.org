@@ -2,8 +2,8 @@
 #+OPTIONS: H:2 texht:t toc:nil
 #+DATE: Semverif, Irif \newline May 20, 2019
 #+Title: Functional Verification of Tezos Smart Contracts in Coq
-#+Author: Raphaël Cauderlier
-#+Affiliation: Nomadic Labs
+#+Author: Bruno Bernardo, \textit{Raphaël Cauderlier}, Zhenlei Hu, Julien Tesson
+#+LaTeX_Header: \institute{Nomadic Labs}
 ** Beamer
 #+STARTUP: beamer
 #+BEAMER_COLOR_THEME: default
@@ -12,6 +12,7 @@
 #+LaTeX_header: \mode<beamer>{\usetheme{Darmstadt}}
 #+BEAMER_HEADER: \setbeamertemplate{navigation symbols}{}
 #+BEAMER_HEADER: \setbeamertemplate{footline}[frame number]
+#+BEAMER_HEADER: \usetikzlibrary{svg.path}
 #+BEAMER_INNER_THEME:
 #+BEAMER_OUTER_THEME:
 #+LATEX_CLASS: beamer
@@ -28,9 +29,11 @@
 #+LaTeX_Header: \lstnewenvironment{dedukticode}
 #+LaTeX_Header: {\lstset{language={Dedukti}}}{}
 *** Coq
-#+LaTeX_Header: \lstdefinelanguage{Coq}{alsoletter={=->:},keywords={Definition,Type,Set,Prop,Parameter,Check,Ltac,Defined,Qed,Print,Lemma,Proof,Inductive,fun,forall,Fixpoint,struct,match,with,in,return,Module,Record,Class,Structure,End,Canonical,if,then,else,Coercion,end}}
+#+LaTeX_Header: \lstdefinelanguage{Coq}{backgroundcolor=\color{orange!20},alsoletter={=->:},keywords={Definition,Type,Set,Prop,Parameter,Check,Ltac,Defined,Qed,Print,Theorem,Lemma,Proof,Inductive,fun,forall,exists,let,Fixpoint,struct,match,with,in,return,Module,Record,Class,Structure,End,Canonical,if,then,else,Coercion,end},moredelim=[s][\color{red}]{(*}{*)}}
 #+LaTeX_Header: \lstnewenvironment{coqcode}
 #+LaTeX_Header: {\lstset{language={Coq}}}{}
+*** OCaml
+#+LaTeX_Header: \lstdefinelanguage{Camligo}[Objective]{Caml}{backgroundcolor=\color{yellow!50}}
 
 ** Busproof
 #+LaTeX_Header: \usepackage{setspace}
@@ -89,17 +92,25 @@
 #+LaTeX_header: \usepackage{tikz}
 
 
-
 * Introduction
+
+#+BEGIN_EXPORT latex
+\usebackgroundtemplate{\parbox[c][11cm][c]{\paperwidth}{\centering\begin{tikzpicture}[opacity=0.1]\input{../logo_tezos.tikz}\end{tikzpicture}}}
+#+END_EXPORT
 
 ** Blockchains
 
-- Blockchains are distributed databases
+Blockchains are:
 
-  - Linked-list of blocks: each block contains an hash of the previous block
-  - A network of nodes, each storing the whole chain, validating new blocks, and making consensus
+- linked lists
+  + link = cryptographic hash
 
-- \pause Main application: a public ledger for a crypto-currency (Bitcoin, Ethereum, Tezos, etc…)
+- distributed databases: each node of the network
+  + stores the complete chain
+  + validates new incoming blocks
+  + communicates with its peers toward consensus
+
+- public ledgers for crypto-currencies
 
 ** Smart Contracts
 
@@ -108,7 +119,7 @@ In practice, we want our crypto-currency accounts to be programmable:
 - spending limits, access control
 - \pause votes, auctions, crowdfunding, timestamping, insurance, video games, etc…
 
-\pause Smart contracts: programs run on the blockchain
+\pause These programs are called *smart contracts*
 
 ** The exploit of the Decentralized Autonomous Organisation
 
@@ -121,15 +132,21 @@ the DAO:
 
 ** Smart contract verification
 
-Note: validating the chain \to running all the smart contracts
+validating the chain $\Rightarrow$ running all the smart contracts
 - smart contracts are necessarily small!
 
 \pause Perfect set-up for formal methods
 
-Let’s verify them!
+Let's verify them!
 
 * Michelson in Coq
-** Michelson: The smart contract language in Tezos
+#+BEGIN_EXPORT latex
+\setbeamertemplate{background canvas}{\parbox[c][11cm][c]{\paperwidth}{\centering\begin{tikzpicture}[opacity=0.1]\node[opacity=0.1] {\includegraphics[width=.7\linewidth]{../logo_michocoq.png}};\end{tikzpicture}}}
+#+END_EXPORT
+
+** Michelson: the smart contract language in Tezos
+
+- small stack-based Turing-complete language
 
 - designed with software verification in mind:
   + static typing
@@ -142,6 +159,12 @@ Let’s verify them!
   + subject reduction for free
 
 ** Mi-Cho-Coq
+
+#+BEGIN_CENTER
+#+BEGIN_EXPORT latex
+\includegraphics[width=.3\linewidth]{../logo_michocoq.png}
+#+END_EXPORT
+#+END_CENTER
 
 https://gitlab.com/nomadic-labs/mi-cho-coq/
 
@@ -257,7 +280,7 @@ Inductive instruction : stack_type -> stack_type -> Set :=
         spec input output.
 #+END_SRC
 
-Full functional verification: we characterize the successful runs of
+\pause Full functional verification: we characterize the successful runs of
 the contract.
 
 ** Computing weakest precondition
@@ -308,9 +331,11 @@ the contract.
 
 \pause implemented in Michelson by Arthur Breitman
 
+https://github.com/murbard/smart-contracts/blob/master/multisig/michelson/multisig.tz
+
 ** Multisig implementation in pseudo-ocaml
 
-#+BEGIN_SRC ocaml
+#+BEGIN_SRC camligo
   type storage =
     {counter : nat; threshold : nat; keys : list key}
 
@@ -328,7 +353,7 @@ the contract.
 
 ** Multisig implementation in pseudo-ocaml
 
-#+BEGIN_SRC ocaml
+#+BEGIN_SRC camligo
   let multisig param storage =
     let packed : bytes =
       pack (counter, address self, param.action) in
@@ -347,7 +372,7 @@ the contract.
 #+END_SRC
 ** Multisig implementation in pseudo-ocaml
 
-#+BEGIN_SRC ocaml
+#+BEGIN_SRC camligo
     …
     match param.action with
     | Transfer {amount; destination} ->
@@ -361,7 +386,7 @@ the contract.
 
 ** Multisig proof: part 1 / 3
 
-#+BEGIN_SRC ocaml
+#+BEGIN_SRC camligo
   let multisig param storage =
     let packed : bytes =
       pack (counter, address self, param.action) in
@@ -406,7 +431,7 @@ Definition multisig_part_1_spec input output :=
 
 ** Multisig proof: part 2 / 3
 
-#+BEGIN_SRC ocaml
+#+BEGIN_SRC camligo
     List.iter2 (fun key signature_opt ->
         match signature_opt with | None -> ()
         | Some signature ->
@@ -487,7 +512,7 @@ Definition multisig_part_1_spec input output :=
 
 ** Multisig proof: part 3 / 3
 
-#+BEGIN_SRC ocaml
+#+BEGIN_SRC camligo
     assert (!valid_sigs > storage.threshold);
     storage.counter := 1 + storage.threshold;
     match param.action with
@@ -556,9 +581,9 @@ Proof. … Qed.
 * Conclusion
 ** Conclusion
 
-- The Michelson smart-contract language is formalized in Coq
+- The Michelson smart-contract language is formalized in Coq.
 
-- This formalisation can be used to prove interesting Michelson smart-contracts
+- This formalisation can be used to prove interesting Michelson smart-contracts.
 
 ** Ongoing and Future Work
 
@@ -574,11 +599,13 @@ Proof. … Qed.
 
 - use code extraction to replace the current GADT-based implementation in OCaml
 
-** Thank you!
-
-#+BEGIN_Huge
-#+BEGIN_CENTER
+#+BEGIN_EXPORT latex
+\end{frame}
+\setbeamertemplate{background canvas}{\parbox[c][11cm][c]{\paperwidth}{\centering\begin{tikzpicture}\node[opacity=0.1] {\includegraphics[width=.7\linewidth]{../logo_pile_qui_chante.png}};\end{tikzpicture}}}
+\begin{frame}{Thank you!}
+\begin{Huge}
+\begin{center}
 Questions?
-#+END_CENTER
-#+END_Huge
-
+\end{center}
+\end{Huge}
+#+END_EXPORT
