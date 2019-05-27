@@ -251,7 +251,7 @@ Structure update_struct key val collection :=
   Mk_update { update_variant_field : update_variant key val collection }.
 Canonical Structure update_set a : update_struct a bool (set a) :=
   {| update_variant_field := Update_variant_set a |}.
-Canonical Structure update_mao key val :=
+Canonical Structure update_map key val :=
   {| update_variant_field := Update_variant_map key val |}.
 Canonical Structure update_bigmap key val :=
   {| update_variant_field := Update_variant_bigmap key val |}.
