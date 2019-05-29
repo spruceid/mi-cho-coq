@@ -188,7 +188,7 @@ code, i :: '' ::=
 
 stack_type, A, B, C :: Stack_type_ ::= {{ coq Datatypes.list type }} {{ phantom }}
   | [] :: :: empty {{ coq nil}}
-  | a '::' A :: :: cons {{ coq (cons[[a]][[A]])}}
+  | a ':' A :: :: cons {{ coq (cons[[a]][[A]])}}
   | A @ B :: M :: append {{ coq (List.app[[A]][[B]])}}
 
 stack, st, S :: Stack_ ::=
@@ -238,474 +238,474 @@ defns
 Typing :: 't_' ::=
 
   defn
-  x : a :: :: data_has_type :: 'data_' by
+  x '::' a :: :: data_has_type :: 'data_' by
 
        ------------------ :: int
-       int_litteral : int
+       int_litteral :: int
 
        ------------------ :: nat
-       nat_litteral : nat
+       nat_litteral :: nat
 
        ------------------------ :: string
-       string_litteral : string
+       string_litteral :: string
 
        ------------------------------ :: timestamp
-       timestamp_litteral : timestamp
+       timestamp_litteral :: timestamp
 
        ------------------------------ :: signature
-       signature_litteral : signature
+       signature_litteral :: signature
 
        ------------------ :: key
-       key_litteral : key
+       key_litteral :: key
 
        ---------------------------- :: key_hash
-       key_hash_litteral : key_hash
+       key_hash_litteral :: key_hash
 
        ---------------------- :: mutez
-       mutez_litteral : mutez
+       mutez_litteral :: mutez
 
        get_contract_type contract_litteral a
        ------------------------------------- :: contract
-       contract_litteral : contract a
+       contract_litteral :: contract a
 
        ----------- :: Unit
-       Unit : unit
+       Unit :: unit
 
        ----------- :: True
-       True : bool
+       True :: bool
 
        ------------ :: False
-       False : bool
+       False :: bool
 
-       x : a
-       y : b
+       x :: a
+       y :: b
        ------------------- :: Pair
-       Pair x y : pair a b
+       Pair x y :: pair a b
 
-       x : a
+       x :: a
        --------------- :: Left
-       Left x : or a b
+       Left x :: or a b
 
-       y : b
+       y :: b
        ---------------- :: Right
-       Right y : or a b
+       Right y :: or a b
 
-       x : a
+       x :: a
        ----------------- :: Some
-       Some x : option a
+       Some x :: option a
 
        --------------- :: None
-       None : option a
+       None :: option a
 
-       x1 : c .. xn : c
+       x1 :: c .. xn :: c
        ------------------------ :: set
-       { x1 ; .. ; xn } : set c
+       { x1 ; .. ; xn } :: set c
 
-       x1 : a .. xn : a
+       x1 :: a .. xn :: a
        ------------------------- :: list
-       { x1 ; .. ; xn } : list a
+       { x1 ; .. ; xn } :: list a
 
-       map_elt1 : kty, vty .. map_eltn : kty, vty
-       ------------------------------------------ :: map
-       { map_elt1 ; .. ; map_eltn } : map kty vty
+       map_elt1 :: kty, vty .. map_eltn :: kty, vty
+       --------------------------------------------- :: map
+       { map_elt1 ; .. ; map_eltn } :: map kty vty
 
-       code : a :: [] => b :: []
+       code :: a : [] => b : []
        ------------------------- :: instruction
-       code : lambda a b
+       code :: lambda a b
 
   defn
-  map_elt : kty, vty :: :: map_elt_has_type :: 'map_elt_' by
+  map_elt '::' kty, vty :: :: map_elt_has_type :: 'map_elt_' by
 
-       k : kty
-       v : vty
+       k :: kty
+       v :: vty
        ------------------ :: map_elt
-       Elt k v : kty, vty
+       Elt k v :: kty, vty
 
   defn
-  nullary : -> a :: :: null_has_type :: 'fun0_' by
+  nullary '::' -> a :: :: null_has_type :: 'fun0_' by
 
-       x : a
+       x :: a
        --------------- :: PUSH
-       PUSH a x : -> a
+       PUSH a x :: -> a
 
        -------------- :: UNIT
-       UNIT : -> unit
+       UNIT :: -> unit
 
-       code : a :: [] => b :: []
+       code :: a : [] => b : []
        ------------------------------- :: LAMBDA
-       LAMBDA a b code : -> lambda a b
+       LAMBDA a b code :: -> lambda a b
 
        ---------------------- :: EMPTY_SET
-       EMPTY_SET c : -> set c
+       EMPTY_SET c :: -> set c
 
        ---------------------------------- :: EMPTY_MAP
-       EMPTY_MAP kty vty : -> map kty vty
+       EMPTY_MAP kty vty :: -> map kty vty
 
        -------------------- :: NONE
-       NONE a : -> option a
+       NONE a :: -> option a
 
        ----------------- :: NIL
-       NIL a : -> list a
+       NIL a :: -> list a
 
        ------------------ :: BALANCE
-       BALANCE : -> mutez
+       BALANCE :: -> mutez
 
        ------------------- :: SOURCE
-       SOURCE : -> address
+       SOURCE :: -> address
 
        ------------------- :: SENDER
-       SENDER : -> address
+       SENDER :: -> address
 
        ----------------- :: SELF
-       SELF : -> self_ty
+       SELF :: -> self_ty
 
        ----------------- :: AMOUNT
-       AMOUNT : -> mutez
+       AMOUNT :: -> mutez
 
        ----------------------- :: STEPS_TO_QUOTA
-       STEPS_TO_QUOTA : -> nat
+       STEPS_TO_QUOTA :: -> nat
 
        ------------------ :: NOW
-       NOW : -> timestamp
+       NOW :: -> timestamp
 
   defn
-  unary : a -> b :: :: unary_has_tyoe :: 'fun1_' by
+  unary '::' a -> b :: :: unary_has_type :: 'fun1_' by
 
        ------------------------ :: comparison
-       comparison : int -> bool
+       comparison :: int -> bool
 
        ------------------ :: NOT_bool
-       NOT : bool -> bool
+       NOT :: bool -> bool
 
        ---------------- :: NOT_nat
-       NOT : nat -> int
+       NOT :: nat -> int
 
        ---------------- :: NOT_int
-       NOT : int -> int
+       NOT :: int -> int
 
        ---------------- :: NEG_nat
-       NEG : nat -> int
+       NEG :: nat -> int
 
        ---------------- :: NEG_int
-       NEG : int -> int
+       NEG :: int -> int
 
        ---------------- :: ABS
-       ABS : int -> nat
+       ABS :: int -> nat
 
        ------------------- :: SIZE_set
-       SIZE : set c -> nat
+       SIZE :: set c -> nat
 
        ------------------------- :: SIZE_map
-       SIZE : map kty vty -> nat
+       SIZE :: map kty vty -> nat
 
        -------------------- :: SIZE_list
-       SIZE : list a -> nat
+       SIZE :: list a -> nat
 
        -------------------- :: SIZE_string
-       SIZE : string -> nat
+       SIZE :: string -> nat
 
        ------------------- :: SIZE_bytes
-       SIZE : bytes -> nat
+       SIZE :: bytes -> nat
 
        ------------------- :: CAR
-       CAR : pair a b -> a
+       CAR :: pair a b -> a
 
        ------------------- :: CDR
-       CDR : pair a b -> b
+       CDR :: pair a b -> b
 
        -------------------- :: SOME
-       SOME : a -> option a
+       SOME :: a -> option a
 
        -------------------- :: LEFT
-       LEFT b : a -> or a b
+       LEFT b :: a -> or a b
 
        --------------------- :: RIGHT
-       RIGHT a : b -> or a b
+       RIGHT a :: b -> or a b
 
        ------------------------------- :: ADDRESS
-       ADDRESS : contract a -> address
+       ADDRESS :: contract a -> address
 
        ---------------------------------- :: CONTRACT
-       CONTRACT a : address -> contract a
+       CONTRACT a :: address -> contract a
 
        ------------------------------------------- :: SET_DELEGATE
-       SET_DELEGATE : option key_hash -> operation
+       SET_DELEGATE :: option key_hash -> operation
 
        -------------------------------------------- :: IMPLICIT_ACCOUNT
-       IMPLICIT_ACCOUNT : key_hash -> contract unit
+       IMPLICIT_ACCOUNT :: key_hash -> contract unit
 
        ----------------- :: PACK
-       PACK : a -> bytes
+       PACK :: a -> bytes
 
        --------------------- :: UNPACK
-       UNPACK a : bytes -> a
+       UNPACK a :: bytes -> a
 
        -------------------------- :: HASH_KEY
-       HASH_KEY : key -> key_hash
+       HASH_KEY :: key -> key_hash
 
        ------------------------------ :: HASH
-       hash_function : bytes -> bytes
+       hash_function :: bytes -> bytes
 
   defn
-  binary : a1 -> a2 -> b :: :: bin_has_type :: 'fun2_' by
+  binary '::' a1 -> a2 -> b :: :: bin_has_type :: 'fun2_' by
 
        ------------------------------------- :: bitwise_bool
-       binary_bitwise : bool -> bool -> bool
+       binary_bitwise :: bool -> bool -> bool
 
        ---------------------------------- :: bitwise_nat
-       binary_bitwise : nat -> nat -> nat
+       binary_bitwise :: nat -> nat -> nat
 
        --------------------------- :: EXEC
-       EXEC : a -> lambda a b -> b
+       EXEC :: a -> lambda a b -> b
 
        ----------------------- :: LSL
-       LSL : nat -> nat -> nat
+       LSL :: nat -> nat -> nat
 
        ----------------------- :: LSR
-       LSR : nat -> nat -> nat
+       LSR :: nat -> nat -> nat
 
        ----------------------- :: COMPARE
-       COMPARE : c -> c -> int
+       COMPARE :: c -> c -> int
 
        ----------------------------------- :: CONCAT_string
-       CONCAT : string -> string -> string
+       CONCAT :: string -> string -> string
 
        -------------------------------- :: CONCAT_bytes
-       CONCAT : bytes -> bytes -> bytes
+       CONCAT :: bytes -> bytes -> bytes
 
        ------------------------- :: PAIR
-       PAIR : a -> b -> pair a b
+       PAIR :: a -> b -> pair a b
 
        ------------------------ :: MEM_set
-       MEM : c -> set c -> bool
+       MEM :: c -> set c -> bool
 
        -------------------------------- :: MEM_map
-       MEM : kty -> map kty vty -> bool
+       MEM :: kty -> map kty vty -> bool
 
        ------------------------------------ :: MEM_big_map
-       MEM : kty -> big_map kty vty -> bool
+       MEM :: kty -> big_map kty vty -> bool
 
        -------------------------------------- :: GET_map
-       GET : kty -> map kty vty -> option vty
+       GET :: kty -> map kty vty -> option vty
 
        ------------------------------------------ :: GET_big_map
-       GET : kty -> big_map kty vty -> option vty
+       GET :: kty -> big_map kty vty -> option vty
 
        ---------------------------- :: CONS
-       CONS : a -> list a -> list a
+       CONS :: a -> list a -> list a
 
   defn
-  function : A -> B :: :: fun_has_type :: 'fun_' by
+  function '::' A -> B :: :: fun_has_type :: 'fun_' by
 
-       nullary : a
+       nullary :: a
        ----------------------- :: nullary
-       nullary : [] -> a :: []
+       nullary :: [] -> a : []
 
-       unary : a -> b
+       unary :: a -> b
        -------------------------- :: unary
-       unary : a :: [] -> b :: []
+       unary :: a : [] -> b : []
 
-       binary : a1 -> a2 -> b
+       binary :: a1 -> a2 -> b
        ---------------------------------- :: binary
-       binary : a1 :: a2 :: [] -> b :: []
+       binary :: a1 : a2 : [] -> b : []
 
        -------------------- :: DROP
-       DROP : a :: [] -> []
+       DROP :: a : [] -> []
 
        ----------------------------- :: DUP
-       DUP : a :: [] -> a :: a :: []
+       DUP :: a : [] -> a : a : []
 
        ----------------------------------- :: SWAP
-       SWAP : a :: b :: [] -> b :: a :: []
+       SWAP :: a : b : [] -> b : a : []
 
        --------------------------------------------------------- :: SLICE_string
-       SLICE : nat :: nat :: string :: [] -> option string :: []
+       SLICE :: nat : nat : string : [] -> option string : []
 
        ------------------------------------------------------- :: SLICE_bytes
-       SLICE : nat :: nat :: bytes :: [] -> option bytes :: []
+       SLICE :: nat : nat : bytes : [] -> option bytes : []
 
        ------------------------------------------------ :: UPDATE_set
-       UPDATE : c :: bool :: set c :: [] -> set c :: []
+       UPDATE :: c : bool : set c : [] -> set c : []
 
        ------------------------------------------------------------- :: UPDATE_map
-       UPDATE : kty :: vty :: map kty vty :: [] -> map kty vty :: []
+       UPDATE :: kty : vty : map kty vty : [] -> map kty vty : []
 
        --------------------------------------------------------------------- :: UPDATE_big_map
-       UPDATE : kty :: vty :: big_map kty vty :: [] -> big_map kty vty :: []
+       UPDATE :: kty : vty : big_map kty vty : [] -> big_map kty vty : []
 
 
        -------------------------------------------------------------------------------------------------------------------------------------------------------------- :: CREATE_CONTRACT
-       CREATE_CONTRACT : key_hash :: option key_hash :: bool :: bool :: mutez :: lambda (pair a b) (pair (list operation) b) :: b :: [] -> operation :: address :: []
+       CREATE_CONTRACT :: key_hash : option key_hash : bool : bool : mutez : lambda (pair a b) (pair (list operation) b) : b : [] -> operation : address : []
 
-       code : pair a b :: [] => pair (list operation) b :: []
+       code :: pair a b : [] => pair (list operation) b : []
        -------------------------------------------------------------------------------------------------------------------- :: CREATE_CONTRACT_l
-       CREATE_CONTRACT code : key_hash :: option key_hash :: bool :: bool :: mutez :: b :: [] -> operation :: address :: []
+       CREATE_CONTRACT code :: key_hash : option key_hash : bool : bool : mutez : b : [] -> operation : address : []
 
 
        ------------------------------------------------------------------------------------------------------- :: CREATE_ACCOUNT
-       CREATE_ACCOUNT : key_hash :: option key_hash :: bool :: mutez :: [] -> operation :: contract unit :: []
+       CREATE_ACCOUNT :: key_hash : option key_hash : bool : mutez : [] -> operation : contract unit : []
 
 
        ------------------------------------------------------------------- :: TRANSFER_TOKENS
-       TRANSFER_TOKENS : a :: mutez :: contract a :: [] -> operation :: []
+       TRANSFER_TOKENS :: a : mutez : contract a : [] -> operation : []
 
 
        --------------------------------------------------------------- :: CHECK_SIGNATURE
-       CHECK_SIGNATURE : key :: signature :: bytes :: [] -> bool :: []
+       CHECK_SIGNATURE :: key : signature : bytes : [] -> bool : []
 
 
        ----------------------------------- :: ADD_nat_nat
-       ADD : nat :: nat :: [] -> nat :: []
+       ADD :: nat : nat : [] -> nat : []
 
        ----------------------------------- :: ADD_nat_int
-       ADD : nat :: int :: [] -> int :: []
+       ADD :: nat : int : [] -> int : []
 
        ----------------------------------- :: ADD_int_nat
-       ADD : int :: nat :: [] -> int :: []
+       ADD :: int : nat : [] -> int : []
 
        ----------------------------------- :: ADD_int_int
-       ADD : int :: int :: [] -> int :: []
+       ADD :: int : int : [] -> int : []
 
        ----------------------------------------------- :: ADD_timestamp_int
-       ADD : timestamp :: int :: [] -> timestamp :: []
+       ADD :: timestamp : int : [] -> timestamp : []
 
        ----------------------------------------------- :: ADD_int_timestamp
-       ADD : int :: timestamp :: [] -> timestamp :: []
+       ADD :: int : timestamp : [] -> timestamp : []
 
        ----------------------------------------- :: ADD_mutez_mutez_mutez
-       ADD : mutez :: mutez :: [] -> mutez :: []
+       ADD :: mutez : mutez : [] -> mutez : []
 
        ----------------------------------- :: SUB_nat_nat
-       SUB : nat :: nat :: [] -> int :: []
+       SUB :: nat : nat : [] -> int : []
 
        ----------------------------------- :: SUB_nat_int
-       SUB : nat :: int :: [] -> int :: []
+       SUB :: nat : int : [] -> int : []
 
        ----------------------------------- :: SUB_int_nat
-       SUB : int :: nat :: [] -> int :: []
+       SUB :: int : nat : [] -> int : []
 
        ----------------------------------- :: SUB_int_int
-       SUB : int :: int :: [] -> int :: []
+       SUB :: int : int : [] -> int : []
 
        ----------------------------------------------- :: SUB_timestamp_int
-       SUB : timestamp :: int :: [] -> timestamp :: []
+       SUB :: timestamp : int : [] -> timestamp : []
 
        ----------------------------------------------- :: SUB_timestamp_timestamp
-       SUB : timestamp :: timestamp :: [] -> int :: []
+       SUB :: timestamp : timestamp : [] -> int : []
 
        ----------------------------------------- :: SUB_mutez_mutez
-       SUB : mutez :: mutez :: [] -> mutez :: []
+       SUB :: mutez : mutez : [] -> mutez : []
 
        ----------------------------------- :: MUL_nat_nat
-       MUL : nat :: nat :: [] -> nat :: []
+       MUL :: nat : nat : [] -> nat : []
 
        ----------------------------------- :: MUL_nat_int
-       MUL : nat :: int :: [] -> int :: []
+       MUL :: nat : int : [] -> int : []
 
        ----------------------------------- :: MUL_int_nat
-       MUL : int :: nat :: [] -> int :: []
+       MUL :: int : nat : [] -> int : []
 
        ----------------------------------- :: MUL_int_int
-       MUL : int :: int :: [] -> int :: []
+       MUL :: int : int : [] -> int : []
 
        --------------------------------------- :: MUL_mutez_nat
-       MUL : mutez :: nat :: [] -> mutez :: []
+       MUL :: mutez : nat : [] -> mutez : []
 
        --------------------------------------- :: MUL_nat_mutez
-       MUL : nat :: mutez :: [] -> mutez :: []
+       MUL :: nat : mutez : [] -> mutez : []
 
        ------------------------------------------- :: EDIV_nat_nat
-       EDIV : nat :: nat :: [] -> nat :: nat :: []
+       EDIV :: nat : nat : [] -> nat : nat : []
 
        ------------------------------------------- :: EDIV_nat_int
-       EDIV : nat :: int :: [] -> int :: nat :: []
+       EDIV :: nat : int : [] -> int : nat : []
 
        ------------------------------------------- :: EDIV_int_nat
-       EDIV : int :: nat :: [] -> int :: nat :: []
+       EDIV :: int : nat : [] -> int : nat : []
 
        ------------------------------------------- :: EDIV_int_int
-       EDIV : int :: int :: [] -> int :: nat :: []
+       EDIV :: int : int : [] -> int : nat : []
 
        ------------------------------------------------- :: EDIV_mutez_nat
-       EDIV : mutez :: nat :: [] -> mutez :: mutez :: []
+       EDIV :: mutez : nat : [] -> mutez : mutez : []
 
        ------------------------------------------------- :: EDIV_mutez_mutez
-       EDIV : mutez :: mutez :: [] -> nat :: mutez :: []
+       EDIV :: mutez : mutez : [] -> nat : mutez : []
 
   defn
-  code : A => B :: :: code_has_type :: 'code_' by
+  code '::' A => B :: :: code_has_type :: 'code_' by
 
-       function : A -> B
+       function :: A -> B
        ------------------------- :: function
-       function : A @ C => B @ C
+       function :: A @ C => B @ C
 
        ---------------------- :: FAILWITH
-       FAILWITH : a :: A => B
+       FAILWITH :: a : A => B
 
        ------------- :: NOOP
-       {} : A => A
+       {} :: A => A
 
-       code1 : A => B
-       code2 : B => C
+       code1 :: A => B
+       code2 :: B => C
        ------------------------ :: SEQ
-       {code1; code2} : A => C
+       {code1; code2} :: A => C
 
-       code1 : A => B
-       code2 : A => B
+       code1 :: A => B
+       code2 :: A => B
        ------------------------------- :: IF
-       IF code1 code2 : bool :: A => B
+       IF code1 code2 :: bool : A => B
 
-       code : A => bool :: A
+       code :: A => bool : A
        -------------------------- :: LOOP
-       LOOP code : bool :: A => A
+       LOOP code :: bool : A => A
 
-       code : a :: A => or a b :: A
+       code :: a : A => or a b : A
        --------------------------------- :: LOOP_LEFT
-       LOOP_LEFT code : or a b :: A => A
+       LOOP_LEFT code :: or a b : A => A
 
-       code : A => B
+       code :: A => B
        --------------------------- :: DIP
-       DIP code : a :: A => a :: B
+       DIP code :: a : A => a : B
 
-       code : a :: A => A
+       code :: a : A => A
        ---------------------------- :: ITER_list
-       ITER code : list a :: A => A
+       ITER code :: list a : A => A
 
-       code : c :: A => A
+       code :: c : A => A
        ---------------------------- :: ITER_set
-       ITER code : set c :: A => A
+       ITER code :: set c : A => A
 
-       code : (pair kty vty) :: A => A
+       code :: (pair kty vty) : A => A
        --------------------------------- :: ITER_map
-       ITER code : map kty vty :: A => A
+       ITER code :: map kty vty : A => A
 
-       code : a :: A => b :: A
+       code :: a : A => b : A
        ------------------------------------- :: MAP_list
-       MAP code : list a :: A => list b :: A
+       MAP code :: list a : A => list b : A
 
-       code : (pair kty a) :: A => b :: A
+       code :: (pair kty a) : A => b : A
        ------------------------------------------- :: MAP_map
-       MAP code : map kty a :: A => map kty b :: A
+       MAP code :: map kty a : A => map kty b : A
 
-       code1 : A => B
-       code2 : a :: A => B
+       code1 :: A => B
+       code2 :: a : A => B
        ---------------------------------------- :: IF_NONE
-       IF_NONE code1 code2 : option a :: A => B
+       IF_NONE code1 code2 :: option a : A => B
 
-       code1 : a :: A => B
-       code2 : b :: A => B
+       code1 :: a : A => B
+       code2 :: b : A => B
        -------------------------------------- :: IF_LEFT
-       IF_LEFT code1 code2 : or a b :: A => B
+       IF_LEFT code1 code2 :: or a b : A => B
 
-       code1 : b :: A => B
-       code2 : a :: A => B
+       code1 :: b : A => B
+       code2 :: a : A => B
        -------------------------------------- :: IF_RIGHT
-       IF_RIGHT code1 code2 : or a b :: A => B
+       IF_RIGHT code1 code2 :: or a b : A => B
 
-       code1 : a :: list a :: A => B
-       code2 : A => B
+       code1 :: a : list a : A => B
+       code2 :: A => B
        -------------------------------------- :: IF_CONS
-       IF_CONS code1 code2 : list a :: A => B
+       IF_CONS code1 code2 :: list a : A => B
 
 defns
 BigStep :: '' ::=
