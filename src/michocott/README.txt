@@ -71,7 +71,7 @@ _________________
 
   To regenerate the proof assistant code, run:
 
-  $ make michelson.pdf
+  $ make doc
 
 
 3 The ott file
