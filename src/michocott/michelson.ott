@@ -45,7 +45,6 @@ bitop :: 'bitop_' ::=
 %% Data litterals
 
 nat_lit :: 'n_' ::= {{ coq nat }} {{ phantom }}
-  | nat_litteral :: :: NatLitteral
   | 0 :: M :: NatZero {{ coq 0 }}
   | 1 :: M :: NatOne {{ coq 1 }}
   | 256 :: M :: NatMaxByte {{ coq 256 }}
@@ -53,7 +52,6 @@ nat_lit :: 'n_' ::= {{ coq nat }} {{ phantom }}
   | abs z :: M :: Abs {{ coq (Z.abs_nat [[z]]) }}
 
 int_lit, z :: 'z_' ::= {{ coq Z }} {{ phantom }}
-  | int_litteral :: :: IntLitteral
   | 0z :: M :: IntZero {{ coq 0 }}
   | 1z :: M :: IntOne {{ coq 1 }}
 
@@ -63,10 +61,9 @@ num, n :: 'n_' ::=
   | n1 aop n2 :: M :: Aop {{ coq ( num_apply_aop [[aop]] [[n1]] [[n2]] ) }}
   | n1 bitop n2 :: M :: Bitop {{ coq ( num_apply_bitop [[bitop]] [[n1]] [[n2]] ) }}
   | - n :: M :: NumNeg {{ coq ( num_neg [[n]] ) }}
-  | ~ n :: M :: BitNeg {{ coq ( num_bit_neg [[n]] ) }} 
+  | ~ n :: M :: BitNeg {{ coq ( num_bit_neg [[n]] ) }}
 
 string_lit, s , t :: 's_' ::= {{ coq String.string }} {{ phantom }}
-     | string_litteral :: :: StringLitteral
      | "" :: M :: StringEmpty {{ coq ("") }}
      | ( s ^ s' ) :: M :: Concat {{ coq (append [[s]] [[s']]) }}
      | slice s n1 n2 :: M :: StringSlice {{ coq (substring [[n1]] [[n2]] [[s]]) }}
@@ -77,7 +74,7 @@ bool_lit, b :: 'b_' ::= {{ coq bool }} {{ phantom }}
      | ( b1 bop b2 ) :: M :: Bop {{ coq ( [[bop]] [[b1]] [[b2]] ) }}
      | ! b2  :: M :: Neg {{ coq ( negb [[b2]] ) }}
 
-set_lit, tl :: 'set_' ::= {{ coq list data }} {{ phantom }}
+set_or_list, tl :: 'setlist_' ::= {{ coq list data }} {{ phantom }}
      | {} :: M :: Nil {{ coq []  }}
      | { d ; tl } :: M :: Cons {{ coq ([[d]] :: [[set_lit]])  }}
      %% meta-productions
@@ -85,12 +82,21 @@ set_lit, tl :: 'set_' ::= {{ coq list data }} {{ phantom }}
      | < tl > :: M :: Chevron {{ coq [[l]] }}
 
 map_elt :: '' ::=
-  | Elt k v :: :: Elt
+     | Elt k v :: :: Elt
+
+map_lit, m :: 'map_' ::= {{ coq list (data * data) }} {{ phantom }}
+     | {} :: M :: Nil {{ coq [] }}
+     | { Elt d d' ; map_lit }  :: M :: Cons {{ coq (([[d]], [[d']])::[[map]]) }}
+     % meta-productions
+     | { Elt d d' }  :: M :: Singleton {{ coq [ ([[d]], [[d']]) ] }}
+     | < m > :: M :: Chevron {{ coq [[map]] }}
+     %| { Elt d1 d1'  ; .. ; Elt dN dN' } :: :: Map
+
 
 %% Data
 
-data, x, y, k, v, d :: data_ ::=
-  | num :: :: Num 
+data, x, y, k, v, d, opt_y :: data_ ::=
+  | num :: :: Num
   | string_lit :: :: StringConstant
   | bool_lit :: :: Bool
   | timestamp_litteral :: :: Timestamp
@@ -100,16 +106,13 @@ data, x, y, k, v, d :: data_ ::=
   | mutez_litteral :: :: Mutez
   | contract_litteral :: :: Contract
   | Unit :: :: Unit
-  | True :: :: True
-  | False :: :: False
   | Pair x y :: :: Pair
   | Left x :: :: Left
   | Right y :: :: Right
   | Some x :: :: Some
   | None :: :: None
-  | set_lit :: :: Set
-  %| { x1 ; .. ; xn } :: :: list_or_set
-  %| { map_elt1 ; .. ; map_eltn } :: :: map
+  | set_or_list :: :: Set
+  | map_lit :: :: Map
   | code :: :: instruction
   | 0 :: M :: zero {{ coq data_int 0%Z}}
 
@@ -117,7 +120,7 @@ data, x, y, k, v, d :: data_ ::=
 
 %% Types
 
-comparable_type, c, kty :: cty_ ::=
+comparable_type, kty, cty :: cty_ ::=
   | string    :: :: string
   | nat       :: :: nat
   | int       :: :: int
@@ -128,13 +131,13 @@ comparable_type, c, kty :: cty_ ::=
   | timestamp :: :: timestamp
 
 type, ty, vty :: ty_ ::=
-  | c               :: :: Comparable_type
+  | cty             :: :: Comparable_type
   | key             :: :: key
   | unit            :: :: unit
   | signature       :: :: signature
   | option type     :: :: option
   | list type       :: :: list
-  | set c           :: :: set
+  | set cty           :: :: set
   | contract type   :: :: contract
   | address         :: :: address
   | operation       :: :: operation
@@ -173,7 +176,7 @@ nullary :: '' ::=
   | PUSH ty1 x :: :: PUSH
   | UNIT :: :: UNIT
   | LAMBDA ty1 ty2 code :: :: LAMBDA
-  | EMPTY_SET c :: :: EMPTY_SET
+  | EMPTY_SET cty :: :: EMPTY_SET
   | EMPTY_MAP kty vty :: :: EMPTY_MAP
   | NONE ty1 :: :: NONE
   | NIL ty1 :: :: NIL
@@ -316,13 +319,13 @@ Typing :: 't_' ::=
   x '::' ty :: :: data_has_type :: 'data_' by
 
        ------------------ :: int
-       int_litteral :: int
+       int_lit :: int
 
        ------------------ :: nat
-       nat_litteral :: nat
+       nat_lit :: nat
 
        ------------------------ :: string
-       string_litteral :: string
+       string_lit :: string
 
        ------------------------------ :: timestamp
        timestamp_litteral :: timestamp
@@ -346,11 +349,8 @@ Typing :: 't_' ::=
        ----------- :: Unit
        Unit :: unit
 
-       ----------- :: True
-       True :: bool
-
-       ------------ :: False
-       False :: bool
+       ----------- :: bool
+       bool_lit :: bool
 
        x :: ty1
        y :: ty2
@@ -373,20 +373,29 @@ Typing :: 't_' ::=
        None :: option ty1
 
        ------------------------ :: set_empty
-       {} :: set c
+       {} :: set cty
 
-       x :: c
-       tl :: set c
+       x :: cty
+       tl :: set cty
        ------------------------ :: set_cons
-       { x ; <tl> } :: set c
+       { x ; <tl> } :: set cty
 
-       x1 :: ty1 .. xn :: ty1
-       ------------------------- :: list
-       { x1 ; .. ; xn } :: list ty1
+       ------------------------ :: list_empty
+       {} :: list cty
 
-       map_elt1 :: kty, vty .. map_eltn :: kty, vty
-       --------------------------------------------- :: map
-       { map_elt1 ; .. ; map_eltn } :: map kty vty
+       x :: cty
+       tl :: list cty
+       ------------------------ :: list_cons
+       { x ; <tl> } :: list cty
+
+       ------------------------ :: map_empty
+       {} :: map kty vty
+
+       x :: kty
+       y :: vty
+       m :: map kty vty
+       ------------------------ :: map_cons
+       { Elt x y ; <m> } :: map kty vty
 
        code :: ty1 : [] => ty2 : []
        ------------------------- :: instruction
@@ -415,7 +424,7 @@ Typing :: 't_' ::=
        LAMBDA ty1 ty2 code :: -> lambda ty1 ty2
 
        ---------------------- :: EMPTY_SET
-       EMPTY_SET c :: -> set c
+       EMPTY_SET cty :: -> set cty
 
        ---------------------------------- :: EMPTY_MAP
        EMPTY_MAP kty vty :: -> map kty vty
@@ -472,7 +481,7 @@ Typing :: 't_' ::=
        ABS :: int -> nat
 
        ------------------- :: SIZE_set
-       SIZE :: set c -> nat
+       SIZE :: set cty -> nat
 
        ------------------------- :: SIZE_map
        SIZE :: map kty vty -> nat
@@ -544,7 +553,7 @@ Typing :: 't_' ::=
        LSR :: nat -> nat -> nat
 
        ----------------------- :: COMPARE
-       COMPARE :: c -> c -> int
+       COMPARE :: cty -> cty -> int
 
        ----------------------------------- :: CONCAT_string
        CONCAT :: string -> string -> string
@@ -556,7 +565,7 @@ Typing :: 't_' ::=
        PAIR :: ty1 -> ty2 -> pair ty1 ty2
 
        ------------------------ :: MEM_set
-       MEM :: c -> set c -> bool
+       MEM :: cty -> set cty -> bool
 
        -------------------------------- :: MEM_map
        MEM :: kty -> map kty vty -> bool
@@ -604,7 +613,7 @@ Typing :: 't_' ::=
        SLICE :: nat : nat : bytes : [] -> option bytes : []
 
        ------------------------------------------------ :: UPDATE_set
-       UPDATE :: c : bool : set c : [] -> set c : []
+       UPDATE :: cty : bool : set cty : [] -> set cty : []
 
        ------------------------------------------------------------- :: UPDATE_map
        UPDATE :: kty : vty : map kty vty : [] -> map kty vty : []
@@ -750,9 +759,9 @@ Typing :: 't_' ::=
        ---------------------------- :: ITER_list
        ITER code :: list ty1 : A => A
 
-       code :: c : A => A
+       code :: cty : A => A
        ---------------------------- :: ITER_set
-       ITER code :: set c : A => A
+       ITER code :: set cty : A => A
 
        code :: (pair kty vty) : A => A
        --------------------------------- :: ITER_map
@@ -1184,11 +1193,11 @@ CONCAT / s : t : S  =>  ( s ^ t ) : S
 % :: string list : 'S   -> string : 'S
 
 ----- :: concat_list_nil
-CONCAT / [[]] : S  =>  "" : S
+CONCAT / {} : S  =>  "" : S
 
-CONCAT / < l > : S  =>  t : S
+CONCAT / tl : S  =>  t : S
 ----- :: concat_list_cons
-CONCAT / [[ s ; < l > ]] : S  =>  ( s ^ t ) : S
+CONCAT / { s ; < tl > } : S  =>  ( s ^ t ) : S
 
 %     SIZE: number of characters in ty1 string.
 
@@ -1270,7 +1279,7 @@ CDR / ( Pair d d' ) : S  =>  d' : S
 % :: 'S   ->   set 'elt : 'S
 
 ----- :: set_empty
-EMPTY_SET c / S  =>  {} : S
+EMPTY_SET cty / S  =>  {} : S
 
 %     MEM: Check for the presence of an element in ty1 set.
 
@@ -1356,78 +1365,78 @@ SIZE / { d ; < tl > } : S  =>  1 + n : S
 % :: 'S -> map 'key 'val : 'S
 
 ----- :: map_empty
-EMPTY_MAP ct ty / S  =>  [] : S
+EMPTY_MAP cty ty / S  =>  {} : S
 
 %     GET: Access an element in ty1 map, returns an optional value to be checked with IF_SOME.
 
 % :: 'key : map 'key 'val : 'S   ->   option 'val : 'S
 
 ----- :: get_empty
-GET / x : [] : S  =>  None : S
+GET / x : {} : S  =>  None : S
 
 COMPARE / x : k : []  =>  1z : []
-GET / x : < map >  : S  =>  opt_y : S
+GET / x : m : S  =>  opt_y : S
 ----- :: get_later
-GET / x : [ Elt k v ; < map > ] : S  =>  opt_y : S
+GET / x : { Elt k v ; < m > } : S  => opt_y : S
 
 COMPARE / x : k : []  =>  0 : []
 ----- :: get_now
-GET / x : [ Elt k v ; < map > ] : S  =>  Some v : S
+GET / x : { Elt k v ; < m > } : S  =>  Some v : S
 
 COMPARE / x : k : []  =>  -1z : []
 ----- :: get_nexists
-GET / x : [ Elt k v ; < map > ] : S  =>  None : S
+GET / x : { Elt k v ; < m > } : S  =>  None : S
 
 %     MEM: Check for the presence of ty1 binding for ty1 key in ty1 map.
 
 % :: 'key : map 'key 'val : 'S   ->  bool : 'S
 
 ----- :: map_mem_empty
-MEM / x : [] : S  =>  False : S
+MEM / x : {} : S  =>  False : S
 
 COMPARE / x : k : []  =>  1z : []
-MEM / x : < map > : S  =>  r : S
+MEM / x : m : S  =>  b : S
 ----- :: map_mem_later
-MEM / x : [ Elt k v ; < map > ] : S  =>  r : S
+MEM / x : { Elt k v ; < m > } : S  =>  b : S
 
 COMPARE / x : k : []  =>  0 : []
 ----- :: map_mem_now
-MEM / x : [ Elt k v ; < map > ] : S  =>  True : S
+MEM / x : { Elt k v ; < m > } : S  =>  True : S
 
 COMPARE / x : k : []  =>  -1z : []
 ----- :: map_mem_nexists
-MEM / x : [ Elt k v ; < map > ] : S  =>  False : S
+MEM / x : { Elt k v ; < m > } : S  =>  False : S
 
 %     UPDATE: Assign or remove an element in ty1 map.
 
 % :: 'key : option 'val : map 'key 'val : 'S   ->   map 'key 'val : 'S
 
 ----- :: map_update_false
-UPDATE / x : None : [] : S  =>  [] : S
+UPDATE / x : None : {} : S  =>  {} : S
 
 ----- :: map_update_add_nexists
-UPDATE / x : Some y : [] : S  =>  [ Elt x y ] : S
+UPDATE / x : Some y : {} : S  =>  { Elt x y } : S
 
 COMPARE / x : k : []  =>  1z : []
-UPDATE / x : opt_y : < map > : S  =>  < map' > : S
+UPDATE / x : opt_y : m : S  =>  m' : S
 ----- :: map_update_cont
-UPDATE / x : opt_y : [ Elt k v ; < map > ] : S  =>  [ Elt k v ; < map' > ] : S
+UPDATE / x : opt_y : { Elt k v ; < m > } : S  =>  { Elt k v ; < m' > } : S
 
 COMPARE / x : k : []  =>  0 : []
 ----- :: map_update_remove
-UPDATE / x : None : [ Elt k v ; < map > ] : S  =>  < map > : S
+UPDATE / x : None : { Elt k v ; < m > } : S  =>  < m > : S
 
 COMPARE / x : k : []  =>  0 : []
 ----- :: map_update_exists
-UPDATE / x : Some y : [ Elt k v ; < map > ] : S  =>  [ Elt k y ; < map > ] : S
+UPDATE / x : Some y : { Elt k v ; < m > } : S  =>  { Elt k y ; < m > } : S
 
 COMPARE / x : k : []  =>  -1z : []
 ----- :: map_update_remove_nexists
-UPDATE / x : None : [ Elt k v ; < map > ] : S  =>  [ Elt k v ; < map > ] : S
+UPDATE / x : None : { Elt k v ; < m > } : S  =>  { Elt k v ; < m > } : S
 
 COMPARE / x : k : []  =>  -1z : []
 ----- :: map_update_add
-UPDATE / x : Some y : [ Elt k v ; < map > ] : S  =>  [ Elt x y ; [ Elt k v ; < map > ]  ] : S
+UPDATE / x : Some y : { Elt k v ; < m > } : S  =>  { Elt x y ; { Elt k v ; < m > }  } : S
 
 %     MAP body: Apply the body expression to each element of ty1 map. The body sequence has access to the stack.
 
@@ -1435,15 +1444,15 @@ UPDATE / x : Some y : [ Elt k v ; < map > ] : S  =>  [ Elt x y ; [ Elt k v ; < m
 %    iff   body :: [ (pair 'key 'val) : 'A -> 'ty2 : 'A ]
 
 ----- :: map_map_nil
-MAP body / [] : S  =>  [] : S
+MAP body / {} : S  =>  {} : S
 
 %% AJ: I'm unsure how to read the conclusion of the original version
 %% of this rule.  what is the meaning of applying body to (Pair k v) ?
 %% This is how I interpret it.
 body / k : v : S => v' : S
-MAP body / < map > : S  =>   < map' >  : S
+MAP body / m : S  => m'  : S
 ----- :: map_map_cons
-MAP body / [ Elt k v ; < map > ] : S  =>  [ Elt k v' ; < map' > ] : S
+MAP body / { Elt k v ; < m > } : S  =>  { Elt k v' ; < m' > } : S
 
 %     ITER body: Apply the body expression to each element of ty1 map. The body sequence has access to the stack.
 
@@ -1451,22 +1460,22 @@ MAP body / [ Elt k v ; < map > ] : S  =>  [ Elt k v' ; < map' > ] : S
 %    iff   body :: [ (pair 'elt 'val) : 'A -> 'A ]
 
 ----- :: map_iter_nil
-ITER body / [] : S  =>  S
+ITER body / {} : S  =>  S
 
-body ; ITER body / (Pair k v) : < map > : S => S'
+body ; ITER body / (Pair k v) : m : S => S'
 ----- :: map_iter_cons
-ITER body / [ Elt k v ; < map > ] : S  => S'
+ITER body / { Elt k v ; < m > } : S  => S'
 
 %     SIZE: Get the cardinality of the map.
 
 % :: map 'key 'val : 'S -> nat : 'S
 
 ----- :: map_size_nil
-SIZE / [] : S  =>  0 : S
+SIZE / {} : S  =>  0 : S
 
-SIZE / < map > : S  =>  n : S
+SIZE / m : S  =>  n : S
 ----- :: map_size_cons
-SIZE / [ Elt d d' ; < map > ] : S  =>  1 + n : S
+SIZE / { Elt d d' ; < m > } : S  =>  1 + n : S
 
 % Operations on big_maps
 
@@ -1536,9 +1545,9 @@ RIGHT ty / v : S  =>  (Right v) : S
 
 %     IF_LEFT body1 body2: Inspect ty1 value of ty1 variant type.
 
-% :: or 'ty1 'ty2 : 'S   ->   'c : 'S
-%    iff   body1 :: [ 'ty1 : 'S -> 'c : 'S]
-%          body2 :: [ 'ty2 : 'S -> 'c : 'S]
+% :: or 'ty1 'ty2 : 'S   ->   'cty : 'S
+%    iff   body1 :: [ 'ty1 : 'S -> 'cty : 'S]
+%          body2 :: [ 'ty2 : 'S -> 'cty : 'S]
 
 body1 / d : S => S'
 ----- :: if_left_left
@@ -1550,9 +1559,9 @@ IF_LEFT body1 body2 / (Right d) : S  => S'
 
 %     IF_RIGHT body1 body2: Inspect ty1 value of ty1 variant type.
 
-% :: or 'ty1 'ty2 : 'S   ->   'c : 'S
-%    iff   body1 :: [ 'ty2 : 'S -> 'c : 'S]
-%          body2 :: [ 'ty1 : 'S -> 'c : 'S]
+% :: or 'ty1 'ty2 : 'S   ->   'cty : 'S
+%    iff   body1 :: [ 'ty2 : 'S -> 'cty : 'S]
+%          body2 :: [ 'ty1 : 'S -> 'cty : 'S]
 
 body1 / d : S => S'
 ----- :: if_right_right
@@ -1569,14 +1578,14 @@ IF_RIGHT body1 body2 / (Left d) : S  =>  S'
 % :: 'ty1 : list 'ty1 : 'S   ->   list 'ty1 : 'S
 
 ----- :: cons
-CONS / d : < l >  : S  =>  [[ d ; < l > ]] : S
+CONS / d : tl : S  =>  { d ; < tl > } : S
 
 %     NIL 'ty1: The empty list.
 
 % :: 'S   ->   list 'ty1 : 'S
 
 ----- :: nil
-NIL ty / S  => [[]] : S
+NIL ty / S  => {} : S
 
 %     IF_CONS body1 body2: Inspect an optional value.
 
@@ -1584,13 +1593,13 @@ NIL ty / S  => [[]] : S
 %    iff   body1 :: [ 'ty1 : list 'ty1 : 'S -> 'ty2 : 'S]
 %          body2 :: [ 'S -> 'ty2 : 'S]
 
-body1 / d : < l > : S => S'
+body1 / d : tl : S => S'
 ----- :: if_cons_cons
-IF_CONS body1 body2 / [[ d ; < l > ]]  : S  => S'
+IF_CONS body1 body2 / { d ; < tl > }  : S  => S'
 
 body2 / S => S'
 ----- :: if_cons_nil
-IF_CONS body1 body2 / [[]] : S  =>  S'
+IF_CONS body1 body2 / {} : S  =>  S'
 
 %     MAP body: Apply the body expression to each element of the list. The body sequence has access to the stack.
 
@@ -1598,9 +1607,9 @@ IF_CONS body1 body2 / [[]] : S  =>  S'
 %    iff   body :: [ 'elt : 'A -> 'ty2 : 'A ]
 
 body / d : S => d' : S
-MAP body /  < l >  : S  =>   < l' >  : S
+MAP body / tl : S  => tl' : S
 ----- :: list_map_cons
-MAP body / [[ d ; < l > ]]  : S  =>  [[ d' ; < l' > ]] : S
+MAP body / { d ; < tl > }  : S  =>  { d' ; < tl' > } : S
 
 ----- :: list_map_nil
 MAP body / {} : S  =>  {} : S
@@ -1609,9 +1618,9 @@ MAP body / {} : S  =>  {} : S
 
 % :: list 'elt : 'S -> nat : 'S
 
-SIZE / < l >  : S  =>  n : S
+SIZE / tl  : S  =>  n : S
 ----- :: list_size_cons
-SIZE / [[ d ; <l> ]] : S  =>  1 + n : S
+SIZE / { d ; <tl> } : S  =>  1 + n : S
 
 ----- :: list_size_nil
 SIZE / {} : S  =>  0 : S
@@ -1621,9 +1630,9 @@ SIZE / {} : S  =>  0 : S
 % :: (list 'elt) : 'A   ->  'A
 %      iff body :: [ 'elt : 'A -> 'A ]
 
-body ; ITER body / d : <l>  : S => S'
+body ; ITER body / d : tl : S => S'
 ----- :: list_iter_cons
-ITER body / [[ d ; <l> ]] : S  =>  S'
+ITER body / { d ; <tl> } : S  =>  S'
 
 ----- :: list_iter_nil
 ITER body / {} : S  =>  S
