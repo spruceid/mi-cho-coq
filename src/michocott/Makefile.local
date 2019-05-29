@@ -5,9 +5,9 @@
 %.tex: %.ott
 	ott -coq_expand_list_types false  $(^:%.ott=-i %.ott) -o $@
 
-michelson.pdf: michelson.tex
+doc: michelson.ott
+	ott -coq_expand_list_types false -i michelson.ott -o michelson.tex
 	pdflatex michelson.tex
-
 
 post-all:: michelson.vo
 
@@ -16,7 +16,7 @@ EMACS="emacs"
 	${EMACS} --batch -f package-initialize $<  -f org-ascii-export-to-ascii  --kill
 
 
-release: all README.txt
+release: all doc README.txt
 	rm -frd michelson-ott michelson-ott.zip
 	mkdir -p michelson-ott
 	cp -v Makefile Formulas.v michelson.ott michelson.v  michelson_tests.v \

@@ -21,6 +21,7 @@ Makefile
 *.nav
 *.aux
 *.log
+*.sty
 # we keep *.pdf to ease sharing of slides
 notes.*
 *~
