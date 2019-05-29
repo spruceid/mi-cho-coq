@@ -2,9 +2,6 @@
 	ott -coq_expand_list_types false  $(^:%.ott=-i %.ott) -o $@
 
 
-%.tex: %.ott
-	ott -coq_expand_list_types false  $(^:%.ott=-i %.ott) -o $@
-
 doc: michelson.ott
 	ott -coq_expand_list_types false -i michelson.ott -o michelson.tex
 	pdflatex michelson.tex
