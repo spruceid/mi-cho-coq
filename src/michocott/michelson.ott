@@ -1,5 +1,6 @@
 embed {{ coq
 Require String.
+Open Scope string_scope.
 Require Import ZArith.
 
 Module Mutez.
@@ -44,7 +45,7 @@ bitop :: 'bitop_' ::=
 
 %% Data litterals
 
-nat_lit :: 'n_' ::= {{ coq nat }} {{ phantom }}
+nat_lit, n :: 'n_' ::= {{ coq nat }} {{ phantom }}
   | 0 :: M :: NatZero {{ coq 0 }}
   | 1 :: M :: NatOne {{ coq 1 }}
   | 256 :: M :: NatMaxByte {{ coq 256 }}
@@ -52,21 +53,21 @@ nat_lit :: 'n_' ::= {{ coq nat }} {{ phantom }}
   | abs z :: M :: Abs {{ coq (Z.abs_nat [[z]]) }}
 
 int_lit, z :: 'z_' ::= {{ coq Z }} {{ phantom }}
-  | 0z :: M :: IntZero {{ coq 0 }}
-  | 1z :: M :: IntOne {{ coq 1 }}
+  | 0 :: M :: IntZero {{ coq 0 }}
+  | 1 :: M :: IntOne {{ coq 1 }}
 
-num, n :: 'n_' ::=
+num, nz :: 'num_' ::=
   | int_lit :: :: IntConstant
-  | nat_lit :: :: NatContant
-  | n1 aop n2 :: M :: Aop {{ coq ( num_apply_aop [[aop]] [[n1]] [[n2]] ) }}
-  | n1 bitop n2 :: M :: Bitop {{ coq ( num_apply_bitop [[bitop]] [[n1]] [[n2]] ) }}
-  | - n :: M :: NumNeg {{ coq ( num_neg [[n]] ) }}
-  | ~ n :: M :: BitNeg {{ coq ( num_bit_neg [[n]] ) }}
+  | nat_lit :: :: NatConstant
+  | nz1 aop nz2 :: M :: Aop {{ coq ( num_apply_aop [[aop]] [[nz1]] [[nz2]] ) }}
+  | nz1 bitop nz2 :: M :: Bitop {{ coq ( num_apply_bitop [[bitop]] [[nz1]] [[nz2]] ) }}
+  | - nz :: M :: NumNeg {{ coq ( num_neg [[nz]] ) }}
+  | ~ nz :: M :: BitNeg {{ coq ( num_bit_neg [[nz]] ) }}
 
 string_lit, s , t :: 's_' ::= {{ coq String.string }} {{ phantom }}
      | "" :: M :: StringEmpty {{ coq ("") }}
-     | ( s ^ s' ) :: M :: Concat {{ coq (append [[s]] [[s']]) }}
-     | slice s n1 n2 :: M :: StringSlice {{ coq (substring [[n1]] [[n2]] [[s]]) }}
+     | ( s ^ s' ) :: M :: Concat {{ coq (String.append [[s]] [[s']]) }}
+     | slice s n1 n2 :: M :: StringSlice {{ coq (String.substring [[n1]] [[n2]] [[s]]) }}
 
 bool_lit, b :: 'b_' ::= {{ coq bool }} {{ phantom }}
      | True :: M :: True {{ coq true }}
@@ -75,27 +76,27 @@ bool_lit, b :: 'b_' ::= {{ coq bool }} {{ phantom }}
      | ! b2  :: M :: Neg {{ coq ( negb [[b2]] ) }}
 
 set_or_list, tl :: 'setlist_' ::= {{ coq list data }} {{ phantom }}
-     | {} :: M :: Nil {{ coq []  }}
-     | { d ; tl } :: M :: Cons {{ coq ([[d]] :: [[set_lit]])  }}
+     | {} :: M :: Nil {{ coq nil }}
+     | { d ; tl } :: M :: Cons {{ coq ([[d]] :: [[tl]])  }}
      %% meta-productions
-     | { d }  :: M :: Singleton {{ coq [ [[d]] ]  }}
-     | < tl > :: M :: Chevron {{ coq [[l]] }}
+     | { d }  :: M :: Singleton {{ coq ([[d]] :: nil)  }}
+     | < tl > :: M :: Chevron {{ coq [[tl]] }}
 
 map_elt :: '' ::=
      | Elt k v :: :: Elt
 
 map_lit, m :: 'map_' ::= {{ coq list (data * data) }} {{ phantom }}
-     | {} :: M :: Nil {{ coq [] }}
-     | { Elt d d' ; map_lit }  :: M :: Cons {{ coq (([[d]], [[d']])::[[map]]) }}
+     | {} :: M :: Nil {{ coq nil }}
+     | { Elt d d' ; m }  :: M :: Cons {{ coq (([[d]], [[d']])::[[m]]) }}
      % meta-productions
-     | { Elt d d' }  :: M :: Singleton {{ coq [ ([[d]], [[d']]) ] }}
-     | < m > :: M :: Chevron {{ coq [[map]] }}
+     | { Elt d d' }  :: M :: Singleton {{ coq (([[d]], [[d']])::nil) }}
+     | < m > :: M :: Chevron {{ coq [[m]] }}
      %| { Elt d1 d1'  ; .. ; Elt dN dN' } :: :: Map
 
 
 %% Data
 
-data, x, y, k, v, d, opt_y :: data_ ::=
+data, x, y, k, v, d, opt_y :: d_ ::=
   | num :: :: Num
   | string_lit :: :: StringConstant
   | bool_lit :: :: Bool
@@ -172,7 +173,7 @@ hash_function :: '' ::=
 
 %% Instructions
 
-nullary :: '' ::=
+nullary :: 'i_' ::=
   | PUSH ty1 x :: :: PUSH
   | UNIT :: :: UNIT
   | LAMBDA ty1 ty2 code :: :: LAMBDA
@@ -188,7 +189,7 @@ nullary :: '' ::=
   | STEPS_TO_QUOTA :: :: STEPS_TO_QUOTA
   | NOW :: :: NOW
 
-unary :: '' ::=
+unary :: 'i_' ::=
   | comparison :: :: unary_comparison
   | hash_function :: :: unary_hash
   | NOT :: :: NOT
@@ -207,7 +208,7 @@ unary :: '' ::=
   | PACK :: :: PACK
   | UNPACK ty1 :: :: UNPACK
 
-binary :: '' ::=
+binary :: 'i_' ::=
   | binary_bitwise :: :: b_bitwise
   | EXEC :: :: EXEC
   | LSL :: :: LSL
@@ -219,7 +220,7 @@ binary :: '' ::=
   | GET :: :: GET
   | CONS :: :: CONS
 
-non_failing_function :: '' ::=
+non_failing_function :: 'i_' ::=
   | nullary :: :: nff_nullary
   | unary :: :: nff_unary
   | binary :: :: nff_binary
@@ -236,7 +237,7 @@ non_failing_function :: '' ::=
   | TRANSFER_TOKENS :: :: TRANSFER_TOKENS
   | CHECK_SIGNATURE :: :: CHECK_SIGNATURE
 
-function :: '' ::=
+function :: 'i_' ::=
   | non_failing_function :: :: Non_failing
   | ADD :: :: ADD
   | SUB :: :: SUB
@@ -245,7 +246,7 @@ function :: '' ::=
 
 %% Code
 
-code, i, body :: '' ::=
+code, i, body :: 'i_' ::=
   | function :: :: Fun
   | FAILWITH :: :: FAILWITH
   | {} :: :: NOOP
@@ -278,26 +279,13 @@ stackerr, SE :: 'SE_' ::=
        | [FAILED] :: :: Failed
        | stack :: :: Stack
 
-% embed {{coq
-% Definition compare x comp y :=
-%     match x, y with
-%     | data_int x, data_int y =>
-%          match comp with
-%          | EQ => x = y
-%          | NEQ => x <> y
-%          | LT => x < y
-%          | GT => x > y
-%          | LE => x <= y
-%          | GE => x >= y
-%          end
-%     | _ => False
-%     end.}}
+%% Formulas
 
 formula :: formula_ ::=
   | judgement :: :: judgement
   | formula1 .. formulaN :: :: dots
   | get_contract_type contract_litteral ty :: M :: get_contract_rel
-    {{ coq get_contract_rel [[contract_litteral]] [[ty1]] }}
+    {{ coq get_contract_rel [[contract_litteral]] [[ty]] }}
   | x = y :: M :: eq {{coq (compare [[x]] EQ [[y]])}}
   | x <> y :: M :: neq {{coq (compare [[x]] NEQ [[y]])}}
   | x < y :: M :: lt {{coq (compare [[x]] LT [[y]])}}
@@ -309,6 +297,10 @@ embed {{coq
 Section syntax.
   Variable self_ty : type.
   Variable get_contract_rel : String.string -> type -> Prop.
+}}
+
+embed {{ coq
+Load Formulas.
 }}
 
 
@@ -373,7 +365,7 @@ Typing :: 't_' ::=
        None :: option ty1
 
        ------------------------ :: set_empty
-       {} :: set cty
+       :setlist_Nil: {} :: set cty
 
        x :: cty
        tl :: set cty
@@ -381,7 +373,7 @@ Typing :: 't_' ::=
        { x ; <tl> } :: set cty
 
        ------------------------ :: list_empty
-       {} :: list cty
+       :setlist_Nil: {} :: list cty
 
        x :: cty
        tl :: list cty
@@ -389,7 +381,7 @@ Typing :: 't_' ::=
        { x ; <tl> } :: list cty
 
        ------------------------ :: map_empty
-       {} :: map kty vty
+       :map_Nil: {} :: map kty vty
 
        x :: kty
        y :: vty
@@ -923,33 +915,33 @@ LAMBDA ty ty' i / S  =>  i : S
 
 % :: int : 'S   ->   bool : 'S
 
------ :: eq_tt
-EQ / 0 : S  =>  True : S
+------------------------------------- :: eq_tt
+EQ / :z_IntZero: 0 : S  =>  True : S
 
-z <> 0
------ :: eq_ff
+z <> :z_IntZero: 0
+-------------------------- :: eq_ff
 EQ / z : S  =>  False : S
 
 %     NEQ: Checks that the top of the stack does Not EQual zero.
 
 % :: int : 'S   ->   bool : 'S
 
------ :: neq_ff
-NEQ / 0 : S  =>  False : S
+-------------------------------------- :: neq_ff
+NEQ / :z_IntZero: 0 : S  =>  False : S
 
-z <> 0
------ :: neq_tt
+z <> :z_IntZero: 0
+------------------------- :: neq_tt
 NEQ / z : S  =>  True : S
 
 %     LT: Checks that the top of the stack is Less Than zero.
 
 % :: int : 'S   ->   bool : 'S
 
-z < 0
------ :: lt_tt
+z < :z_IntZero: 0
+----------------- :: lt_tt
 LT / z : S  =>  True : S
 
-z >= 0
+z >= :z_IntZero: 0
 ----- :: lt_ff
 LT / z : S  =>  False : S
 
@@ -958,24 +950,24 @@ LT / z : S  =>  False : S
 % :: int : 'S   ->   bool : 'S
 
 
-z > 0
------ :: gt_tt
+z > :z_IntZero: 0
+----------------- :: gt_tt
 GT / z : S  =>  True : S
 
-z <= 0
------ :: gt_ff
+z <= :z_IntZero: 0
+------------------ :: gt_ff
 GT / z : S  =>  False : S
 
 %     LE: Checks that the top of the stack is Less Than of Equal to zero.
 
 % :: int : 'S   ->   bool : 'S
 
-z <= 0
------ :: le_tt
+z <= :z_IntZero: 0
+------------------ :: le_tt
 LE / z : S  =>  True : S
 
-z > 0
------ :: le_ff
+z > :z_IntZero: 0
+----------------- :: le_ff
 LE / z : S  =>  False : S
 
 %     GE: Checks that the top of the stack is Greater Than of Equal to zero.
@@ -983,12 +975,12 @@ LE / z : S  =>  False : S
 % :: int : 'S   ->   bool : 'S
 
 
-z >= 0
------ :: ge
+z >= :z_IntZero: 0
+------------------ :: ge
 GE / z : S  =>  True : S
 
-z < 0
------ :: lt
+z < :z_IntZero: 0
+----------------- :: lt
 GE / z : S  =>  False : S
 
 
@@ -1075,7 +1067,7 @@ ABS / z : S  =>  abs z : S
 % :: nat : nat : 'S   ->   nat : 'S
 
 ----- :: add
-ADD / n1 : n2 : S  =>  (n1 + n2) : S
+ADD / nz1 : nz2 : S  =>  (nz1 + nz2) : S
 
 %     SUB
 
@@ -1085,7 +1077,7 @@ ADD / n1 : n2 : S  =>  (n1 + n2) : S
 % :: nat : nat : 'S   ->   int : 'S
 
 ----- :: sub
-SUB / n1 : n2 : S  =>  ( n1 - n2 ) : S
+SUB / nz1 : nz2 : S  =>  ( nz1 - nz2 ) : S
 
 %     MUL
 
@@ -1095,7 +1087,7 @@ SUB / n1 : n2 : S  =>  ( n1 - n2 ) : S
 % :: nat : nat : 'S   ->   nat : 'S
 
 ----- :: mul
-MUL / n1 : n2 : S  =>  ( n1 * n2 ) : S
+MUL / nz1 : nz2 : S  =>  ( nz1 * nz2 ) : S
 
 %     EDIV Perform Euclidian division
 
@@ -1105,11 +1097,11 @@ MUL / n1 : n2 : S  =>  ( n1 * n2 ) : S
 % :: nat : nat : 'S   ->   option (pair nat nat) : 'S
 
 ----- :: ediv_0
-EDIV / n : 0 : S  =>  None : S
+EDIV / n : :n_NatZero: 0 : S  =>  None : S
 
-n2 <> 0
+nz2 <> :n_NatZero: 0
 ----- :: ediv
-EDIV / n1 : n2 : S  =>  Some ( Pair ( n1 / n2 ) ( n1 % n2 )) : S
+EDIV / nz1 : nz2 : S  =>  Some ( Pair ( nz1 / nz2 ) ( nz1 % nz2 )) : S
 
 % Bitwise logical operators are also available on unsigned integers.
 
@@ -1118,7 +1110,7 @@ EDIV / n1 : n2 : S  =>  Some ( Pair ( n1 / n2 ) ( n1 % n2 )) : S
 % :: nat : nat : 'S   ->   nat : 'S
 
 ----- :: bit_or
-OR / n1 : n2 : S  =>  ( n1 | n2 ) : S
+OR / nz1 : nz2 : S  =>  ( nz1 | nz2 ) : S
 
 %     AND (also available when the top operand is signed)
 
@@ -1126,14 +1118,14 @@ OR / n1 : n2 : S  =>  ( n1 | n2 ) : S
 % :: int : nat : 'S   ->   nat : 'S
 
 ----- :: bit_and
-AND / n1 : n2 : S  =>  ( n1 & n2 ) : S
+AND / nz1 : nz2 : S  =>  ( nz1 & nz2 ) : S
 
 %     XOR
 
 % :: nat : nat : 'S   ->   nat : 'S
 
 ----- :: bit_xor
-XOR / n1 : n2 : S  =>  ( n1 ^ n2 ) : S
+XOR / nz1 : nz2 : S  =>  ( nz1 ^ nz2 ) : S
 
 %     Michelson Documentation: NOT The return type of NOT is an int and not ty1 nat. This is because the sign is also negated. The resulting integer is computed using two’s complement. For instance, the boolean negation of 0 is -1. To get ty1 natural back, ty1 possibility is to use AND with an unsigned mask afterwards.
 
@@ -1147,37 +1139,37 @@ NOT / n : S  =>  ~ n : S
 
 % :: nat : nat : 'S   ->   nat : 'S
 
-n2 <= 256
+nz2 <= 256
 ----- :: lsl
-LSL / n1 : n2 : S  =>  ( n1 << n2 ) : S
+LSL / nz1 : nz2 : S  =>  ( nz1 << nz2 ) : S
 
-n2 > 256
+nz2 > 256
 ----- :: lsl_fail
-LSL / n1 : n2 : S  =>  [FAILED]
+LSL / nz1 : nz2 : S  =>  [FAILED]
 
 %     LSR
 
 % :: Nat : nat : 'S   ->   nat : 'S
 
 ----- :: lsr
-LSR / n1 : n2 : S  =>  ( n1 >> n2 ) : S
+LSR / nz1 : nz2 : S  =>  ( nz1 >> nz2 ) : S
 
 %     COMPARE: Integer/natural comparison
 
 % :: int : int : 'S   ->   int : 'S
 % :: nat : nat : 'S   ->   int : 'S
 
-n1 < n2
+nz1 < nz2
 ----- :: compare_num_lt
-COMPARE / n1 : n2 : S  =>  -1z : S
+COMPARE / nz1 : nz2 : S  =>  - :z_IntOne: 1 : S
 
-n1 = n2
+nz1 = nz2
 ----- :: compare_num_eq
-COMPARE / n1 : n2 : S  =>  0 : S
+COMPARE / nz1 : nz2 : S  => :z_IntZero: 0 : S
 
-n1 > n2
+nz1 > nz2
 ----- :: compare_num_gt
-COMPARE / n1 : n2 : S  =>  1z : S
+COMPARE / nz1 : nz2 : S  => :z_IntOne: 1 : S
 
 % Operations on strings
 
@@ -1193,7 +1185,7 @@ CONCAT / s : t : S  =>  ( s ^ t ) : S
 % :: string list : 'S   -> string : 'S
 
 ----- :: concat_list_nil
-CONCAT / {} : S  =>  "" : S
+CONCAT / :setlist_Nil: {} : S  =>  "" : S
 
 CONCAT / tl : S  =>  t : S
 ----- :: concat_list_cons
@@ -1225,9 +1217,9 @@ SLICE / n1 : n2 : s : S => Some ( slice s n1 n2 ) : S
 
 % n: length
 % n': offset
-n1 + n2 >= length s
+nz1 + nz2 >= length s
 ----- :: slice
-SLICE / n1 : n2 : s : S => None : S
+SLICE / nz1 : nz2 : s : S => None : S
 
 %             iff offset or (offset + length) are out of bounds
 
@@ -1237,15 +1229,15 @@ SLICE / n1 : n2 : s : S => None : S
 
 s < t
 ----- :: compare_string_lt
-COMPARE / s : t : S  =>  -1z : S
+COMPARE / s : t : S  => - :z_IntOne: 1 : S
 
 s = t
 ----- :: compare_string_eq
-COMPARE / s : t : S  =>  0 : S
+COMPARE / s : t : S  => :z_IntZero: 0 : S
 
 s > t
 ----- :: compare_string_gt
-COMPARE / s : t : S  =>  1z : S
+COMPARE / s : t : S  => :z_IntOne: 1 : S
 
 % Operations on pairs
 
@@ -1279,25 +1271,25 @@ CDR / ( Pair d d' ) : S  =>  d' : S
 % :: 'S   ->   set 'elt : 'S
 
 ----- :: set_empty
-EMPTY_SET cty / S  =>  {} : S
+EMPTY_SET cty / S  => :setlist_Nil: {} : S
 
 %     MEM: Check for the presence of an element in ty1 set.
 
 % :: 'elt : set 'elt : 'S   ->  bool : 'S
 
 ----- :: set_mem_empty
-MEM / x : {} : S  =>  False : S
+MEM / x : :setlist_Nil: {} : S  =>  False : S
 
-COMPARE / x : y : []  =>  1z : []
+COMPARE / x : y : []  => :z_IntOne: 1 : []
 MEM / x : tl : S   =>  b : S
 ----- :: set_mem_later
 MEM / x : { y ; <tl> } : S  =>  b : S
 
-COMPARE / x : y : []  =>  0 : []
+COMPARE / x : y : []  => :z_IntZero: 0 : []
 ----- :: set_mem_found
 MEM / x : { y ; <tl> } : S  =>  True : S
 
-COMPARE / x : y : []  =>  -1z : []
+COMPARE / x : y : []  =>  - :z_IntOne: 1 : []
 ----- :: set_mem_nexists
 MEM / x : { y ; <tl> } : S  =>  False : S
 
@@ -1306,29 +1298,29 @@ MEM / x : { y ; <tl> } : S  =>  False : S
 % :: 'elt : bool : set 'elt : 'S   ->   set 'elt : 'S
 
 ----- :: set_update_false
-UPDATE / x : False : {} : S  =>  {} : S
+UPDATE / x : False : :setlist_Nil: {} : S  => :setlist_Nil: {} : S
 
 ----- :: set_update_add_nexists
-UPDATE / x : True : {} : S  =>  { x } : S
+UPDATE / x : True : :setlist_Nil: {} : S  =>  { x } : S
 
-COMPARE / x : d : []  =>  1z : []
+COMPARE / x : d : []  => :z_IntOne: 1 : []
 UPDATE / x : b : tl : S  => tl' : S
 ----- :: set_update_cont
 UPDATE / x : b : { y ; <tl> } : S  =>  { y ; <tl'> } : S
 
-COMPARE / x : y : []  =>  0 : []
+COMPARE / x : y : []  => :z_IntZero: 0 : []
 ----- :: set_update_remove
 UPDATE / x : False : { y ; < tl > } : S  => tl : S
 
-COMPARE / x : y : []  =>  0 : []
+COMPARE / x : y : []  => :z_IntZero: 0 : []
 ----- :: set_update_exists
 UPDATE / x : True : { y ; < tl > } : S  =>  { y ; < tl > } : S
 
-COMPARE / x : y : []  =>  -1z : []
+COMPARE / x : y : []  =>  - :z_IntOne: 1 : []
 ----- :: set_update_remove_nexists
 UPDATE / x : False : { y ; < tl > } : S  =>  { y ; < tl > } : S
 
-COMPARE / x : y : []  =>  -1z : []
+COMPARE / x : y : []  =>  - :z_IntOne: 1 : []
 ----- :: set_update_add
 %% AJ: not sure how to get around the ugliness of the conclusion here
 UPDATE / x : True : { y ; < tl > } : S  =>  { x ; { y ; < tl > } } : S
@@ -1339,7 +1331,7 @@ UPDATE / x : True : { y ; < tl > } : S  =>  { x ; { y ; < tl > } } : S
 %    iff body :: [ 'elt : 'A -> 'A ]
 
 ----- :: set_iter_nil
-ITER body / {} : S  =>  S
+ITER body / :setlist_Nil: {} : S  =>  S
 
 body ; ITER body / x : < tl > : S => S'
 ----- :: set_iter_cons
@@ -1350,11 +1342,11 @@ ITER body / { x ; < tl > } : S  => S'
 % :: set 'elt : 'S -> nat : 'S
 
 ----- :: set_size_nil
-SIZE / {} : S  =>  0 : S
+SIZE / :setlist_Nil: {} : S  => :n_NatZero: 0 : S
 
 SIZE / tl : S  =>  n : S
 ----- :: set_size_cons
-SIZE / { d ; < tl > } : S  =>  1 + n : S
+SIZE / { d ; < tl > } : S  => :n_NatOne: 1 + n : S
 
 % Operations on maps
 
@@ -1365,25 +1357,25 @@ SIZE / { d ; < tl > } : S  =>  1 + n : S
 % :: 'S -> map 'key 'val : 'S
 
 ----- :: map_empty
-EMPTY_MAP cty ty / S  =>  {} : S
+EMPTY_MAP cty ty / S  => :map_Nil: {} : S
 
 %     GET: Access an element in ty1 map, returns an optional value to be checked with IF_SOME.
 
 % :: 'key : map 'key 'val : 'S   ->   option 'val : 'S
 
 ----- :: get_empty
-GET / x : {} : S  =>  None : S
+GET / x : :map_Nil: {} : S  =>  None : S
 
-COMPARE / x : k : []  =>  1z : []
+COMPARE / x : k : []  => :z_IntOne: 1 : []
 GET / x : m : S  =>  opt_y : S
 ----- :: get_later
 GET / x : { Elt k v ; < m > } : S  => opt_y : S
 
-COMPARE / x : k : []  =>  0 : []
+COMPARE / x : k : []  => :z_IntZero: 0 : []
 ----- :: get_now
 GET / x : { Elt k v ; < m > } : S  =>  Some v : S
 
-COMPARE / x : k : []  =>  -1z : []
+COMPARE / x : k : []  =>  - :z_IntOne: 1 : []
 ----- :: get_nexists
 GET / x : { Elt k v ; < m > } : S  =>  None : S
 
@@ -1392,18 +1384,18 @@ GET / x : { Elt k v ; < m > } : S  =>  None : S
 % :: 'key : map 'key 'val : 'S   ->  bool : 'S
 
 ----- :: map_mem_empty
-MEM / x : {} : S  =>  False : S
+MEM / x : :map_Nil: {} : S  =>  False : S
 
-COMPARE / x : k : []  =>  1z : []
+COMPARE / x : k : []  => :z_IntOne: 1 : []
 MEM / x : m : S  =>  b : S
 ----- :: map_mem_later
 MEM / x : { Elt k v ; < m > } : S  =>  b : S
 
-COMPARE / x : k : []  =>  0 : []
+COMPARE / x : k : []  => :z_IntZero: 0 : []
 ----- :: map_mem_now
 MEM / x : { Elt k v ; < m > } : S  =>  True : S
 
-COMPARE / x : k : []  =>  -1z : []
+COMPARE / x : k : []  =>  - :z_IntOne: 1 : []
 ----- :: map_mem_nexists
 MEM / x : { Elt k v ; < m > } : S  =>  False : S
 
@@ -1412,29 +1404,29 @@ MEM / x : { Elt k v ; < m > } : S  =>  False : S
 % :: 'key : option 'val : map 'key 'val : 'S   ->   map 'key 'val : 'S
 
 ----- :: map_update_false
-UPDATE / x : None : {} : S  =>  {} : S
+UPDATE / x : None : :map_Nil: {} : S  => :map_Nil: {} : S
 
 ----- :: map_update_add_nexists
-UPDATE / x : Some y : {} : S  =>  { Elt x y } : S
+UPDATE / x : Some y : :map_Nil: {} : S  =>  { Elt x y } : S
 
-COMPARE / x : k : []  =>  1z : []
+COMPARE / x : k : []  => :z_IntOne: 1 : []
 UPDATE / x : opt_y : m : S  =>  m' : S
 ----- :: map_update_cont
 UPDATE / x : opt_y : { Elt k v ; < m > } : S  =>  { Elt k v ; < m' > } : S
 
-COMPARE / x : k : []  =>  0 : []
+COMPARE / x : k : []  => :z_IntZero: 0 : []
 ----- :: map_update_remove
 UPDATE / x : None : { Elt k v ; < m > } : S  =>  < m > : S
 
-COMPARE / x : k : []  =>  0 : []
+COMPARE / x : k : []  => :z_IntZero: 0 : []
 ----- :: map_update_exists
 UPDATE / x : Some y : { Elt k v ; < m > } : S  =>  { Elt k y ; < m > } : S
 
-COMPARE / x : k : []  =>  -1z : []
+COMPARE / x : k : []  =>  - :z_IntOne: 1 : []
 ----- :: map_update_remove_nexists
 UPDATE / x : None : { Elt k v ; < m > } : S  =>  { Elt k v ; < m > } : S
 
-COMPARE / x : k : []  =>  -1z : []
+COMPARE / x : k : []  =>  - :z_IntOne: 1 : []
 ----- :: map_update_add
 UPDATE / x : Some y : { Elt k v ; < m > } : S  =>  { Elt x y ; { Elt k v ; < m > }  } : S
 
@@ -1444,7 +1436,7 @@ UPDATE / x : Some y : { Elt k v ; < m > } : S  =>  { Elt x y ; { Elt k v ; < m >
 %    iff   body :: [ (pair 'key 'val) : 'A -> 'ty2 : 'A ]
 
 ----- :: map_map_nil
-MAP body / {} : S  =>  {} : S
+MAP body / :map_Nil: {} : S  => :map_Nil: {} : S
 
 %% AJ: I'm unsure how to read the conclusion of the original version
 %% of this rule.  what is the meaning of applying body to (Pair k v) ?
@@ -1460,7 +1452,7 @@ MAP body / { Elt k v ; < m > } : S  =>  { Elt k v' ; < m' > } : S
 %    iff   body :: [ (pair 'elt 'val) : 'A -> 'A ]
 
 ----- :: map_iter_nil
-ITER body / {} : S  =>  S
+ITER body / :map_Nil: {} : S  =>  S
 
 body ; ITER body / (Pair k v) : m : S => S'
 ----- :: map_iter_cons
@@ -1471,11 +1463,11 @@ ITER body / { Elt k v ; < m > } : S  => S'
 % :: map 'key 'val : 'S -> nat : 'S
 
 ----- :: map_size_nil
-SIZE / {} : S  =>  0 : S
+SIZE / :map_Nil: {} : S  => :n_NatZero: 0 : S
 
 SIZE / m : S  =>  n : S
 ----- :: map_size_cons
-SIZE / { Elt d d' ; < m > } : S  =>  1 + n : S
+SIZE / { Elt d d' ; < m > } : S  =>  :n_NatOne: 1 + n : S
 
 % Operations on big_maps
 
@@ -1585,7 +1577,7 @@ CONS / d : tl : S  =>  { d ; < tl > } : S
 % :: 'S   ->   list 'ty1 : 'S
 
 ----- :: nil
-NIL ty / S  => {} : S
+NIL ty / S  => :setlist_Nil: {} : S
 
 %     IF_CONS body1 body2: Inspect an optional value.
 
@@ -1593,13 +1585,13 @@ NIL ty / S  => {} : S
 %    iff   body1 :: [ 'ty1 : list 'ty1 : 'S -> 'ty2 : 'S]
 %          body2 :: [ 'S -> 'ty2 : 'S]
 
+body2 / S => S'
+----- :: if_cons_nil
+IF_CONS body1 body2 / :setlist_Nil: {} : S  =>  S'
+
 body1 / d : tl : S => S'
 ----- :: if_cons_cons
 IF_CONS body1 body2 / { d ; < tl > }  : S  => S'
-
-body2 / S => S'
------ :: if_cons_nil
-IF_CONS body1 body2 / {} : S  =>  S'
 
 %     MAP body: Apply the body expression to each element of the list. The body sequence has access to the stack.
 
@@ -1612,18 +1604,18 @@ MAP body / tl : S  => tl' : S
 MAP body / { d ; < tl > }  : S  =>  { d' ; < tl' > } : S
 
 ----- :: list_map_nil
-MAP body / {} : S  =>  {} : S
+MAP body / :setlist_Nil: {} : S  => :setlist_Nil: {} : S
 
 %     SIZE: Get the number of elements in the list.
 
 % :: list 'elt : 'S -> nat : 'S
 
+----- :: list_size_nil
+SIZE / :setlist_Nil: {} : S  => :n_NatZero: 0 : S
+
 SIZE / tl  : S  =>  n : S
 ----- :: list_size_cons
-SIZE / { d ; <tl> } : S  =>  1 + n : S
-
------ :: list_size_nil
-SIZE / {} : S  =>  0 : S
+SIZE / { d ; <tl> } : S  =>  :n_NatOne: 1 + n : S
 
 %     ITER body: Apply the body expression to each element of ty1 list. The body sequence has access to the stack.
 
@@ -1635,7 +1627,7 @@ body ; ITER body / d : tl : S => S'
 ITER body / { d ; <tl> } : S  =>  S'
 
 ----- :: list_iter_nil
-ITER body / {} : S  =>  S
+ITER body / :setlist_Nil: {} : S  =>  S
 
 embed {{coq
 End syntax.
