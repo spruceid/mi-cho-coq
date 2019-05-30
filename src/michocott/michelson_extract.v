@@ -15,13 +15,13 @@ Proof. induction i; eauto. Qed.
  * Hence, we wrap the semantics in an inductive giving a "escape hatch value".
  * *)
 Inductive BigStep_total :
-  instruction -> stackerr -> option stackerr -> Prop :=
+  code -> stackerr -> option stackerr -> Prop :=
 | BigStep_cont :
-    forall (i : instruction) (d d' : stackerr),
+    forall (i : code) (d d' : stackerr),
       BigStep i d d' ->
       BigStep_total i d (Some d')
 | BigStep_stuck :
-    forall  (i : instruction) (d : stackerr),
+    forall  (i : code) (d : stackerr),
       BigStep_total i d None.
 
 (* Clearly if we have Some value with wrapped semantics, it is also in underlying *)
@@ -65,7 +65,7 @@ Proof.
   (* I here prove for the rules of sequence, addition, subtraction *)
 
   (* Sequence *)
-  1: {
+  3: {
   destruct (IHi1 d0) as [ [[|d'']|] Hi1 ]; [ | | stuck].
   (* Case i1 fails *)
     + eauto.
@@ -75,17 +75,17 @@ Proof.
   }
 
   (* Add *)
-  30: {
-    (* execution can only continue if there two values on the stack *)
-    destruct d0 as [ | v1 [| v2 d0] ]; [ stuck | stuck | ].
-    as_num v1. as_num v2. eauto.
-  }
+  (* 30: { *)
+  (*   (* execution can only continue if there two values on the stack *) *)
+  (*   destruct d0 as [ | v1 [| v2 d0] ]; [ stuck | stuck | ]. *)
+  (*   as_num v1. as_num v2. eauto. *)
+  (* } *)
 
-  (* Sub *)
-  30: {
-    destruct d0 as [ | v1 [| v2 d0] ]; [ stuck | stuck | ].
-    as_num v1. as_num v2. eauto.
-  }
+  (* (* Sub *) *)
+  (* 30: { *)
+  (*   destruct d0 as [ | v1 [| v2 d0] ]; [ stuck | stuck | ]. *)
+  (*   as_num v1. as_num v2. eauto. *)
+  (* } *)
 
   (* TODO: deal with remaining cases *)
   all : stuck.

@@ -21,17 +21,17 @@ Fixpoint AExp_denot (e : AExp) : nat:=
 Goal (AExp_denot (AEAdd (AEConst 1) (AEConst 5)) = 6). repeat econstructor. Qed.
 
 (* Notation for sequence of instructinos *)
-Notation "x ;; y" :=  (i_Seq x y) (at level 100)  : list_scope .
+Notation "x ;; y" :=  (i_SEQ x y) (at level 100)  : list_scope .
 
-Fixpoint AExp_compile (e : AExp) : instruction :=
+Fixpoint AExp_compile (e : AExp) : code :=
   match e with
-  | AEConst n => i_Push (t_Ct ct_Nat) (d_Num (N_NatConstant n))
+  | AEConst n => i_Fun (i_Non_failing (i_nff_nullary (i_PUSH (ty_Comparable_type cty_nat) (d_Num (num_NatConstant n)))))
   | AEAdd e1 e2 => AExp_compile e2 ;;
                    AExp_compile e1 ;;
-                   i_Add
+                   i_Fun i_ADD
   | AEMul e1 e2 => AExp_compile e2 ;;
                    AExp_compile e1 ;;
-                   i_Mul
+                   i_Fun i_MUL
   (* | _ => i_Failwith *)
   end.
 
@@ -39,9 +39,10 @@ Fixpoint AExp_compile (e : AExp) : instruction :=
 Definition aexp_denot_compil_corr (e : AExp) (s_init  : list data): Prop :=
   (BigStep (AExp_compile e)
            (SE_Stack s_init)
-           (SE_Stack ((d_Num (N_NatConstant (AExp_denot e))) :: s_init))).
+           (SE_Stack ((d_Num (num_NatConstant (AExp_denot e))) :: s_init))).
 
 Fact test1 : aexp_denot_compil_corr (AEAdd (AEConst 1) (AEConst 5)) [].
+  unfold aexp_denot_compil_corr. simpl.
   repeat econstructor.
 Qed.
 
@@ -55,5 +56,5 @@ Qed.
 Theorem aexp_denot_compil_corr_all :
   forall e, (BigStep (AExp_compile e)
                      (SE_Stack [])
-                     (SE_Stack ([(d_Num (N_NatConstant (AExp_denot e)))]))).
+                     (SE_Stack ([(d_Num (num_NatConstant (AExp_denot e)))]))).
 Proof. intro e. apply (aexp_denot_compil_corr_all' e []). Qed.

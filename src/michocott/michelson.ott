@@ -112,7 +112,7 @@ data, x, y, k, v, d, opt_y :: d_ ::=
   | Right y :: :: Right
   | Some x :: :: Some
   | None :: :: None
-  | set_or_list :: :: Set
+  | set_or_list :: :: SetList
   | map_lit :: :: Map
   | code :: :: instruction
   | 0 :: M :: zero {{ coq data_int 0%Z}}
@@ -250,7 +250,6 @@ code, i, body :: 'i_' ::=
   | function :: :: Fun
   | FAILWITH :: :: FAILWITH
   | {} :: :: NOOP
-  | { code } :: :: BLOCK
   | code1 ; code2 :: :: SEQ
   | IF code1 code2 :: :: IF_
   | LOOP code :: :: LOOP
@@ -265,9 +264,9 @@ code, i, body :: 'i_' ::=
 
 %% Stack
 
-stack, st, S :: Stack_ ::=
-  | [] :: :: empty
-  | data : stack :: :: cons
+stack, st, S :: Stack_ ::= {{coq list data }} {{ phantom }}
+  | [] :: M :: empty {{ coq nil }}
+  | d : S :: M :: cons {{ coq ([[d]] :: [[S]]) }}
 
 stack_type, A, B, C :: Stack_type_ ::= {{ coq Datatypes.list type }} {{ phantom }}
   | [] :: :: empty {{ coq nil}}
@@ -728,7 +727,7 @@ Typing :: 't_' ::=
        code1 :: A => B
        code2 :: B => C
        ------------------------ :: SEQ
-       {code1; code2} :: A => C
+       code1; code2 :: A => C
 
        code1 :: A => B
        code2 :: A => B
@@ -827,7 +826,7 @@ i / [FAILED] => [FAILED]
 i1 / S => SE''
 i2 / SE'' => SE'
 ------ :: sequence
-{i1; i2} / S => SE'
+i1; i2 / S => SE'
 
 ------ :: NOOP
 {} / S => S
@@ -840,14 +839,14 @@ i2 / S => S'
 ------ :: if_ff
 IF i1 i2 / False : S => S'
 
-{i1; LOOP i1} / S => S'
+i1; LOOP i1 / S => S'
 ------ :: loop_tt
 LOOP i1 / True : S => S'
 
 ------ :: loop_ff
 LOOP i1 / False : S => S
 
-{i1 ; LOOP_LEFT i1} / d : S => S'
+i1 ; LOOP_LEFT i1 / d : S => S'
 ------ :: loop_left_tt
 LOOP_LEFT i1 / Left d : S => S'
 
