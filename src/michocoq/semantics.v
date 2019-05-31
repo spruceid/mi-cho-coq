@@ -279,7 +279,7 @@ Section semantics.
   Definition mem a b (v : mem_variant a b) : data a -> data b -> data bool :=
     match v with
     | Mem_variant_set a =>
-      fun (x : data a) (y : data (set a)) => set.mem _ _ (compare_eq_iff a) x y
+      fun (x : data a) (y : data (set a)) => set.mem _ _ x y
     | Mem_variant_map _ _ => map.mem _ _ _
     | Mem_variant_bigmap _ _ => map.mem _ _ _
     end.

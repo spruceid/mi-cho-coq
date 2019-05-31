@@ -22,7 +22,7 @@
 
 (* Finite sets implemented by sorted lists *)
 
-Require Sorted.
+Require Sorted Eqdep_dec.
 Require Import error.
 
 Section definition.
@@ -30,6 +30,11 @@ Section definition.
   Variable A : Set.
   Variable compare : A -> A -> comparison.
   Hypothesis compare_eq_iff : forall a b : A, compare a b = Eq <-> a = b.
+  Lemma compare_refl a : compare a a = Eq.
+  Proof.
+    apply (compare_eq_iff a a).
+    reflexivity.
+  Qed.
   Definition lt (a b : A) : Prop :=
     compare a b = Lt.
   Hypothesis lt_trans : Relations_1.Transitive lt.
@@ -95,9 +100,51 @@ Section definition.
     apply Sorted.SSorted_nil.
   Defined.
 
+  Fixpoint list_in_sorted x l :=
+    match l with
+    | nil => false
+    | cons y l =>
+      match compare x y with
+      | Gt => list_in_sorted x l
+      | Eq => true
+      | Lt => false
+      end
+    end.
+
+  Lemma list_in_sorted_correct x l :
+    Sorted.StronglySorted lt l ->
+    list_in_sorted x l <-> List.In x l.
+  Proof.
+    induction l as [|y l]; intro Hs; simpl.
+    - split; intro H; inversion H.
+    - case_eq (compare x y); intro Hxy.
+      + split; [|constructor].
+        intros _.
+        rewrite compare_eq_iff in Hxy.
+        intuition congruence.
+      + split; [intro H; inversion H|].
+        intros [He|Hin].
+        * symmetry in He; rewrite <- compare_eq_iff in He.
+          congruence.
+        * assert (List.Forall (lt y) l) as Hf by (inversion Hs; assumption).
+          rewrite List.Forall_forall in Hf.
+          specialize (Hf x Hin).
+          exfalso.
+          generalize (lt_trans _ _ _ Hxy Hf).
+          generalize compare_refl.
+          congruence.
+      + assert (Sorted.StronglySorted lt l) as Hsl by (inversion Hs; assumption).
+        specialize (IHl Hsl).
+        rewrite IHl.
+        split; [intuition|].
+        intros [He|H]; [|auto].
+        generalize compare_refl.
+        congruence.
+  Qed.
+
   Definition mem (x : A) (s : set) :=
     let (l, _) := s in
-    if List.in_dec decide_eq x l then true else false.
+    list_in_sorted x l.
 
   Fixpoint list_insert (x : A) (l : list A) : list A :=
     match l with
@@ -110,17 +157,6 @@ Section definition.
       end
     end.
 
-  Lemma in_cons_iff (elt : Type) (x y : elt) (l : list elt) :
-    List.In x (y :: l) <-> (y = x \/ List.In x l).
-  Proof.
-    split.
-    - apply List.in_inv.
-    - intros [He|Hin].
-      + destruct He.
-        apply List.in_eq.
-      + apply List.in_cons; assumption.
-  Qed.
-
   Lemma list_insert_in (x y : A) (l : list A) :
     List.In x (list_insert y l) <-> (x = y \/ List.In x l).
   Proof.
@@ -128,16 +164,15 @@ Section definition.
     - intuition.
     - case_eq (compare y z).
       + intro H.
-        apply compare_eq_iff in H.
+        rewrite compare_eq_iff in H.
         destruct H.
-        rewrite in_cons_iff.
+        simpl.
         intuition.
       + intros _.
-        rewrite in_cons_iff.
-        rewrite in_cons_iff.
+        simpl.
         intuition.
       + intros _.
-        rewrite in_cons_iff.
+        simpl.
         rewrite IHl.
         intuition.
   Qed.
@@ -194,7 +229,7 @@ Section definition.
         rewrite IHl.
         intuition congruence.
       + intro Hn.
-        rewrite in_cons_iff.
+        simpl.
         rewrite IHl.
         intuition congruence.
   Qed.
@@ -260,5 +295,197 @@ Section definition.
 
   Definition size (s : set) : nat :=
     let (l, _) := s in List.length l.
+
+  Lemma decide_eq_refl (a : A) : decide_eq a a = left eq_refl.
+  Proof.
+    case (decide_eq a a).
+    - intro e.
+      f_equal.
+      apply (Eqdep_dec.UIP_dec decide_eq).
+    - congruence.
+  Qed.
+
+  Lemma in_sorted x a l :
+    Sorted.StronglySorted lt (a :: l) ->
+    List.In x (a :: l) <-> (x = a \/ (lt a x /\ List.In x l)).
+  Proof.
+    intro Hs.
+    simpl.
+    split.
+    - intros [H|H].
+      + intuition.
+      + right.
+        assert (List.Forall (lt a) l) as Hf by (inversion Hs; assumption).
+        rewrite List.Forall_forall in Hf.
+        specialize (Hf x).
+        intuition.
+    - intuition.
+  Qed.
+
+  Lemma not_in_sorted a l :
+    Sorted.StronglySorted lt (a :: l) -> ~ List.In a l.
+  Proof.
+    intros Hs Hin.
+    assert (List.Forall (lt a) l) as Hf by (inversion Hs; assumption).
+    rewrite List.Forall_forall in Hf.
+    specialize (Hf a Hin).
+    unfold lt in Hf.
+    generalize compare_refl.
+    congruence.
+  Qed.
+
+  Lemma in_dec_in x l : is_true (if List.in_dec decide_eq x l then true else false) <-> List.In x l.
+  Proof.
+    case (List.in_dec decide_eq x l).
+    - intuition constructor.
+    - intro n.
+      split.
+      + intro H; inversion H.
+      + intuition.
+  Qed.
+
+  Lemma sorted_inv (X : Type) (R : X -> X -> Prop)
+        l (H : Sorted.StronglySorted R l) :
+    match l, H with
+    | nil, H => H = Sorted.SSorted_nil R
+    | cons a l, H => exists Hl Hf, H = Sorted.SSorted_cons _ Hl Hf
+    end.
+  Proof.
+    destruct H.
+    - reflexivity.
+    - eexists. eexists. reflexivity.
+  Qed.
+
+  Lemma Forall_inv (X : Type) (P : X -> Prop) l (H : List.Forall P l) :
+    match l, H with
+    | nil, H => H = List.Forall_nil _
+    | cons a l, H => exists Hp Hl, H = List.Forall_cons _ Hp Hl
+    end.
+  Proof.
+    destruct H.
+    - reflexivity.
+    - eexists. eexists. reflexivity.
+  Qed.
+
+  Lemma Forall_irrel (X : Type) (P : X -> Prop) l  :
+    (forall a (Hp1 Hp2 : P a), Hp1 = Hp2) ->
+    forall (H1 H2 : List.Forall P l), H1 = H2.
+  Proof.
+    intros Hp_irrel H1 H2.
+    induction l.
+    - rewrite (Forall_inv _ _ _ H1).
+      rewrite (Forall_inv _ _ _ H2).
+      reflexivity.
+    - destruct (Forall_inv _ _ _ H1) as (Hp1, (Hl1, He1)).
+      rewrite He1.
+      destruct (Forall_inv _ _ _ H2) as (Hp2, (Hl2, He2)).
+      rewrite He2.
+      rewrite (IHl Hl1 Hl2).
+      f_equal.
+      apply Hp_irrel.
+  Qed.
+
+  Lemma sorted_irrel l (H1 H2 : Sorted.StronglySorted lt l) : H1 = H2.
+  Proof.
+    induction l.
+    - rewrite (sorted_inv _ _ _ H1).
+      rewrite (sorted_inv _ _ _ H2).
+      reflexivity.
+    - destruct (sorted_inv _ _ _ H1) as (Hl1, (Hf1, He1)).
+      rewrite He1.
+      destruct (sorted_inv _ _ _ H2) as (Hl2, (Hf2, He2)).
+      rewrite He2.
+      rewrite (IHl Hl1 Hl2).
+      f_equal.
+      apply Forall_irrel.
+      unfold lt.
+      intro b.
+      apply Eqdep_dec.UIP_dec.
+      decide equality.
+  Qed.
+
+  Lemma extensionality (s1 s2 : set) : (forall x, mem x s1 <-> mem x s2) -> s1 = s2.
+  Proof.
+    intro H.
+    destruct s1 as (l1, Hl1).
+    destruct s2 as (l2, Hl2).
+    simpl in H.
+    assert (l1 = l2) as Hl.
+    - generalize l2 Hl2 H; clear l2 Hl2 H; induction l1 as [|a1 l1]; intros [|a2 l2] Hl2 H.
+      + reflexivity.
+      + specialize (H a2).
+        simpl in H.
+        rewrite compare_refl in H.
+        destruct H as (_, H).
+        specialize (H ltac:(constructor)).
+        inversion H.
+      + specialize (H a1).
+        simpl in H.
+        rewrite compare_refl in H.
+        destruct H as (H, _).
+        specialize (H ltac:(constructor)).
+        inversion H.
+      + assert (a1 = a2) as Ha12.
+        * generalize (H a1).
+          generalize (H a2).
+          simpl.
+          do 2 rewrite compare_refl.
+          intros (_, Ha2l1) (Ha1l2, _).
+          specialize (Ha2l1 ltac:(constructor)).
+          specialize (Ha1l2 ltac:(constructor)).
+          rewrite <- compare_eq_iff.
+          case_eq (compare a1 a2); intro Ha12.
+          -- reflexivity.
+          -- rewrite Ha12 in Ha1l2.
+             inversion Ha1l2.
+          -- rewrite <- compare_gt_lt in Ha12.
+             rewrite Ha12 in Ha2l1.
+             inversion Ha2l1.
+        * destruct Ha12.
+          f_equal.
+          apply IHl1.
+          -- inversion Hl1; assumption.
+          -- inversion Hl2; assumption.
+          -- intro a3.
+             rewrite list_in_sorted_correct; [|inversion Hl1; assumption].
+             rewrite list_in_sorted_correct; [|inversion Hl2; assumption].
+             generalize (H a3).
+             simpl.
+             intros (He1, He2).
+             case_eq (compare a3 a1).
+             ++ intro He.
+                rewrite compare_eq_iff in He.
+                subst a3.
+                apply not_in_sorted in Hl1.
+                apply not_in_sorted in Hl2.
+                intuition.
+             ++ clear He1 He2.
+                specialize (H a3).
+                assert (List.Forall (lt a1) l1) as Ha1l1 by (inversion Hl1; assumption).
+                assert (List.Forall (lt a1) l2) as Ha1l2 by (inversion Hl2; assumption).
+                intro Hlt.
+                split.
+                ** intro Ha3l1.
+                   rewrite List.Forall_forall in Ha1l1.
+                   specialize (Ha1l1 a3 Ha3l1).
+                   specialize (lt_trans _ _ _ Ha1l1 Hlt).
+                   generalize compare_refl.
+                   congruence.
+                ** intro Ha3l2.
+                   rewrite List.Forall_forall in Ha1l2.
+                   specialize (Ha1l2 a3 Ha3l2).
+                   specialize (lt_trans _ _ _ Ha1l2 Hlt).
+                   generalize compare_refl.
+                   congruence.
+             ++ intro Hgt.
+                rewrite Hgt in He1.
+                rewrite Hgt in He2.
+                rewrite <- list_in_sorted_correct; [|inversion Hl1; assumption].
+                rewrite <- list_in_sorted_correct; [|inversion Hl2; assumption].
+                intuition.
+    - destruct Hl.
+      f_equal.
+      apply sorted_irrel.
+  Qed.
 
 End definition.

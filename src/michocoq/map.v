@@ -35,6 +35,12 @@ Section map.
   Hypothesis lt_trans : Relations_1.Transitive (fun a b => compare a b = Lt).
   Hypothesis gt_trans : Relations_1.Transitive (fun a b => compare a b = Gt).
 
+  Lemma compare_refl a : compare a a = Eq.
+  Proof.
+    apply (compare_eq_iff a a).
+    reflexivity.
+  Qed.
+
   Definition map_compare (x_ y_ : A * B) :=
     match x_, y_ with (x, _), (y, _) => compare x y end.
 
@@ -74,10 +80,10 @@ Section map.
     - case_eq (compare y z).
       + intuition.
       + intros Hlt Hin.
-        rewrite set.in_cons_iff in Hin.
+        simpl in Hin.
         assumption.
       + intros Hgt Hin.
-        rewrite set.in_cons_iff in Hin.
+        simpl in Hin.
         intuition.
   Qed.
 
@@ -106,7 +112,7 @@ Section map.
         apply Sorted.StronglySorted_inv in Hs.
         destruct Hs as (Hs, Hf).
         rewrite compare_eq_iff in He.
-        rewrite set.in_cons_iff.
+        simpl.
         split.
         * intros [He2|Hin].
           {
@@ -124,7 +130,7 @@ Section map.
       + intros Hlt Hs.
         apply Sorted.StronglySorted_inv in Hs.
         destruct Hs as (Hs, Hf).
-        rewrite set.in_cons_iff.
+        simpl.
         split.
         * intros [He2|Hin].
           {
@@ -134,7 +140,7 @@ Section map.
             rewrite List.Forall_forall in Hf.
             specialize (Hf (x, v)).
             unfold set.lt, map_compare in Hf.
-            rewrite set.in_cons_iff in Hin.
+            simpl in Hin.
             destruct Hin as [He|Hin].
             - injection He.
               intros _ He2.
@@ -149,7 +155,7 @@ Section map.
         * intro He.
           destruct He.
           left; reflexivity.
-      + rewrite set.in_cons_iff.
+      + simpl.
         intros Hgt Hs.
         rewrite IHl.
         * split; [|intuition].
@@ -173,16 +179,15 @@ Section map.
     - intros Hs Hd.
       case_eq (compare y z).
       + intro He.
-        rewrite set.in_cons_iff.
+        simpl.
         rewrite compare_eq_iff in He.
         destruct He.
         intuition congruence.
       + intro Hlt.
-        rewrite set.in_cons_iff.
-        rewrite set.in_cons_iff.
+        simpl.
         intuition congruence.
       + intro Hgt.
-        rewrite set.in_cons_iff.
+        simpl.
         rewrite IHl.
         * intuition congruence.
         * inversion Hs.
@@ -259,7 +264,7 @@ Section map.
             intros (z, v'') Hin.
             rewrite List.Forall_forall in Hf.
             specialize (Hf (z, v'')).
-            rewrite set.in_cons_iff in Hin.
+            simpl in Hin.
             destruct Hin as [He | Hin].
             - injection He.
               intros _ He2.
@@ -387,6 +392,107 @@ Section map.
 
   Definition size (m : map) : nat :=
     let (l, _) := m in List.length l.
+
+  Lemma list_get_lt a b l :
+    List.Forall (fun y => map_compare (a, b) y = Lt) l ->
+    Sorted.StronglySorted (fun x y => map_compare x y = Lt) l ->
+    list_get a l = None.
+  Proof.
+    intros Hf Hl.
+    destruct l as [|(a2, b2) l].
+    - reflexivity.
+    - simpl.
+      rewrite List.Forall_forall in Hf.
+      specialize (Hf (a2, b2) (or_introl eq_refl)).
+      simpl in Hf.
+      rewrite Hf.
+      reflexivity.
+  Qed.
+
+  Lemma extensionality (m1 m2 : map) :
+    (forall x, get x m1 = get x m2) -> m1 = m2.
+  Proof.
+    destruct m1 as (l1, H1).
+    destruct m2 as (l2, H2).
+    simpl.
+    intro Hf.
+    assert (l1 = l2).
+    - generalize l2 H2 Hf; clear l2 H2 Hf; induction l1 as [|(a1, b1) l1]; intros [|(a2, b2) l2] H2 Hf.
+      + reflexivity.
+      + exfalso.
+        specialize (Hf a2).
+        simpl in Hf.
+        rewrite compare_refl in Hf.
+        discriminate.
+      + exfalso.
+        specialize (Hf a1).
+        simpl in Hf.
+        rewrite compare_refl in Hf.
+        discriminate.
+      + assert (a1 = a2 /\ b1 = b2).
+        * generalize (Hf a1); intro Ha1.
+          simpl in Ha1.
+          rewrite compare_refl in Ha1.
+          generalize (Hf a2); intro Ha2.
+          simpl in Ha2.
+          rewrite compare_refl in Ha2.
+          case_eq (compare a1 a2).
+          -- intro He.
+             rewrite compare_eq_iff in He.
+             split; [assumption|].
+             subst a2.
+             rewrite compare_refl in Ha1.
+             injection Ha1.
+             auto.
+          -- intro Hlt.
+             rewrite Hlt in Ha1.
+             discriminate.
+          -- intro Hgt.
+             rewrite Hgt in Ha1.
+             rewrite <- set.compare_gt_lt in Hgt;
+               [|assumption|assumption|assumption].
+             rewrite Hgt in Ha2.
+             discriminate.
+        * destruct H; subst a2; subst b2.
+          f_equal.
+          apply IHl1.
+          -- inversion H1.
+             assumption.
+          -- inversion H2.
+             assumption.
+          -- intro a3.
+             specialize (Hf a3).
+             simpl in Hf.
+             case_eq (compare a3 a1).
+             ** intro Heq.
+                rewrite compare_eq_iff in Heq.
+                subst a3.
+                rewrite (list_get_lt a1 b1 l1); [|inversion H1; assumption|inversion H1; assumption].
+                rewrite (list_get_lt a1 b1 l2); [|inversion H2; assumption|inversion H2; assumption].
+                reflexivity.
+             ** intro Hlt.
+                rewrite (list_get_lt a3 b1 l1);
+                  [rewrite (list_get_lt a3 b1 l2)| |].
+                --- reflexivity.
+                --- apply (@List.Forall_impl _ (fun y => map_compare (a1, b1) y = Lt)); [|inversion H2; assumption].
+                    intros (a4, b4).
+                    simpl.
+                    apply lt_trans.
+                    assumption.
+                --- inversion H2; assumption.
+                --- apply (@List.Forall_impl _ (fun y => map_compare (a1, b1) y = Lt)); [|inversion H1; assumption].
+                    intros (a4, b4).
+                    simpl.
+                    apply lt_trans.
+                    assumption.
+                --- inversion H1; assumption.
+             ** intro Hgt.
+                rewrite Hgt in Hf.
+                exact Hf.
+    - destruct H.
+      f_equal.
+      apply set.sorted_irrel.
+  Qed.
 
 End map.
 
