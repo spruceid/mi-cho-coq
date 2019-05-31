@@ -273,7 +273,7 @@ stack_type, A, B, C :: Stack_type_ ::= {{ coq Datatypes.list type }} {{ phantom 
   | ty1 ':' A :: :: cons {{ coq (cons[[ty1]][[A]])}}
   | A @ B :: M :: append {{ coq (List.app[[A]][[B]])}}
 
-% A stackerr is either failed or ty1 stack, which is ty1 list of data.
+% A stackerr is either failed or a stack, which is a list of data.
 stackerr, SE :: 'SE_' ::=
        | [FAILED] :: :: Failed
        | stack :: :: Stack
@@ -790,8 +790,8 @@ defns
 BigStep :: '' ::=
 
 
-%% A big-step goes from an instruction (which is possible ty1 sequence
-%% of instructions), an initial stack to ty1 final stack.
+%% A big-step goes from an instruction (which is possible a sequence
+%% of instructions), an initial stack to a final stack.
 
 % Local big-step rules
 defn
@@ -883,7 +883,7 @@ DUP / d : S  =>  d : d : S
 ----- :: swap
 SWAP / d1 : d2 : S  =>  d2 : d1 : S
 
-%     PUSH 'ty1 x: Push ty1 constant value of ty1 given type onto the stack.
+%     PUSH 'ty1 x: Push a constant value of a given type onto the stack.
 
 % :: 'A   ->   'ty1 : 'A
 %    iff   x :: 'ty1
@@ -891,14 +891,14 @@ SWAP / d1 : d2 : S  =>  d2 : d1 : S
 ----- :: push
 PUSH ty d / S  =>  d : S
 
-%     UNIT: Push ty1 unit value onto the stack.
+%     UNIT: Push a unit value onto the stack.
 
 % :: 'A   ->   unit : 'A
 
 ----- :: unit
 UNIT / S  =>  Unit : S
 
-%     LAMBDA 'ty1 'ty2 code: Push ty1 lambda with given parameter and return types onto the stack.
+%     LAMBDA 'ty1 'ty2 code: Push a lambda with given parameter and return types onto the stack.
 
 % :: 'A ->  (lambda 'ty1 'ty2) : 'A
 
@@ -1126,7 +1126,7 @@ AND / nz1 : nz2 : S  =>  ( nz1 & nz2 ) : S
 ----- :: bit_xor
 XOR / nz1 : nz2 : S  =>  ( nz1 ^ nz2 ) : S
 
-%     Michelson Documentation: NOT The return type of NOT is an int and not ty1 nat. This is because the sign is also negated. The resulting integer is computed using two’s complement. For instance, the boolean negation of 0 is -1. To get ty1 natural back, ty1 possibility is to use AND with an unsigned mask afterwards.
+%     Michelson Documentation: NOT The return type of NOT is an int and not a nat. This is because the sign is also negated. The resulting integer is computed using two’s complement. For instance, the boolean negation of 0 is -1. To get a natural back, a possibility is to use AND with an unsigned mask afterwards.
 
 % :: nat : 'S   ->   int : 'S
 % :: int : 'S   ->   int : 'S
@@ -1190,7 +1190,7 @@ CONCAT / tl : S  =>  t : S
 ----- :: concat_list_cons
 CONCAT / { s ; < tl > } : S  =>  ( s ^ t ) : S
 
-%     SIZE: number of characters in ty1 string.
+%     SIZE: number of characters in a string.
 
 % :: string : 'S   ->   nat : 'S
 
@@ -1240,21 +1240,21 @@ COMPARE / s : t : S  => :z_IntOne: 1 : S
 
 % Operations on pairs
 
-%     PAIR: Build ty1 pair from the stack’s top two elements.
+%     PAIR: Build a pair from the stack’s top two elements.
 
 % :: 'ty1 : 'ty2 : 'S   ->   pair 'ty1 'ty2 : 'S
 
 ----- :: pair
 PAIR / d : d' : S  =>  ( Pair d d' ) : S
 
-%     CAR: Access the left part of ty1 pair.
+%     CAR: Access the left part of a pair.
 
 % :: pair 'ty1 _ : 'S   ->   'ty1 : 'S
 
 ----- :: car
 CAR / ( Pair d d' ) : S  =>  d : S
 
-%     CDR: Access the right part of ty1 pair.
+%     CDR: Access the right part of a pair.
 
 % :: pair _ 'ty2 : 'S   ->   'ty2 : 'S
 
@@ -1263,7 +1263,7 @@ CDR / ( Pair d d' ) : S  =>  d' : S
 
 % Operations on sets
 
-%     EMPTY_SET 'elt: Build ty1 new, empty set for elements of ty1 given type.
+%     EMPTY_SET 'elt: Build a new, empty set for elements of a given type.
 
 %     The 'elt type must be comparable (the COMPARE primitive must be defined over it).
 
@@ -1272,7 +1272,7 @@ CDR / ( Pair d d' ) : S  =>  d' : S
 ----- :: set_empty
 EMPTY_SET cty / S  => :setlist_Nil: {} : S
 
-%     MEM: Check for the presence of an element in ty1 set.
+%     MEM: Check for the presence of an element in a set.
 
 % :: 'elt : set 'elt : 'S   ->  bool : 'S
 
@@ -1292,7 +1292,7 @@ COMPARE / x : y : []  =>  - :z_IntOne: 1 : []
 ----- :: set_mem_nexists
 MEM / x : { y ; <tl> } : S  =>  False : S
 
-%     UPDATE: Inserts or removes an element in ty1 set, replacing ty1 previous value.
+%     UPDATE: Inserts or removes an element in a set, replacing a previous value.
 
 % :: 'elt : bool : set 'elt : 'S   ->   set 'elt : 'S
 
@@ -1324,7 +1324,7 @@ COMPARE / x : y : []  =>  - :z_IntOne: 1 : []
 %% AJ: not sure how to get around the ugliness of the conclusion here
 UPDATE / x : True : { y ; < tl > } : S  =>  { x ; { y ; < tl > } } : S
 
-%     ITER body: Apply the body expression to each element of ty1 set. The body sequence has access to the stack.
+%     ITER body: Apply the body expression to each element of a set. The body sequence has access to the stack.
 
 % :: (set 'elt) : 'A   ->  'A
 %    iff body :: [ 'elt : 'A -> 'A ]
@@ -1349,7 +1349,7 @@ SIZE / { d ; < tl > } : S  => :n_NatOne: 1 + n : S
 
 % Operations on maps
 
-%     EMPTY_MAP 'key 'val: Build ty1 new, empty map from keys of ty1 given type to values of another given type.
+%     EMPTY_MAP 'key 'val: Build a new, empty map from keys of a given type to values of another given type.
 
 %     The 'key type must be comparable (the COMPARE primitive must be defined over it).
 
@@ -1358,7 +1358,7 @@ SIZE / { d ; < tl > } : S  => :n_NatOne: 1 + n : S
 ----- :: map_empty
 EMPTY_MAP cty ty / S  => :map_Nil: {} : S
 
-%     GET: Access an element in ty1 map, returns an optional value to be checked with IF_SOME.
+%     GET: Access an element in a map, returns an optional value to be checked with IF_SOME.
 
 % :: 'key : map 'key 'val : 'S   ->   option 'val : 'S
 
@@ -1378,7 +1378,7 @@ COMPARE / x : k : []  =>  - :z_IntOne: 1 : []
 ----- :: get_nexists
 GET / x : { Elt k v ; < m > } : S  =>  None : S
 
-%     MEM: Check for the presence of ty1 binding for ty1 key in ty1 map.
+%     MEM: Check for the presence of a binding for a key in a map.
 
 % :: 'key : map 'key 'val : 'S   ->  bool : 'S
 
@@ -1398,7 +1398,7 @@ COMPARE / x : k : []  =>  - :z_IntOne: 1 : []
 ----- :: map_mem_nexists
 MEM / x : { Elt k v ; < m > } : S  =>  False : S
 
-%     UPDATE: Assign or remove an element in ty1 map.
+%     UPDATE: Assign or remove an element in a map.
 
 % :: 'key : option 'val : map 'key 'val : 'S   ->   map 'key 'val : 'S
 
@@ -1429,7 +1429,7 @@ COMPARE / x : k : []  =>  - :z_IntOne: 1 : []
 ----- :: map_update_add
 UPDATE / x : Some y : { Elt k v ; < m > } : S  =>  { Elt x y ; { Elt k v ; < m > }  } : S
 
-%     MAP body: Apply the body expression to each element of ty1 map. The body sequence has access to the stack.
+%     MAP body: Apply the body expression to each element of a map. The body sequence has access to the stack.
 
 % :: (map 'key 'val) : 'A   ->  (map 'key 'ty2) : 'A
 %    iff   body :: [ (pair 'key 'val) : 'A -> 'ty2 : 'A ]
@@ -1445,7 +1445,7 @@ MAP body / m : S  => m'  : S
 ----- :: map_map_cons
 MAP body / { Elt k v ; < m > } : S  =>  { Elt k v' ; < m' > } : S
 
-%     ITER body: Apply the body expression to each element of ty1 map. The body sequence has access to the stack.
+%     ITER body: Apply the body expression to each element of a map. The body sequence has access to the stack.
 
 % :: (map 'elt 'val) : 'A   ->  'A
 %    iff   body :: [ (pair 'elt 'val) : 'A -> 'A ]
@@ -1474,15 +1474,15 @@ SIZE / { Elt d d' ; < m > } : S  =>  :n_NatOne: 1 + n : S
 
 % The behavior of these operations is the same as if they were normal maps, except that under the hood, the elements are loaded and deserialized on demand.
 
-%     GET: Access an element in ty1 big_map, returns an optional value to be checked with IF_SOME.
+%     GET: Access an element in a big_map, returns an optional value to be checked with IF_SOME.
 
 % :: 'key : big_map 'key 'val : 'S   ->   option 'val : 'S
 
-%     MEM: Check for the presence of an element in ty1 big_map.
+%     MEM: Check for the presence of an element in a big_map.
 
 % :: 'key : big_map 'key 'val : 'S   ->  bool : 'S
 
-%     UPDATE: Assign or remove an element in ty1 big_map.
+%     UPDATE: Assign or remove an element in a big_map.
 
 % :: 'key : option 'val : big_map 'key 'val : 'S   ->   big_map 'key 'val : 'S
 
@@ -1490,7 +1490,7 @@ SIZE / { Elt d d' ; < m > } : S  =>  :n_NatOne: 1 + n : S
 %% Operations on optional values
 %%
 
-%     SOME: Pack ty1 present optional value.
+%     SOME: Pack a present optional value.
 
 % :: 'ty1 : 'S   ->   option 'ty1 : 'S
 
@@ -1520,21 +1520,21 @@ IF_NONE body1 body2 / (Some d) : S =>  S'
 
 % Operations on unions
 
-%     LEFT 'ty2: Pack ty1 value in ty1 union (left case).
+%     LEFT 'ty2: Pack a value in a union (left case).
 
 % :: 'ty1 : 'S   ->   or 'ty1 'ty2 : 'S
 
 ----- :: pack_left
 LEFT ty / v : S  =>  (Left v) : S
 
-%     RIGHT 'ty1: Pack ty1 value in ty1 union (right case).
+%     RIGHT 'ty1: Pack a value in a union (right case).
 
 % :: 'ty2 : 'S   ->   or 'ty1 'ty2 : 'S
 
 ----- :: pack_right
 RIGHT ty / v : S  =>  (Right v) : S
 
-%     IF_LEFT body1 body2: Inspect ty1 value of ty1 variant type.
+%     IF_LEFT body1 body2: Inspect a value of a variant type.
 
 % :: or 'ty1 'ty2 : 'S   ->   'cty : 'S
 %    iff   body1 :: [ 'ty1 : 'S -> 'cty : 'S]
@@ -1548,7 +1548,7 @@ body2 / d : S => S'
 ----- :: if_left_right
 IF_LEFT body1 body2 / (Right d) : S  => S'
 
-%     IF_RIGHT body1 body2: Inspect ty1 value of ty1 variant type.
+%     IF_RIGHT body1 body2: Inspect a value of a variant type.
 
 % :: or 'ty1 'ty2 : 'S   ->   'cty : 'S
 %    iff   body1 :: [ 'ty2 : 'S -> 'cty : 'S]
@@ -1564,7 +1564,7 @@ IF_RIGHT body1 body2 / (Left d) : S  =>  S'
 
 % Operations on lists
 
-%     CONS: Prepend an element to ty1 list.
+%     CONS: Prepend an element to a list.
 
 % :: 'ty1 : list 'ty1 : 'S   ->   list 'ty1 : 'S
 
@@ -1616,7 +1616,7 @@ SIZE / tl  : S  =>  n : S
 ----- :: list_size_cons
 SIZE / { d ; <tl> } : S  =>  :n_NatOne: 1 + n : S
 
-%     ITER body: Apply the body expression to each element of ty1 list. The body sequence has access to the stack.
+%     ITER body: Apply the body expression to each element of a list. The body sequence has access to the stack.
 
 % :: (list 'elt) : 'A   ->  'A
 %      iff body :: [ 'elt : 'A -> 'A ]
