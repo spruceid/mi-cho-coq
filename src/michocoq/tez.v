@@ -70,4 +70,3 @@ Proof.
   - apply to_int64_inj.
   - apply f_equal.
 Qed.
-

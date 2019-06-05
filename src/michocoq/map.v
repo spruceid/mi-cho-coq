@@ -41,6 +41,19 @@ Section map.
     reflexivity.
   Qed.
 
+  Lemma compare_diff : forall a b, compare a b = Lt \/ compare a b = Gt <-> a <> b.
+  Proof.
+    intros. split.
+    - (* -> *)
+      intros [Hdiff|Hdiff] contra;
+      rewrite <- compare_eq_iff in contra; rewrite Hdiff in contra; discriminate contra.
+    - (* <- *)
+      intro Hdiff. destruct (compare a b) eqn:Hab.
+      + apply compare_eq_iff in Hab. contradiction.
+      + left. reflexivity.
+      + right. reflexivity.
+  Qed.
+
   Definition map_compare (x_ y_ : A * B) :=
     match x_, y_ with (x, _), (y, _) => compare x y end.
 
@@ -492,6 +505,176 @@ Section map.
     - destruct H.
       f_equal.
       apply set.sorted_irrel.
+  Qed.
+
+  (* Interesting lemmas to use when working with maps *)
+
+  Lemma map_getmem : forall k m v, 
+      get k m = Some v -> mem k m.
+  Proof.
+    intros.
+    destruct m as [l]. simpl. simpl in H.
+    induction l.
+    - (* nil *)
+      simpl in H. inversion H.
+    - (* h::t *)
+      simpl. simpl in H.
+      destruct a as [k' v']. destruct (compare k k').
+      + (* Eq *) exact ITT.
+      + (* Lt *) inversion H.
+      + (* Gt *) apply IHl. inversion s. assumption. assumption.
+  Qed.
+
+  Lemma map_memget : forall k m,
+      mem k m -> exists v, get k m = Some v.
+  Proof.
+    intros.
+    destruct m as [l]. simpl. simpl in H.
+    induction l.
+    - (* nil *)
+      exfalso. simpl in H. inversion H.
+    - (* h::t *)
+      inversion s; subst.
+      specialize (IHl H2).
+      simpl in H. simpl.
+      destruct a as [k' v']. destruct (compare k k').
+      + (* Eq *) exists v'. reflexivity.
+      + (* Lt *) inversion H.
+      + (* Gt *)
+        specialize (IHl H). destruct IHl as [v'' IHl].
+        exists v''. assumption.
+  Qed.
+
+  Lemma map_updateeq: forall k m v,
+      get k (update k (Some v) m) = (Some v).
+  Proof.
+    intros.
+    destruct m as [l]. unfold get, update.
+    assert ((compare k k) = Eq) as Hkk by (apply compare_eq_iff; reflexivity).
+    induction l.
+    - (* nil *)
+      simpl. rewrite Hkk. reflexivity.
+    - (* h::t *)
+      simpl. inversion s; subst.
+      specialize (IHl H1). simpl in IHl.
+      destruct a as [k' v'].
+      destruct (compare k k') eqn:Hkk'; simpl.
+      + (* Eq *) simpl. rewrite Hkk. reflexivity.
+      + (* Lt *) simpl. rewrite Hkk. reflexivity.
+      + (* Gt *) rewrite Hkk'. assumption.
+  Qed.
+
+  Lemma map_updateneq: forall k k' m v,
+      k <> k' ->
+      get k' (update k (Some v) m) =
+      get k' m.
+  Proof.
+    intros.
+    destruct m as [l]. unfold get, update; simpl.
+    induction l; simpl.
+    - (* nil *)
+      destruct (compare k' k) eqn:Hcp; try reflexivity.
+      apply compare_eq_iff in Hcp. symmetry in Hcp. contradiction.
+    - (* h::t *)
+      inversion s; subst.
+      specialize (IHl H2). simpl in IHl.
+      destruct a as [k'' v''].
+      destruct (compare k k'') eqn:Hkk''; destruct (compare k' k'') eqn:Hk'k''; simpl;
+        try apply compare_eq_iff in Hkk''; try apply compare_eq_iff in Hk'k''; subst;
+          assert (compare k'' k'' = Eq) as Hk'' by (apply compare_eq_iff; reflexivity);
+          try (rewrite Hk'k''; auto).
+      + contradiction.
+      + rewrite Hk''. apply set.compare_gt_lt in Hkk''; try assumption.
+        rewrite Hkk''. reflexivity.
+      + destruct (compare k' k) eqn:Hk'k; try reflexivity.
+        apply compare_eq_iff in Hk'k. symmetry in Hk'k. contradiction.
+      + apply set.compare_gt_lt in Hkk''; try assumption.
+        unfold Relations_1.Transitive in gt_trans.
+        assert (compare k' k = Gt) as Hk'k by (eapply gt_trans; eassumption).
+        rewrite Hk'k. reflexivity.
+      + rewrite Hk''. reflexivity.
+  Qed.
+
+  Lemma map_updateSome_spec : forall k v m nm,
+      nm = update k (Some v) m <->
+      (get k nm = (Some v) /\
+       (forall k', k <> k' -> map.get k' nm = map.get k' m)).
+  Proof.
+    intros. split.
+    - (* -> *)
+      intros Hnm. subst. split.
+      apply map_updateeq. intros k' Hdiff. apply map_updateneq. assumption.
+    - (* <- *)
+      intros [HSame HDiff].
+      apply map.extensionality; try assumption.
+      intro k'.
+      specialize (compare_diff k k') as HKeyDiff.
+      destruct (compare k k') eqn:Hkk'.
+      + (* Eq *)
+        apply compare_eq_iff in Hkk'; subst.
+        rewrite HSame. symmetry. apply map_updateeq.
+      + (* Lt *)
+        assert (k <> k') by (apply HKeyDiff; left; reflexivity).
+        assert (k <> k') as H2 by assumption.
+        apply HDiff in H. rewrite H. symmetry.
+        apply map_updateneq. assumption.
+      + (* Gt *)
+        assert (k <> k') by (apply HKeyDiff; right; reflexivity).
+        assert (k <> k') as H2 by assumption.
+        apply HDiff in H. rewrite H. symmetry.
+        apply map_updateneq. assumption.
+  Qed.
+
+  Lemma map_updatemem : forall k m v,
+      mem k m ->
+      forall k', mem k (map.update k' (Some v) m).
+  Proof.
+    intros.
+    destruct m as [l]. unfold get, update. simpl. simpl in H.
+    induction l; simpl; simpl in H.
+    - (* nil *) inversion H.
+    - (* h::t *)
+      inversion s; subst. specialize (IHl H2).
+      destruct a as [k'' v''].
+      destruct (compare k k'') eqn:Hkk''; destruct (compare k' k'') eqn:Hk'k'';
+        simpl in H; simpl;
+          try rewrite compare_eq_iff in Hkk''; try rewrite compare_eq_iff in Hk'k''; subst;
+            assert (compare k'' k'' = Eq) as Hk'' by (apply compare_eq_iff; reflexivity);
+            try inversion H;
+            try rewrite Hk''; try rewrite Hkk''; try exact ITT.
+      + apply set.compare_gt_lt in Hk'k''; try assumption. rewrite Hk'k''. exact ITT.
+      + apply set.compare_gt_lt in Hk'k''; try assumption.
+        unfold Relations_1.Transitive in gt_trans.
+        assert (compare k k' = Gt) as Hkk' by (eapply gt_trans; eassumption).
+        rewrite Hkk'. exact ITT.
+      + apply IHl. assumption.
+  Qed.
+
+  Lemma map_updatemem_rev : forall k k' m v,
+      k <> k' ->
+      mem k (map.update k' (Some v) m) ->
+      mem k m.
+  Proof.
+    intros.
+    destruct m as [l]. unfold map.get, map.update. simpl. simpl in H0.
+    induction l; simpl; simpl in H0.
+    - (* nil *)
+      rewrite <- (compare_diff k k') in H.
+      destruct H; rewrite H in H0; inversion H0.
+    - (* h::t *)
+      destruct a as [k'' v''].
+      destruct (compare k k'') eqn:Hkk''; destruct (compare k' k'') eqn:Hk'k''; try exact ITT;
+        inversion H0; try rewrite compare_eq_iff in Hk'k''; subst;
+          try rewrite Hkk'' in H2; inversion H2; try clear H3.
+      + rewrite <- (compare_diff k k') in H.
+        destruct H; rewrite H in H2; inversion H2.
+      + exact ITT.
+      + apply set.compare_gt_lt in Hk'k''; try assumption.
+        unfold Relations_1.Transitive in gt_trans.
+        assert (compare k k' = Gt) by (eapply gt_trans; eassumption). rewrite H1 in H2.
+        unfold is_true. rewrite <- H2. exact ITT.
+      + inversion s; subst. apply IHl. assumption.
+        unfold is_true. rewrite <- H2. exact ITT.
   Qed.
 
 End map.
