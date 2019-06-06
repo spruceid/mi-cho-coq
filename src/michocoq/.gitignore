@@ -1,1 +1,3 @@
 micheline_parser.v
+*.ml
+*.mli
