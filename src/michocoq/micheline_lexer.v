@@ -1,4 +1,4 @@
-Require Import String Ascii ZArith.
+Require Import List String Ascii ZArith.
 Require error micheline_parser.
 Require Import micheline_tokens location.
 
@@ -165,3 +165,81 @@ Fixpoint tokens_to_parser (ts : list (location * location * token)) : error.M (S
 Definition lex_micheline_to_parser (input : string)
   : error.M (Streams.Stream parser_token) :=
   error.bind tokens_to_parser (lex_micheline input location_start).
+
+(* Some interesting lemmas *)
+
+Lemma eqb_ascii_eq n m : (eqb_ascii n m) = true <-> n = m.
+Proof.
+  split; intros.
+  + unfold eqb_ascii in H. destruct n; destruct m.
+    repeat rewrite Bool.andb_true_iff in H.
+    destruct H as [[[[[[[H H0] H1] H2] H3] H4] H5] H6].
+    f_equal; apply Bool.eqb_prop; assumption.
+  + rewrite H. unfold eqb_ascii. destruct m. 
+    destruct b; destruct b0; destruct b1; destruct b2;
+      destruct b3; destruct b4; destruct b5; destruct b6; reflexivity.
+Qed.
+
+Inductive char_not_in_string : ascii -> string -> Prop :=
+| CharNotInEmpty : forall c, char_not_in_string c ""
+| CharNotInString : forall c c' s,
+    c <> c' ->
+    char_not_in_string c s ->
+    char_not_in_string c (String c' s).
+
+Lemma lex_string_end : forall s start loc,
+    lex_micheline_string """" s start loc =
+    error.Return _ ((start, location_incr loc, (micheline_tokens.STR s))::nil).
+Proof.
+  intros s start loc.
+  reflexivity.
+Qed.
+
+Lemma append_empty_right : forall s, (String.append s "") = s.
+Proof.
+  induction s.
+  - reflexivity.
+  - simpl. rewrite IHs. reflexivity.
+Qed.
+
+Lemma append_assoc : forall s1 s2 s3,
+    ((s1 ++ s2) ++ s3)%string = (s1 ++ (s2 ++ s3))%string.
+Proof.
+  induction s1; intros.
+  - reflexivity.
+  - simpl. rewrite IHs1. reflexivity.
+Qed.
+
+Lemma append_string_empty_left : forall a s, (String a "" ++ s)%string = String a s.
+Proof. reflexivity. Qed.
+
+Lemma lex_string_aux : forall s2 start loc,
+    char_not_in_string """" s2 ->
+    forall s1, lex_micheline_string (s2++"""") s1 start loc =
+    error.Return _ ((start, location_add loc ((String.length s2)+1), (micheline_tokens.STR (s1++s2)))::nil).
+Proof.
+  induction s2; intros.
+  - (* Empty string *) simpl. rewrite append_empty_right. reflexivity.
+  - (* c::s *)
+    simpl. inversion H; subst.
+    specialize (IHs2 start (location_incr loc) H4 (string_snoc s1 a)).
+    unfold string_snoc in *. rewrite IHs2. simpl.
+    unfold string_snoc; simpl.
+    rewrite location.location_add_incr_S.
+    rewrite append_assoc. rewrite append_string_empty_left.
+    case_eq a. intros. case_eq b; case_eq b0; case_eq b1; case_eq b2; case_eq b3; case_eq b4; case_eq b5; case_eq b6; try reflexivity.
+    intros. subst b; subst b0; subst b1; subst b2; subst b3; subst b4; subst b5; subst b6. symmetry in H0. contradiction.
+Qed.
+
+Corollary lex_string : forall s start,
+    char_not_in_string """" s ->
+    lex_micheline (""""++s++"""") start =
+    error.Return _ ((start, location_add start ((String.length s)+2), (micheline_tokens.STR s))::nil).
+Proof.
+  intros. simpl.
+  specialize (lex_string_aux s start (location_incr start) H "").
+  simpl. intro.
+  rewrite <- location.location_add_incr_S in H0.
+  assert (S (length s + 1) = (length s + 2)) as Hlen by omega.
+  rewrite Hlen in H0. assumption.
+Qed.

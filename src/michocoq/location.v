@@ -17,3 +17,10 @@ Definition location_incr (loc : location) := location_add loc 1.
 
 Definition location_newline (loc : location) : location :=
   {| line := S (loc.(line)); column := 0 |}.
+
+Lemma location_add_incr_S : forall loc n,
+    location_add loc (S n) = location_add (location_incr loc) n.
+Proof.
+  intros.
+  unfold location_incr, location_add. simpl. auto.
+Qed.
