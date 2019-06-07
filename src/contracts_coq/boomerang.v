@@ -28,7 +28,7 @@ Require Import util.
 Import error.
 Require List.
 
-Section return_to_sender.
+Section boomerang.
 
 
 
@@ -44,7 +44,7 @@ Definition eval {A B : stack_type} := @semantics.eval _ _ env A B.
 Definition eval_precond := @semantics.eval_precond _ _ env.
 
 
-Definition return_to_sender : @full_contract get_contract_type parameter_ty storage_ty :=
+Definition boomerang : @full_contract get_contract_type parameter_ty storage_ty :=
   (
     CDR ;;
     NIL operation ;;
@@ -58,10 +58,10 @@ Definition return_to_sender : @full_contract get_contract_type parameter_ty stor
     PAIR
   ).
 
-Lemma return_to_sender_correct :
+Lemma boomerang_correct :
   forall (ops : data (list operation)) (fuel : Datatypes.nat),
   fuel >= 42 ->
-  eval return_to_sender fuel ((tt, tt), tt) = Return _ ((ops, tt), tt)
+  eval boomerang fuel ((tt, tt), tt) = Return _ ((ops, tt), tt)
   <-> exists ctr, contract_ env unit (source env) = Some ctr /\
            ops = ((transfer_tokens env unit tt (amount env) ctr) :: nil)%list.
 Proof.
@@ -82,4 +82,4 @@ Proof.
     + intros (ctr, (He, Hops)). discriminate.
 Qed.
 
-End return_to_sender.
+End boomerang.
