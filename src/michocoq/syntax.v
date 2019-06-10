@@ -497,4 +497,6 @@ Notation "A ;; B" := (SEQ A B) (at level 100, right associativity).
 (* For debugging purpose, a version of ;; with explicit stack type *)
 Notation "A ;;; S ;;;; B" := (@SEQ _ S _ A B) (at level 100, only parsing).
 
-Notation "n ~mutez" := (syntax.Mutez_constant (syntax.Mk_mutez (exist _ (int64.of_Z n) eq_refl))) (at level 100).
+Notation "n ~Mutez" := (exist _ (int64.of_Z n) eq_refl) (at level 100).
+
+Notation "n ~mutez" := (syntax.Mutez_constant (syntax.Mk_mutez (n ~Mutez))) (at level 100).

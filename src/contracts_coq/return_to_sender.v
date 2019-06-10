@@ -22,7 +22,7 @@
 Require Import Michocoq.macros.
 Import syntax.
 Import comparable.
-Require Import NArith.
+Require Import ZArith.
 Require Import semantics.
 Require Import util.
 Import error.
@@ -43,43 +43,97 @@ Definition stack := @semantics.stack get_contract_type parameter_ty.
 Definition eval {A B : stack_type} := @semantics.eval _ _ env A B.
 Definition eval_precond := @semantics.eval_precond _ _ env.
 
-
 Definition return_to_sender : @full_contract get_contract_type parameter_ty storage_ty :=
   (
     CDR ;;
     NIL operation ;;
-    SOURCE ;;
-    CONTRACT unit ;;
-    ASSERT_SOME ;;
-    AMOUNT ;;
-    UNIT ;;
-    TRANSFER_TOKENS ;;
-    CONS ;;
-    PAIR
+       AMOUNT;;
+       PUSH mutez (0 ~mutez);;
+       IFCMPEQ NOOP
+         (
+           SOURCE ;;
+           CONTRACT unit ;;
+           ASSERT_SOME ;;
+           AMOUNT ;;
+           UNIT ;;
+           TRANSFER_TOKENS ;;
+           CONS
+         );;
+       PAIR
   ).
+
+Lemma eqb_eq a c1 c2 :
+  BinInt.Z.eqb (comparison_to_int (compare a c1 c2)) Z0 = true <->
+  c1 = c2.
+Proof.
+  rewrite BinInt.Z.eqb_eq.
+  rewrite comparison_to_int_Eq.
+  apply comparable.compare_eq_iff.
+Qed.
+
+Lemma eqb_neq a c1 c2 :
+  BinInt.Z.eqb (comparison_to_int (compare a c1 c2)) Z0 = false <->
+  c1 <> c2.
+Proof.
+  split.
+  - intros Hf He.
+    rewrite <- eqb_eq in He.
+    congruence.
+  - intro Hneq.
+    rewrite <- eqb_eq in Hneq.
+    destruct ((comparison_to_int (compare a c1 c2) =? 0)%Z); congruence.
+Qed.
 
 Lemma return_to_sender_correct :
   forall (ops : data (list operation)) (fuel : Datatypes.nat),
   fuel >= 42 ->
   eval return_to_sender fuel ((tt, tt), tt) = Return _ ((ops, tt), tt)
-  <-> exists ctr, contract_ env unit (source env) = Some ctr /\
-           ops = ((transfer_tokens env unit tt (amount env) ctr) :: nil)%list.
+  <->
+  (amount env = (0 ~Mutez) /\ ops = nil) \/
+  (amount env <> (0 ~Mutez) /\
+    exists ctr, contract_ env unit (source env) = Some ctr /\
+           ops = ((transfer_tokens env unit tt (amount env) ctr) :: nil)%list).
 Proof.
   intros ops fuel Hfuel.
   rewrite return_precond.
   unfold eval.
   rewrite eval_precond_correct.
   unfold ">=" in Hfuel.
-  do 10 (more_fuel ; simplify_instruction).
-  destruct (contract_ env unit (source env)).
-  (* Some *)
-  - split.
-    + intro H ; eexists ; intuition ; injection H ; intuition.
-    + intros (ctr, (He, Hops)). injection He ; intros Heq ; subst d. clear He. subst ops. reflexivity.
-  (* None *)
-  - simplify_instruction. split.
-    + intro H; inversion H.
-    + intros (ctr, (He, Hops)). discriminate.
+  do 8 (more_fuel ; simplify_instruction).
+  fold (compare mutez).
+  case_eq ((comparison_to_int (compare mutez (0 ~Mutez) (amount env)) =? 0)%Z).
+  - (* true *)
+    intro Heq.
+    rewrite eqb_eq in Heq.
+    do 1 (more_fuel ; simplify_instruction).
+    split.
+    + intro Hops.
+      injection Hops.
+      intro; subst ops.
+      intuition.
+    + intros [(Hl, Hops)|(Hr, _)].
+      * destruct Hl; congruence.
+      * symmetry in Heq.
+        contradiction.
+  - intro Hneq.
+    rewrite eqb_neq in Hneq.
+    do 7 (more_fuel ; simplify_instruction).
+    destruct (contract_ env unit (source env)).
+    + (* Some *)
+      split.
+      * intro H ; right; split.
+        -- congruence.
+        -- eexists ; intuition ; injection H.
+           symmetry; assumption.
+      * intros [(Habs, _)| (_, (ctr, (He, Hops)))].
+        -- congruence.
+        -- injection He; intro; subst d; subst ops; reflexivity.
+    + (* None *)
+      simplify_instruction. split.
+      * intro H; inversion H.
+      * intros [(Habs, _)|(ctr, (He, (Hops, _)))].
+        -- congruence.
+        -- discriminate.
 Qed.
 
 End return_to_sender.
