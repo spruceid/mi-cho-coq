@@ -9,6 +9,10 @@ bug-reports: "https://gitlab.com/nomadic-labs/mi-cho-coq/issues"
 license: "MIT"
 
 build: [ [ "./configure" ] [ make ] ]
-install: [ ]
-remove: [ ]
+install: [ make "install" ]
+remove: [
+  [ "./configure" ]
+  [ make "-C" "src/michocoq" "uninstall" ]
+  [ make "-C" "src/michocott" "uninstall" ]
+]
 depends: [ "coq" {>= "8.8"} "coq-ott" "ott" ]
