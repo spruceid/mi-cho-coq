@@ -148,4 +148,8 @@ Definition MAP_CDR {a b1 b2 S} (code : instr (b1 ::: pair a b1 ::: S) (b2 ::: pa
   instr (pair a b1 ::: S) (pair a b2 ::: S) :=
   DUP ;; CDR ;; code ;; SWAP ;; CAR ;; PAIR.
 
+
+Definition UNPAPAIR {a b c S} : instr (pair a (pair b c) :: S) (a ::: b ::: c ::: S) := UNPAIR ;; DIP UNPAIR.
+Definition PAPAIR {a b c S} : instr (a ::: b ::: c ::: S) (pair a (pair b c) :: S) := DIP PAIR;; PAIR.
+
 End macros.
