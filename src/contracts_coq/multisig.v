@@ -28,8 +28,6 @@ Require Import util.
 Import error.
 Require List.
 
-Print N.
-
 Section multisig.
 
 Definition action_ty := or (pair mutez (contract unit)) (or (option key_hash) (pair nat (list key))).
@@ -463,7 +461,7 @@ Definition multisig_iter :
   :=
   ITER multisig_iter_body.
 
-(* Apres l'execution sur la pile (keys, n, sigs, packed, st), on renvoie (nb_de_signatures_valides + n, signatures exedentaires, packed, st) *)
+(* Executing on stack (keys, n, sigs, packed, st) returns (nb_valid_sigs + n, nb_excess_sigs, packed, st) *)
 (* Invariant: all_keys = verified_keys @ remaining *)
 
 Lemma multisig_iter_correct keys n sigs packed
