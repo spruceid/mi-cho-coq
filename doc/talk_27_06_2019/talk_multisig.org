@@ -1,6 +1,6 @@
 * Options                                                         :noexport:
 #+OPTIONS: H:2 texht:t toc:nil
-#+DATE: Semverif, Irif \newline May 20, 2019
+#+DATE: Chain Accelerator Training Tezos Certification \newline June 27, 2019
 #+Title: Formal Methods for Michelson
 #+Author:Raphaël Cauderlier
 #+LaTeX_Header: \institute{Nomadic Labs}
