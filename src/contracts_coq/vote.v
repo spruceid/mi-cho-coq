@@ -31,7 +31,7 @@ Require map.
 Definition parameter_ty : type := string.
 Definition storage_ty := map string int.
 
-Module ST : (syntax.SelfType with Definition self_type := parameter_ty).
+Module ST : (SelfType with Definition self_type := parameter_ty).
   Definition self_type := parameter_ty.
 End ST.
 
@@ -39,7 +39,7 @@ Module vote(C:ContractContext)(E:Env ST C).
 
 Module semantics := Semantics ST C E. Import semantics.
 
-Definition vote : full_contract storage_ty :=
+Definition vote : full_contract _ ST.self_type storage_ty :=
   (
     AMOUNT ;;
     PUSH mutez (5000000 ~mutez);;
@@ -60,7 +60,7 @@ Definition vote_spec
            (returned_operations : data (list operation)) :=
   (* Preconditions *)
   (Z.ge (tez.to_Z (amount env)) 5000000) /\
-  mem string _ (Mem_variant_map _ int) param storage /\
+  mem _ _ (Mem_variant_map _ int) param storage /\
   (* Postconditions *)
   (forall s, (mem _ _ (Mem_variant_map _ int) s storage) <->
         (mem _ _ (Mem_variant_map _ int) s new_storage)) /\
@@ -86,7 +86,7 @@ Theorem vote_correct
       (returned_operations : data (list operation))
       (fuel : Datatypes.nat) :
   fuel >= 42 ->
-  eval vote fuel ((param, storage), tt) = Return _ ((returned_operations, new_storage), tt)
+  eval env vote fuel ((param, storage), tt) = Return _ ((returned_operations, new_storage), tt)
   <-> vote_spec storage param new_storage returned_operations.
 Proof.
   intro Hfuel. unfold ">=" in Hfuel.
@@ -160,8 +160,9 @@ Proof.
           rewrite mapget2. reflexivity. intro contra. subst; contradiction.
           exact I. }
       * (* <- *)
+        repeat simplify_instruction.
         destruct H as [H1 [H2 [H3 [H4 [H5 H6]]]]].
-        f_equal. f_equal. symmetry. assumption.
+        f_equal. f_equal. symmetry. simpl. assumption.
         symmetry. rewrite map.map_updateSome_spec. split. 
         clear H6. unfold get, semantics.get in H5; simpl in H5.
         destruct (map.get str Z string_compare param storage);

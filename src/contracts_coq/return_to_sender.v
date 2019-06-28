@@ -39,7 +39,7 @@ Module return_to_sender(C:ContractContext)(E:Env ST C).
 
 Module semantics := Semantics ST C E. Import semantics.
 
-Definition return_to_sender : full_contract storage_ty :=
+Definition return_to_sender : full_contract _ ST.self_type storage_ty :=
   (
     CDR ;;
     NIL operation ;;
@@ -83,7 +83,7 @@ Qed.
 Lemma return_to_sender_correct :
   forall (ops : data (list operation)) (fuel : Datatypes.nat),
   fuel >= 42 ->
-  eval return_to_sender fuel ((tt, tt), tt) = Return _ ((ops, tt), tt)
+  eval env return_to_sender fuel ((tt, tt), tt) = Return _ ((ops, tt), tt)
   <->
   (amount env = (0 ~Mutez) /\ ops = nil) \/
   (amount env <> (0 ~Mutez) /\
@@ -109,7 +109,8 @@ Proof.
       intro; subst ops.
       intuition.
     + intros [(Hl, Hops)|(Hr, _)].
-      * destruct Hl; congruence.
+      * simplify_instruction.
+        subst; reflexivity.
       * symmetry in Heq.
         contradiction.
   - intro Hneq.

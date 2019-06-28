@@ -55,7 +55,7 @@ Module Type PARSEDSELFTYPE.
   Parameter success_storage : error.Is_true (error.success (get_storage_type_from_string fuel input)).
 End PARSEDSELFTYPE.
 
-Module Type PARSEDFILE <: syntax.SelfType.
+Module Type PARSEDFILE <: semantics.SelfType.
   Parameter file_object : error.M micheline2michelson.untyped_michelson_file.
   Parameter self_type : type.
   Parameter storage_type : type.
@@ -79,8 +79,8 @@ Module Main(ST : PARSEDFILE).
       Datatypes.option type := None.
   End ContractContext.
 
-  Module syntax := syntax.Syntax(ST)(ContractContext).
-  Module typer := typer.Typer(ST)(ContractContext).
+  Module syntax := syntax.Syntax(ContractContext).
+  Module typer := typer.Typer(ContractContext).
   Import typer. Import syntax.
 
   Definition full_contract := syntax.full_contract.
@@ -91,7 +91,7 @@ Module Main(ST : PARSEDFILE).
       ST.file_object.
 
   Definition lex_and_parse_and_expand_and_type_full_contract
-    : error.M (syntax.full_contract ST.storage_type) :=
+    : error.M (syntax.full_contract ST.self_type ST.storage_type) :=
          error.bind
            (fun i =>
               typer.type_check_instruction_no_tail_fail typer.type_instruction i _ _)
@@ -100,26 +100,6 @@ Module Main(ST : PARSEDFILE).
   Definition type_check : Datatypes.bool := error.success lex_and_parse_and_expand_and_type_full_contract.
 
 End Main.
-
-
-Module TestParsedSelfType <: PARSEDSELFTYPE.
-  Definition input : String.string :=
-    "parameter string;
-storage string;
-code {CAR; NIL operation; PAIR}".
-  Definition fuel := 60.
-  Definition success_param := I.
-  Definition success_storage := I.
-End TestParsedSelfType.
-
-Module TestSelfType := ParsedFile TestParsedSelfType.
-Eval compute in TestSelfType.file_object.
-Module TestMain := Main TestSelfType.
-Eval compute in TestMain.code_M.
-Eval compute in TestMain.lex_and_parse_and_expand_and_type_full_contract.
-Check (I : Bool.Is_true TestMain.type_check).
-
-
 
 Module MultisigParsedSelfType <: PARSEDSELFTYPE.
   Definition input : String.string :=
@@ -211,14 +191,6 @@ code
 
   Definition fuel := 600.
 
-  Definition lexed := Eval compute in error.extract (micheline_lexer.lex_micheline_to_parser input) I.
-  Definition parsed := Eval compute in error.extract (wrap_parser_result (micheline_parser.seq_file fuel lexed)) I.
-
-
-  Print parsed.
-  Definition file_object := Eval compute in get_file_object_from_string fuel input.
-  Print file_object.
-
   Definition success_param := I.
   Definition success_storage := I.
 End MultisigParsedSelfType.
@@ -226,6 +198,5 @@ End MultisigParsedSelfType.
 Module MultisigParsedFile := ParsedFile MultisigParsedSelfType.
 Module MultisigMain := Main MultisigParsedFile.
 
-Eval compute in MultisigMain.lex_and_parse_and_expand_and_type_full_contract.
-
-Check (I : Bool.Is_true MultisigMain.type_check).
+Lemma multisig_type_check : Bool.Is_true MultisigMain.type_check.
+Proof. exact I. Qed.

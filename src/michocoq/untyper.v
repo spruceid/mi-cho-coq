@@ -7,10 +7,10 @@ Require Eqdep_dec.
 (* Not really needed but eases reading of proof states. *)
 Require Import String.
 
-Module Untyper(ST: SelfType)(C:ContractContext).
+Module Untyper(C:ContractContext).
 
-  Module syntax := Syntax ST C.
-  Module typer := typer.Typer ST C.
+  Module syntax := Syntax C.
+  Module typer := typer.Typer C.
   Import typer. Import syntax. Import untyped_syntax.
 
 
@@ -45,7 +45,7 @@ Module Untyper(ST: SelfType)(C:ContractContext).
     | syntax.Chain_id_constant (Mk_chain_id c) => String_constant c
     end
   with
-  untype_instruction {tff0 A B} (i : syntax.instruction tff0 A B) : instruction :=
+  untype_instruction {self_type tff0 A B} (i : syntax.instruction self_type tff0 A B) : instruction :=
     match i with
     | syntax.NOOP => NOOP
     | syntax.FAILWITH => FAILWITH
@@ -153,132 +153,132 @@ Module Untyper(ST: SelfType)(C:ContractContext).
       try (right; intro contra; discriminate contra).
   Qed.
 
-  Fixpoint tail_fail_induction A B (i : syntax.instruction true A B)
-        (P : forall A B, syntax.instruction true A B -> Type)
-        (HFAILWITH : forall a A B, P (a ::: A) B syntax.FAILWITH)
-        (HSEQ : forall A B C i1 i2,
-            P B C i2 ->
-            P A C (i1;; i2))
-        (HIF : forall A B i1 i2,
-            P A B i1 ->
-            P A B i2 ->
-            P (bool ::: A) B (syntax.IF_ i1 i2))
-        (HIF_NONE : forall a A B i1 i2,
-            P A B i1 ->
-            P (a ::: A) B i2 ->
-            P (option a ::: A) B (syntax.IF_NONE i1 i2))
-        (HIF_LEFT : forall a b A B i1 i2,
-            P (a ::: A) B i1 ->
-            P (b ::: A) B i2 ->
-            P (or a b ::: A) B (syntax.IF_LEFT i1 i2))
-        (HIF_RIGHT : forall a b A B i1 i2,
-            P (b ::: A) B i1 ->
-            P (a ::: A) B i2 ->
-            P (or a b ::: A) B (syntax.IF_RIGHT i1 i2))
-        (HIF_CONS : forall a A B i1 i2,
-            P (a ::: list a ::: A) B i1 ->
-            P A B i2 ->
-            P (list a ::: A) B (syntax.IF_CONS i1 i2))
-    : P A B i :=
-    let P' b A B : syntax.instruction b A B -> Type :=
-        if b return syntax.instruction b A B -> Type
-        then P A B
+  Fixpoint tail_fail_induction self_type A B (i : syntax.instruction self_type true A B)
+        (P : forall self_type A B, syntax.instruction self_type true A B -> Type)
+        (HFAILWITH : forall st a A B, P st (a ::: A) B syntax.FAILWITH)
+        (HSEQ : forall st A B C i1 i2,
+            P st B C i2 ->
+            P st A C (i1;; i2))
+        (HIF : forall st A B i1 i2,
+            P st A B i1 ->
+            P st A B i2 ->
+            P st (bool ::: A) B (syntax.IF_ i1 i2))
+        (HIF_NONE : forall st a A B i1 i2,
+            P st A B i1 ->
+            P st (a ::: A) B i2 ->
+            P st (option a ::: A) B (syntax.IF_NONE i1 i2))
+        (HIF_LEFT : forall st a b A B i1 i2,
+            P st (a ::: A) B i1 ->
+            P st (b ::: A) B i2 ->
+            P st (or a b ::: A) B (syntax.IF_LEFT i1 i2))
+        (HIF_RIGHT : forall st a b A B i1 i2,
+            P st (b ::: A) B i1 ->
+            P st (a ::: A) B i2 ->
+            P st (or a b ::: A) B (syntax.IF_RIGHT i1 i2))
+        (HIF_CONS : forall st a A B i1 i2,
+            P st (a ::: list a ::: A) B i1 ->
+            P st A B i2 ->
+            P st (list a ::: A) B (syntax.IF_CONS i1 i2))
+    : P self_type A B i :=
+    let P' st b A B : syntax.instruction st b A B -> Type :=
+        if b return syntax.instruction st b A B -> Type
+        then P st A B
         else fun i => True
     in
-    match i as i0 in syntax.instruction b A B return P' b A B i0
+    match i as i0 in syntax.instruction st b A B return P' st b A B i0
     with
-    | syntax.FAILWITH => HFAILWITH _ _ _
-    | @syntax.SEQ A B C tff i1 i2 =>
+    | syntax.FAILWITH => HFAILWITH _ _ _ _
+    | @syntax.SEQ _ A B C tff i1 i2 =>
       (if tff return
-          forall i2 : syntax.instruction tff B C,
-            P' tff A C (syntax.SEQ i1 i2)
+          forall i2 : syntax.instruction _ tff B C,
+            P' _ tff A C (syntax.SEQ i1 i2)
        then
          fun i2 =>
-           HSEQ _ _ _ i1 i2
-                (tail_fail_induction B C i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
+           HSEQ _ _ _ _ i1 i2
+                (tail_fail_induction _ B C i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
        else fun i2 => I)
         i2
-    | @syntax.IF_ A B tffa tffb i1 i2 =>
+    | @syntax.IF_ _ A B tffa tffb i1 i2 =>
       (if tffa as tffa return
-          forall i1, P' (tffa && tffb)%bool _ _ (syntax.IF_ i1 i2)
+          forall i1, P' _ (tffa && tffb)%bool _ _ (syntax.IF_ i1 i2)
        then
          fun i1 =>
            (if tffb return
                forall i2,
-                 P' tffb _ _ (syntax.IF_ i1 i2)
+                 P' _ tffb _ _ (syntax.IF_ i1 i2)
             then
               fun i2 =>
-                HIF _ _ i1 i2
-                    (tail_fail_induction _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
-                    (tail_fail_induction _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
+                HIF _ _ _ i1 i2
+                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
+                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
             else
               fun _ => I) i2
        else
          fun _ => I) i1
-    | @syntax.IF_NONE a A B tffa tffb i1 i2 =>
+    | @syntax.IF_NONE _ a A B tffa tffb i1 i2 =>
       (if tffa as tffa return
-          forall i1, P' (tffa && tffb)%bool _ _ (syntax.IF_NONE i1 i2)
+          forall i1, P' _ (tffa && tffb)%bool _ _ (syntax.IF_NONE i1 i2)
        then
          fun i1 =>
            (if tffb return
                forall i2,
-                 P' tffb _ _ (syntax.IF_NONE i1 i2)
+                 P' _ tffb _ _ (syntax.IF_NONE i1 i2)
             then
               fun i2 =>
-                HIF_NONE _ _ _ i1 i2
-                    (tail_fail_induction _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
-                    (tail_fail_induction _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
+                HIF_NONE _ _ _ _ i1 i2
+                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
+                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
             else
               fun _ => I) i2
        else
          fun _ => I) i1
-    | @syntax.IF_LEFT a b A B tffa tffb i1 i2 =>
+    | @syntax.IF_LEFT _ a b A B tffa tffb i1 i2 =>
       (if tffa as tffa return
-          forall i1, P' (tffa && tffb)%bool _ _ (syntax.IF_LEFT i1 i2)
+          forall i1, P' _ (tffa && tffb)%bool _ _ (syntax.IF_LEFT i1 i2)
        then
          fun i1 =>
            (if tffb return
                forall i2,
-                 P' tffb _ _ (syntax.IF_LEFT i1 i2)
+                 P' _ tffb _ _ (syntax.IF_LEFT i1 i2)
             then
               fun i2 =>
-                HIF_LEFT _ _ _ _ i1 i2
-                    (tail_fail_induction _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
-                    (tail_fail_induction _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
+                HIF_LEFT _ _ _ _ _ i1 i2
+                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
+                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
             else
               fun _ => I) i2
        else
          fun _ => I) i1
-    | @syntax.IF_RIGHT a b A B tffa tffb i1 i2 =>
+    | @syntax.IF_RIGHT _ a b A B tffa tffb i1 i2 =>
       (if tffa as tffa return
-          forall i1, P' (tffa && tffb)%bool _ _ (syntax.IF_RIGHT i1 i2)
+          forall i1, P' _ (tffa && tffb)%bool _ _ (syntax.IF_RIGHT i1 i2)
        then
          fun i1 =>
            (if tffb return
                forall i2,
-                 P' tffb _ _ (syntax.IF_RIGHT i1 i2)
+                 P' _ tffb _ _ (syntax.IF_RIGHT i1 i2)
             then
               fun i2 =>
-                HIF_RIGHT _ _ _ _ i1 i2
-                    (tail_fail_induction _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
-                    (tail_fail_induction _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
+                HIF_RIGHT _ _ _ _ _ i1 i2
+                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
+                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
             else
               fun _ => I) i2
        else
          fun _ => I) i1
-    | @syntax.IF_CONS a A B tffa tffb i1 i2 =>
+    | @syntax.IF_CONS _ a A B tffa tffb i1 i2 =>
       (if tffa as tffa return
-          forall i1, P' (tffa && tffb)%bool _ _ (syntax.IF_CONS i1 i2)
+          forall i1, P' _ (tffa && tffb)%bool _ _ (syntax.IF_CONS i1 i2)
        then
          fun i1 =>
            (if tffb return
                forall i2,
-                 P' tffb _ _ (syntax.IF_CONS i1 i2)
+                 P' _ tffb _ _ (syntax.IF_CONS i1 i2)
             then
               fun i2 =>
-                HIF_CONS _ _ _ i1 i2
-                    (tail_fail_induction _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
-                    (tail_fail_induction _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
+                HIF_CONS _ _ _ _ i1 i2
+                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
+                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
             else
               fun _ => I) i2
        else
@@ -306,44 +306,44 @@ Module Untyper(ST: SelfType)(C:ContractContext).
     f_equal; apply bool_dec_same.
   Qed.
 
-  Definition tail_fail_change_range A B B' (i : syntax.instruction true A B) :
-    syntax.instruction true A B'.
+  Definition tail_fail_change_range {self_type} A B B' (i : syntax.instruction self_type true A B) :
+    syntax.instruction self_type true A B'.
   Proof.
-    apply (tail_fail_induction A B i (fun A B i => syntax.instruction true A B')); clear A B i.
-    - intros a A _.
+    apply (tail_fail_induction self_type A B i (fun self_type A B i => syntax.instruction self_type true A B')); clear A B i.
+    - intros st a A _.
       apply syntax.FAILWITH.
-    - intros A B C i1 _ i2.
+    - intros st A B C i1 _ i2.
       apply (syntax.SEQ i1 i2).
-    - intros A B _ _ i1 i2.
+    - intros st A B _ _ i1 i2.
       apply (syntax.IF_ i1 i2).
-    - intros a A B _ _ i1 i2.
+    - intros st a A B _ _ i1 i2.
       apply (syntax.IF_NONE i1 i2).
-    - intros a b A B _ _ i1 i2.
+    - intros st a b A B _ _ i1 i2.
       apply (syntax.IF_LEFT i1 i2).
-    - intros a b A B _ _ i1 i2.
+    - intros st a b A B _ _ i1 i2.
       apply (syntax.IF_RIGHT i1 i2).
-    - intros a A B _ _ i1 i2.
+    - intros st a A B _ _ i1 i2.
       apply (syntax.IF_CONS i1 i2).
   Defined.
 
 
-  Lemma tail_fail_change_range_same A B (i : syntax.instruction true A B) :
+  Lemma tail_fail_change_range_same {self_type} A B (i : syntax.instruction self_type true A B) :
     tail_fail_change_range A B B i = i.
   Proof.
-    apply (tail_fail_induction A B i); clear A B i;
+    apply (tail_fail_induction _ A B i); clear A B i;
       intros; unfold tail_fail_change_range; simpl; f_equal; assumption.
   Qed.
 
-  Definition untype_type_spec tffi A B (i : syntax.instruction tffi A B) :=
+  Definition untype_type_spec {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :=
     typer.type_instruction (untype_instruction i) A =
-    Return _ ((if tffi return syntax.instruction tffi A B -> typer.typer_result A
+    Return _ ((if tffi return syntax.instruction self_type tffi A B -> typer.typer_result A
                then
                  fun i =>
                    typer.Any_type _ (fun B' => tail_fail_change_range A B B' i)
                else
                  typer.Inferred_type _ B) i).
 
-  Lemma instruction_cast_same tffi A B (i : syntax.instruction tffi A B) :
+  Lemma instruction_cast_same {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :
     typer.instruction_cast A A B B i = Return _ i.
   Proof.
     unfold typer.instruction_cast.
@@ -352,19 +352,19 @@ Module Untyper(ST: SelfType)(C:ContractContext).
     reflexivity.
   Qed.
 
-  Lemma instruction_cast_range_same tffi A B (i : syntax.instruction tffi A B) :
+  Lemma instruction_cast_range_same {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :
     typer.instruction_cast_range A B B i = Return _ i.
   Proof.
     apply instruction_cast_same.
   Qed.
 
-  Lemma instruction_cast_domain_same tffi A B (i : syntax.instruction tffi A B) :
+  Lemma instruction_cast_domain_same {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :
     typer.instruction_cast_domain A A B i = Return _ i.
   Proof.
     apply instruction_cast_same.
   Qed.
 
-  Lemma untype_type_check_instruction tffi A B (i : syntax.instruction tffi A B) :
+  Lemma untype_type_check_instruction {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :
     untype_type_spec _ _ _ i ->
     typer.type_check_instruction typer.type_instruction (untype_instruction i) A B =
     Return _ (existT _ tffi i).
@@ -380,7 +380,7 @@ Module Untyper(ST: SelfType)(C:ContractContext).
       reflexivity.
   Qed.
 
-  Lemma untype_type_check_instruction_no_tail_fail A B (i : syntax.instruction false A B) :
+  Lemma untype_type_check_instruction_no_tail_fail {self_type} A B (i : syntax.instruction self_type false A B) :
     untype_type_spec _ _ _ i ->
     typer.type_check_instruction_no_tail_fail typer.type_instruction (untype_instruction i) A B =
     Return _ i.
@@ -392,7 +392,7 @@ Module Untyper(ST: SelfType)(C:ContractContext).
     apply instruction_cast_range_same.
   Qed.
 
-  Lemma untype_type_instruction_no_tail_fail A B (i : syntax.instruction false A B) :
+  Lemma untype_type_instruction_no_tail_fail {self_type} A B (i : syntax.instruction self_type false A B) :
     untype_type_spec _ _ _ i ->
     typer.type_instruction_no_tail_fail typer.type_instruction (untype_instruction i) A = Return _ (existT _ _ i).
   Proof.
@@ -409,10 +409,10 @@ Module Untyper(ST: SelfType)(C:ContractContext).
   | IF_RIGHT_i a b A : IF_instruction (b ::: A) (a ::: A) (or a b ::: A)
   | IF_CONS_i a A : IF_instruction (a ::: list a ::: A) A (list a ::: A).
 
-  Definition IF_instruction_to_instruction A1 A2 A (IFi : IF_instruction A1 A2 A) :
+  Definition IF_instruction_to_instruction {self_type} A1 A2 A (IFi : IF_instruction A1 A2 A) :
     forall B tffa tffb,
-      syntax.instruction tffa A1 B ->
-      syntax.instruction tffb A2 B -> syntax.instruction (tffa && tffb) A B :=
+      syntax.instruction self_type tffa A1 B ->
+      syntax.instruction self_type tffb A2 B -> syntax.instruction self_type (tffa && tffb) A B :=
     match IFi with
     | IF_i A => fun B ttffa tffb i1 i2 => syntax.IF_ i1 i2
     | IF_NONE_i a A => fun B ttffa tffb i1 i2 => syntax.IF_NONE i1 i2
@@ -421,9 +421,9 @@ Module Untyper(ST: SelfType)(C:ContractContext).
     | IF_CONS_i a A => fun B ttffa tffb i1 i2 => syntax.IF_CONS i1 i2
     end.
 
-  Lemma untype_type_branches tff1 tff2 A1 A2 A B
-        (i1 : syntax.instruction tff1 A1 B)
-        (i2 : syntax.instruction tff2 A2 B) IF_instr :
+  Lemma untype_type_branches {self_type} tff1 tff2 A1 A2 A B
+        (i1 : syntax.instruction self_type tff1 A1 B)
+        (i2 : syntax.instruction self_type tff2 A2 B) IF_instr :
     untype_type_spec _ _ _ i1 ->
     untype_type_spec _ _ _ i2 ->
     typer.type_branches typer.type_instruction
@@ -431,7 +431,7 @@ Module Untyper(ST: SelfType)(C:ContractContext).
                         (untype_instruction i2)
                         A1 A2 A (IF_instruction_to_instruction A1 A2 A IF_instr) =
     Return _ ((if (tff1 && tff2)%bool
-                 as b return syntax.instruction b A B -> typer.typer_result A
+                 as b return syntax.instruction self_type b A B -> typer.typer_result A
                then
                  fun i =>
                    typer.Any_type _ (fun B' => tail_fail_change_range A B B' i)
@@ -475,7 +475,7 @@ Module Untyper(ST: SelfType)(C:ContractContext).
   Fixpoint untype_type_data a (d : syntax.concrete_data a) :
     typer.type_data (untype_data d) a = Return _ d
   with
-  untype_type_instruction tffi A B (i : syntax.instruction tffi A B) :
+  untype_type_instruction {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :
     untype_type_spec _ _ _ i.
   Proof.
     - destruct d; try reflexivity.
@@ -600,14 +600,7 @@ Module Untyper(ST: SelfType)(C:ContractContext).
                           (type_data_map (List.map (fun '(syntax.Elt _ _ x y) => Elt (untype_data x) (untype_data y)) l))).
           rewrite H.
           reflexivity.
-      + trans_refl
-          (bind
-             (fun '(existT _ tff i) => Return _ (syntax.Instruction _ (i : syntax.instruction _ _ _)))
-             (typer.type_check_instruction
-                typer.type_instruction
-                (untype_instruction i0)
-                (cons a nil)
-                (cons b nil))).
+      + simpl.
         rewrite untype_type_check_instruction; auto.
       + simpl.
         destruct c.
@@ -619,7 +612,7 @@ Module Untyper(ST: SelfType)(C:ContractContext).
                    bind (fun r2 =>
                            match r2 with
                            | typer.Inferred_type _ C i2 =>
-                             Return _ (typer.Inferred_type _ _ (syntax.SEQ (i1 : syntax.instruction _ _ _) i2))
+                             Return _ (typer.Inferred_type _ _ (syntax.SEQ (i1 : syntax.instruction self_type _ _ _) i2))
                            | typer.Any_type _ i2 =>
                              Return _ (typer.Any_type _ (fun C => syntax.SEQ i1 (i2 C)))
                            end)
@@ -631,20 +624,21 @@ Module Untyper(ST: SelfType)(C:ContractContext).
           rewrite untype_type_instruction.
           destruct tff0; reflexivity.
         * auto.
-      + trans_refl
-          (@typer.type_branches
+      + simpl.
+        trans_refl
+          (@typer.type_branches self_type
              typer.type_instruction
              (untype_instruction i1)
              (untype_instruction i2) _ _ _
              (IF_instruction_to_instruction _ _ _ (IF_i A))).
         rewrite untype_type_branches; auto.
       + trans_refl
-          (bind (fun i => Return _ (@typer.Inferred_type _ _ (syntax.LOOP i)))
+          (bind (fun i => Return _ (@typer.Inferred_type self_type _ _ (syntax.LOOP i)))
            (typer.type_check_instruction_no_tail_fail
               typer.type_instruction (untype_instruction i0) A (bool ::: A))).
         rewrite untype_type_check_instruction_no_tail_fail; auto.
       + trans_refl
-          (bind (fun i => Return _ (@typer.Inferred_type _ _ (syntax.LOOP_LEFT i)))
+          (bind (fun i => Return _ (@typer.Inferred_type self_type _ _ (syntax.LOOP_LEFT i)))
            (typer.type_check_instruction_no_tail_fail
               typer.type_instruction (untype_instruction i0) _ (or a b ::: A))).
         rewrite untype_type_check_instruction_no_tail_fail; auto.
@@ -659,9 +653,9 @@ Module Untyper(ST: SelfType)(C:ContractContext).
                    (if b return is_packable a = b -> _
                     then fun i =>
                            bind (fun i => Return _ (Inferred_type _ _ i))
-                                (instruction_cast_domain A A _ (@syntax.APPLY _ _ _ _ (IT_eq_rev _ i)))
+                                (instruction_cast_domain A A _ (@syntax.APPLY self_type _ _ _ _ (IT_eq_rev _ i)))
                     else fun _ => Failed _ (Typing _ "APPLY"%string)) i1
-                   = Return _ (Inferred_type A _ (@syntax.APPLY _ _ _ _ i0))).
+                   = Return _ (Inferred_type A _ (@syntax.APPLY _ _ _ _ _ i0))).
         * intros b0 i1.
           destruct b0.
           -- rewrite instruction_cast_domain_same.
@@ -673,13 +667,13 @@ Module Untyper(ST: SelfType)(C:ContractContext).
              exact i0.
         * apply H.
       + trans_refl
-          (bind (fun d => Return _ (@typer.Inferred_type A _ (syntax.PUSH a d)))
+          (bind (fun d => Return _ (@typer.Inferred_type self_type A _ (syntax.PUSH a d)))
                 (typer.type_data (untype_data x) a)).
         rewrite untype_type_data.
         reflexivity.
       + trans_refl
           (bind (fun '(existT _ tff i) =>
-                   Return _ (@typer.Inferred_type _ (lambda a b ::: A) (syntax.LAMBDA a b i)))
+                   Return _ (@typer.Inferred_type self_type _ (lambda a b ::: A) (syntax.LAMBDA a b i)))
                 (typer.type_check_instruction
                    typer.type_instruction (untype_instruction i0) (a :: nil) (b :: nil))).
         rewrite untype_type_check_instruction; auto.
@@ -692,183 +686,103 @@ Module Untyper(ST: SelfType)(C:ContractContext).
       + destruct s as [c v]; destruct v; reflexivity.
       + destruct s as [c v]; destruct v; reflexivity.
       + destruct s as [c d v]; destruct v; reflexivity.
-      + trans_refl (type_instruction (untype_instruction (syntax.COMPARE (a := a) (S := S))) (a ::: a ::: S)).
-        destruct a.
-        * simpl.
-          rewrite instruction_cast_domain_same.
+      + unfold untype_type_spec.
+        simpl.
+        rewrite as_comparable_comparable.
+        destruct a; simpl.
+        * rewrite instruction_cast_domain_same.
           reflexivity.
-        * simpl.
-          repeat rewrite as_comparable_comparable.
-          simpl.
-          rewrite instruction_cast_domain_same.
+        * rewrite instruction_cast_domain_same.
           simpl.
           reflexivity.
       + destruct i0 as [v]; destruct v; reflexivity.
       + destruct i0 as [v]; destruct v; reflexivity.
       + destruct i0 as [v]; destruct v; reflexivity.
       + destruct i0 as [v]; destruct v.
-        * trans_refl
-            (let A := a ::: set a ::: S in
-             bind (fun i => Return _ (@typer.Inferred_type _ _ i))
-                  (typer.instruction_cast_domain
-                     A A _ (@syntax.MEM _ _ (mem_set a) _))).
-          simpl.
+        * unfold untype_type_spec; simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
-        * trans_refl
-            (let A := key ::: map key val ::: S in
-             bind (fun i => Return _ (@typer.Inferred_type _ _ i))
-                  (typer.instruction_cast_domain
-                     A A _ (@syntax.MEM _ _ (mem_map key val) _))).
-          simpl.
+        * unfold untype_type_spec; simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
-        * trans_refl
-            (let A := key ::: big_map key val ::: S in
-             bind (fun i => Return _ (@typer.Inferred_type _ _ i))
-                  (typer.instruction_cast_domain
-                     A A _ (@syntax.MEM _ _ (mem_bigmap key val) _))).
-          simpl.
+        * unfold untype_type_spec; simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
       + destruct i0 as [v]; destruct v.
-        * trans_refl
-          (let A := a ::: bool ::: set a :: S in
-           bind (fun i => Return _ (typer.Inferred_type _ _ i))
-                (typer.instruction_cast_domain
-                   A A _ (@syntax.UPDATE _ _ _ (update_set a) _))).
-          simpl.
+        * unfold untype_type_spec; simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
-        * trans_refl
-            (let A := key ::: option val ::: map key val :: S in
-             bind (fun i => Return _ (typer.Inferred_type _ _ i))
-                  (typer.instruction_cast_domain
-                     A A _ (@syntax.UPDATE _ _ _ (update_map key val) _))).
-          simpl.
+        * unfold untype_type_spec; simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
-        * trans_refl
-            (let A := key ::: option val ::: big_map key val :: S in
-             bind (fun i => Return _ (typer.Inferred_type _ _ i))
-                  (typer.instruction_cast_domain
-                     A A _ (@syntax.UPDATE _ _ _ (update_bigmap key val) _))).
-          simpl.
+        * unfold untype_type_spec; simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
       + destruct i0 as [c v]; destruct v.
-        * trans_refl
-            (bind (fun i => Return _ (@typer.Inferred_type _ _ (syntax.ITER i)))
-                  (typer.type_check_instruction_no_tail_fail typer.type_instruction (untype_instruction i1) (a ::: A) A)).
+        * unfold untype_type_spec; simpl.
           rewrite untype_type_check_instruction_no_tail_fail; auto.
-        * trans_refl
-            (bind (fun i => Return _ (@typer.Inferred_type _ _ (syntax.ITER i)))
-                  (typer.type_check_instruction_no_tail_fail typer.type_instruction (untype_instruction i1) (pair key val :: A) A)).
+        * unfold untype_type_spec; simpl.
           rewrite untype_type_check_instruction_no_tail_fail; auto.
-        * trans_refl
-            (bind (fun i => Return _ (@typer.Inferred_type _ _ (syntax.ITER i)))
-                  (typer.type_check_instruction_no_tail_fail typer.type_instruction (untype_instruction i1) (a :: A) A)).
+        * unfold untype_type_spec; simpl.
           rewrite untype_type_check_instruction_no_tail_fail; auto.
       + destruct i0 as [c v]; destruct v.
-        * trans_refl
-            (let A := key ::: map key val :: S in
-             bind (fun i => Return _ (typer.Inferred_type _ _ i))
-                  (typer.instruction_cast_domain
-                     A A _ (@syntax.GET _ _ (get_map key val) _))).
-          simpl.
+        * unfold untype_type_spec; simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
-        * trans_refl
-            (let A := key ::: big_map key val :: S in
-             bind (fun i => Return _ (typer.Inferred_type _ _ i))
-                  (typer.instruction_cast_domain
-                     A A _ (@syntax.GET _ _ (get_bigmap key val) _))).
-          simpl.
+        * unfold untype_type_spec; simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
       + destruct i0 as [a c v]; destruct v.
-        * trans_refl
-            (bind (fun r =>
-                     match r with
-                     | existT _ (b :: A') i =>
-                       bind (fun i => Return _ (@typer.Inferred_type _ _ (syntax.MAP i)))
-                            (typer.instruction_cast_range (pair key val :: A) (b :: A') (b :: A) i)
-                     | _ => Failed _ (Typing _ tt)
-                     end)
-                  (typer.type_instruction_no_tail_fail typer.type_instruction (untype_instruction i1) (pair key val ::: A))).
+        * unfold untype_type_spec; simpl.
           rewrite untype_type_instruction_no_tail_fail.
           -- simpl.
              rewrite instruction_cast_range_same.
              reflexivity.
           -- auto.
-        * trans_refl
-            (bind (fun r =>
-              match r with
-              | existT _ (b :: A') i =>
-                bind (fun i => Return _ (@typer.Inferred_type _ _ (syntax.MAP i)))
-                     (typer.instruction_cast_range (a :: A) (b :: A') (b :: A) i)
-              | _ => Failed _ (Typing _ tt)
-              end)
-                  (typer.type_instruction_no_tail_fail typer.type_instruction (untype_instruction i1) (a :: A))).
+        * unfold untype_type_spec; simpl.
           rewrite untype_type_instruction_no_tail_fail.
           -- simpl.
              rewrite instruction_cast_range_same.
              reflexivity.
           -- auto.
       + trans_refl
-          (@typer.type_branches
+          (@typer.type_branches self_type
              typer.type_instruction
              (untype_instruction i1)
              (untype_instruction i2) _ _ _
              (IF_instruction_to_instruction _ _ _ (IF_NONE_i a A))).
         rewrite untype_type_branches; auto.
       + trans_refl
-          (@typer.type_branches
+          (@typer.type_branches self_type
              typer.type_instruction
              (untype_instruction i1)
              (untype_instruction i2) _ _ _
              (IF_instruction_to_instruction _ _ _ (IF_LEFT_i a b A))).
         rewrite untype_type_branches; auto.
       + trans_refl
-          (@typer.type_branches
+          (@typer.type_branches self_type
              typer.type_instruction
              (untype_instruction i1)
              (untype_instruction i2) _ _ _
              (IF_instruction_to_instruction _ _ _ (IF_RIGHT_i a b A))).
         rewrite untype_type_branches; auto.
-      + trans_refl
-          (let A := a :: list a :: S in
-           bind (fun i => Return _ (@typer.Inferred_type _ _ i))
-                (typer.instruction_cast_domain A A _ (syntax.CONS))).
-        simpl.
+      + unfold untype_type_spec; simpl.
         rewrite instruction_cast_domain_same.
         reflexivity.
       + trans_refl
-          (@typer.type_branches
+          (@typer.type_branches self_type
              typer.type_instruction
              (untype_instruction i1)
              (untype_instruction i2) _ _ _
              (IF_instruction_to_instruction _ _ _ (IF_CONS_i a A))).
         rewrite untype_type_branches; auto.
-      + trans_refl
-          (let A := option key_hash ::: mutez ::: g ::: S in
-           bind (fun '(existT _ tff i) =>
-                   bind (fun i => Return _ (@typer.Inferred_type _ _ i))
-                        (typer.instruction_cast_domain
-                           A A _
-                           (syntax.CREATE_CONTRACT g p i)))
-                (typer.type_check_instruction typer.type_instruction (untype_instruction i0) (pair p g :: nil) (pair (list operation) g :: nil))).
-        simpl.
+      + unfold untype_type_spec; simpl.
         rewrite untype_type_check_instruction.
         -- simpl.
            rewrite instruction_cast_domain_same.
            reflexivity.
         -- auto.
-      + trans_refl
-          (let A := p ::: mutez ::: contract p ::: S in
-           bind (fun i => Return _ (@typer.Inferred_type _ _ i))
-                (typer.instruction_cast_domain A A _ syntax.TRANSFER_TOKENS)).
-        simpl.
+      + unfold untype_type_spec; simpl.
         rewrite instruction_cast_domain_same.
         reflexivity.
       + unfold untype_type_spec.

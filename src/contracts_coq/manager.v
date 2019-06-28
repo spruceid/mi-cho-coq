@@ -42,7 +42,7 @@ Module manager(C:ContractContext)(E:Env ST C).
 
 Module semantics := Semantics ST C E. Import semantics.
 
-Definition manager : full_contract storage_ty :=
+Definition manager : full_contract _ ST.self_type storage_ty :=
   (UNPAIR ;;
    IF_LEFT
    ( (* 'do' entrypoint *)
@@ -85,7 +85,7 @@ Definition manager_spec
     amount env = (0 ~Mutez) /\
     sender env = address_ env unit (implicit_account env storage) /\
     new_storage = storage /\
-    eval lam fuel (tt, tt) = Return _ (returned_operations, tt)
+    eval (no_self env) lam fuel (tt, tt) = Return _ (returned_operations, tt)
   end.
 
 Lemma eqb_eq a c1 c2 :
@@ -122,7 +122,7 @@ Proof.
 Qed.
 
 Lemma fold_eval_precond fuel :
-  eval_precond_body (@semantics.eval_precond fuel) =
+  @eval_precond_body (@semantics.eval_precond fuel) =
   @semantics.eval_precond (S fuel).
 Proof.
   reflexivity.
@@ -143,7 +143,7 @@ Lemma manager_correct
       (returned_operations : data (list operation))
       (fuel : Datatypes.nat) :
   fuel >= 42 ->
-  eval manager (13 + fuel) ((param, storage), tt) = Return _ ((returned_operations, new_storage), tt)
+  eval env manager (13 + fuel) ((param, storage), tt) = Return _ ((returned_operations, new_storage), tt)
   <-> manager_spec storage param new_storage returned_operations fuel.
 Proof.
   intro Hfuel.
@@ -164,7 +164,7 @@ Proof.
     rewrite (eqb_eq address).
     apply and_both.
     simpl in Heqfuel2.
-    rewrite fold_eval_precond.
+    repeat rewrite fold_eval_precond.
     assert (fuel = S (S fuel2)) by lia.
     subst fuel. clear Hfuel.
     rewrite <- eval_precond_correct.
@@ -177,7 +177,8 @@ Proof.
     ++ intros ([], Hlam).
        exists (returned_operations, tt).
        auto.
-  - intuition congruence.
+  - simpl.
+    intuition congruence.
 Qed.
 
 End manager.

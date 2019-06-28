@@ -48,9 +48,9 @@ Definition storage_ty := pair nat (pair nat (list key)).
 
 Module semantics := Semantics ST C E. Import semantics.
 
-Definition ADD_nat {S} : instruction _ (nat ::: nat ::: S) (nat ::: S) := ADD.
+Definition ADD_nat {S} : instruction (Some ST.self_type) _ (nat ::: nat ::: S) (nat ::: S) := ADD.
 
-Definition multisig : full_contract storage_ty :=
+Definition multisig : full_contract _ ST.self_type storage_ty :=
   (
     UNPAIR ;;
     IF_LEFT
@@ -161,7 +161,7 @@ Definition multisig_spec
     new_stored_counter = (1 + stored_counter)%N /\
     match action with
     | inl (existT _ _ lam) =>
-      match (eval lam fuel (tt, tt)) with
+      match (eval (no_self env) lam fuel (tt, tt)) with
       | Return _ (operations, tt) =>
         new_threshold = threshold /\
         new_keys = keys /\
@@ -175,8 +175,8 @@ Definition multisig_spec
     end
   end.
 
-Definition multisig_head {A} (then_ : instruction Datatypes.false (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) A) :
-  instruction _ (pair (pair nat action_ty) (list (option signature)) ::: pair nat (pair nat (list key)) ::: nil) A
+Definition multisig_head {A} (then_ : instruction (Some ST.self_type) Datatypes.false (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) A) :
+  instruction _ _ (pair (pair nat action_ty) (list (option signature)) ::: pair nat (pair nat (list key)) ::: nil) A
 :=
     PUSH mutez (0 ~mutez);; AMOUNT;; ASSERT_CMPEQ;;
     SWAP ;; DUP ;; DIP1 SWAP ;;
@@ -203,7 +203,7 @@ Definition multisig_head_spec
            (keys : Datatypes.list (data key))
            (fuel : Datatypes.nat)
            (then_ :
-              instruction Datatypes.false
+              instruction _ Datatypes.false
                 (nat ::: list key ::: list (option signature) ::: bytes :::
                      action_ty ::: storage_ty ::: nil)
                 A)
@@ -214,7 +214,7 @@ Definition multisig_head_spec
   amount env = (0 ~Mutez) /\
   counter = stored_counter /\
   semantics.eval_precond
-       fuel then_
+       fuel env then_
        psi
        (threshold,
         (keys,
@@ -224,7 +224,7 @@ Definition multisig_head_spec
            (action, (storage, tt)))))).
 
 Ltac fold_eval_precond :=
-  change (eval_precond_body (@eval_precond ?fuel)) with (@eval_precond (S fuel)).
+  change (@eval_precond_body (@eval_precond ?fuel)) with (@eval_precond (S fuel)).
 
 Lemma multisig_head_correct
       A
@@ -235,7 +235,7 @@ Lemma multisig_head_correct
       (threshold : N)
       (keys : Datatypes.list (data key))
       (then_ :
-         instruction _
+         instruction _ _
            (nat ::: list key ::: list (option signature) ::: bytes :::
                 action_ty ::: storage_ty ::: nil)
            A)
@@ -244,7 +244,7 @@ Lemma multisig_head_correct
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
   forall fuel,
     12 <= fuel ->
-    (semantics.eval_precond (12 + fuel) (multisig_head then_) psi (params, (storage, tt)))
+    (semantics.eval_precond (12 + fuel) env (multisig_head then_) psi (params, (storage, tt)))
         <->
         multisig_head_spec A counter action sigs stored_counter threshold keys fuel then_ psi.
 Proof.
@@ -255,6 +255,7 @@ Proof.
   rewrite if_false_is_and.
   rewrite (eqb_eq mutez).
   apply and_both.
+  repeat simplify_instruction.
   rewrite if_false_is_and.
   rewrite (eqb_eq nat).
   rewrite (eq_sym_iff counter stored_counter).
@@ -264,7 +265,7 @@ Proof.
 Qed.
 
 Definition multisig_iter_body :
-  instruction _
+  instruction _ _
     (key ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
     (nat ::: list (option signature) ::: bytes ::: action_ty :::
@@ -291,7 +292,7 @@ Definition multisig_iter_body :
 Lemma multisig_iter_body_correct k n sigs packed
       (st : stack (action_ty ::: storage_ty ::: nil)) fuel psi :
     17 <= fuel ->
-    semantics.eval_precond fuel multisig_iter_body psi (k, (n, (sigs, (packed, st))))
+    semantics.eval_precond fuel env multisig_iter_body psi (k, (n, (sigs, (packed, st))))
     <->
     match sigs with
     | nil => false
@@ -315,7 +316,7 @@ Proof.
 Qed.
 
 Definition multisig_iter :
-  instruction _
+  instruction _ _
     (list key ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
     (nat ::: list (option signature) ::: bytes ::: action_ty :::
@@ -326,7 +327,7 @@ Definition multisig_iter :
 Lemma multisig_iter_correct keys n sigs packed
       (st : stack (action_ty ::: storage_ty ::: nil)) fuel psi :
     length keys * 17 + 1 <= fuel ->
-    semantics.eval_precond fuel multisig_iter psi (keys, (n, (sigs, (packed, st)))) <->
+    semantics.eval_precond fuel env multisig_iter psi (keys, (n, (sigs, (packed, st)))) <->
     (exists first_sigs remaining_sigs,
         length first_sigs = length keys /\
         sigs = (first_sigs ++ remaining_sigs)%list /\
@@ -439,7 +440,7 @@ Proof.
 Qed.
 
 Definition multisig_tail :
-  instruction _
+  instruction (Some ST.self_type) _
     (nat ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
     (pair (list operation) storage_ty ::: nil) :=
@@ -471,12 +472,12 @@ Qed.
 Lemma multisig_tail_correct
       threshold n sigs packed action counter (keys : data (list key)) psi fuel :
   3 <= fuel ->
-  precond (semantics.eval multisig_tail (10 + fuel) (threshold, (n, (sigs, (packed, (action, ((counter, (threshold, keys)), tt))))))) psi <->
+  precond (semantics.eval env multisig_tail (10 + fuel) (threshold, (n, (sigs, (packed, (action, ((counter, (threshold, keys)), tt))))))) psi <->
   sigs = nil /\
   ((threshold <= n)%N /\
    match action with
    | inl (existT _ _ lam) =>
-     match eval lam (2 + fuel) (tt, tt) with
+     match eval (no_self env) lam (2 + fuel) (tt, tt) with
      | Return _ (operations, tt) =>
        psi ((operations, ((1 + counter)%N, (threshold, keys))), tt)
      | _ => False
@@ -504,7 +505,7 @@ Proof.
         rewrite <- eval_precond_correct.
         unfold precond.
         change (2 + fuel) with (S (S fuel)).
-        case (semantics.eval lam (S (S fuel)) (tt, tt)).
+        case (semantics.eval _ lam (S (S fuel)) (tt, tt)).
         -- intro; split; intro H; inversion H.
         -- intro s; reflexivity.
       * reflexivity.
@@ -536,7 +537,7 @@ Lemma multisig_correct
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
   let new_storage : data storage_ty := (new_stored_counter, (new_threshold, new_keys)) in
   17 * length keys + 14 <= fuel ->
-  eval multisig (23 + fuel) ((params, storage), tt) = Return _ ((returned_operations, new_storage), tt) <->
+  eval env multisig (23 + fuel) ((params, storage), tt) = Return _ ((returned_operations, new_storage), tt) <->
   multisig_spec params stored_counter threshold keys new_stored_counter new_threshold new_keys returned_operations fuel.
 Proof.
   intros storage new_storage Hfuel.
@@ -554,6 +555,7 @@ Proof.
     remember multisig_iter as mi.
     change (23 + fuel) with (S (S (21 + fuel))).
     simplify_instruction_light.
+    simplify_instruction.
     simplify_instruction.
     repeat fold_eval_precond.
     subst mh.
@@ -588,8 +590,9 @@ Proof.
       split; [assumption|].
       destruct action as [(tff, lam)|(nt, nks)].
       * change (2 + (4 + fuel)) with (S (S (S (S (S (S fuel)))))) in Haction.
-        destruct (eval lam (S (S (S (S (S (S fuel)))))) (tt, tt)) as [|(ops, [])].
-        -- destruct Haction.
+        destruct (eval _ lam (S (S (S (S (S (S fuel)))))) (tt, tt)) as [|(ops, [])].
+        -- simpl in Haction.
+           inversion Haction.
         -- injection Haction; intros; subst. repeat constructor.
       * injection Haction; intros; subst. repeat constructor.
     + intros (Hlen, (Hcheck, (Hcount, Haction))).
@@ -611,8 +614,8 @@ Proof.
       destruct Haction as (Hcounter, Haction).
       destruct action as [(tff, lam)|(nt, nks)].
       * change (2 + fuel) with (S (S fuel)).
-        destruct (eval lam (S (S fuel)) (tt, tt)) as [|(ops, [])].
-        -- exact Haction.
+        destruct (eval _ lam (S (S fuel)) (tt, tt)) as [|(ops, [])].
+        -- inversion Haction.
         -- destruct Haction as (Ht, (Hk, Hops)); subst; reflexivity.
       * destruct Haction as (Ht, (Hk, Hops)); subst; reflexivity.
 Qed.

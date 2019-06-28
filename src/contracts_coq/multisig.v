@@ -46,11 +46,11 @@ Module multisig(C:ContractContext)(E:Env ST C).
 
 Module semantics := Semantics ST C E. Import semantics.
 
-Definition ADD_nat {S} : instruction _ (nat ::: nat ::: S) (nat ::: S) := ADD.
+Definition ADD_nat {S} : instruction (Some ST.self_type) _ (nat ::: nat ::: S) (nat ::: S) := ADD.
 
 Definition pack_ty := pair (pair chain_id address) (pair nat action_ty).
 
-Definition multisig : full_contract storage_ty :=
+Definition multisig : full_contract _ ST.self_type storage_ty :=
   (
     UNPAIR ;; SWAP ;; DUP ;; DIP1 SWAP ;;
     DIP1
@@ -162,8 +162,8 @@ Definition multisig_spec
       returned_operations = nil
     end.
 
-Definition multisig_head (then_ : instruction Datatypes.false (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) (pair (list operation) storage_ty ::: nil)) :
-  instruction _
+Definition multisig_head (then_ : instruction (Some ST.self_type) Datatypes.false (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) (pair (list operation) storage_ty ::: nil)) :
+  instruction _ _
               (pair parameter_ty storage_ty ::: nil)
               (pair (list operation) storage_ty ::: nil)
 :=
@@ -190,7 +190,7 @@ Definition multisig_head_spec
            (keys : Datatypes.list (data key))
            (fuel : Datatypes.nat)
            (then_ :
-              instruction Datatypes.false
+              instruction _ Datatypes.false
                 (nat ::: list key ::: list (option signature) ::: bytes :::
                      action_ty ::: storage_ty ::: nil)
                 (pair (list operation) storage_ty ::: nil))
@@ -200,7 +200,7 @@ Definition multisig_head_spec
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
   counter = stored_counter /\
   precond
-    (eval
+    (eval env
        then_ fuel
        (threshold,
         (keys,
@@ -211,7 +211,7 @@ Definition multisig_head_spec
 
 Lemma fold_eval_precond fuel :
   eval_precond_body (@semantics.eval_precond fuel) =
-  @semantics.eval_precond (S fuel).
+  @semantics.eval_precond (S fuel) (Some ST.self_type).
 Proof.
   reflexivity.
 Qed.
@@ -224,7 +224,7 @@ Lemma multisig_head_correct
       (threshold : N)
       (keys : Datatypes.list (data key))
       (then_ :
-         instruction _
+         instruction _ _
            (nat ::: list key ::: list (option signature) ::: bytes :::
                 action_ty ::: storage_ty ::: nil)
            (pair (list operation) storage_ty ::: nil))
@@ -232,7 +232,7 @@ Lemma multisig_head_correct
   let params : data parameter_ty := ((counter, action), sigs) in
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
   forall fuel, 11 <= fuel ->
-    (precond (eval (multisig_head then_) (10 + fuel) ((params, storage), tt)) psi)
+    (precond (eval env (multisig_head then_) (10 + fuel) ((params, storage), tt)) psi)
         <->
     multisig_head_spec counter action sigs stored_counter threshold keys
                        fuel then_ psi.
@@ -241,28 +241,15 @@ Proof.
   rewrite eval_precond_correct.
   unfold multisig_head.
   unfold "+", params, storage, multisig_head_spec.
-  repeat (more_fuel; simplify_instruction).
-  case_eq (BinInt.Z.eqb (comparison_to_int (stored_counter ?= counter)%N) Z0).
-  - intro Heq.
-    apply (eqb_eq nat) in Heq.
-    symmetry in Heq.
-    apply (and_right Heq).
-    repeat rewrite fold_eval_precond.
-    rewrite <- eval_precond_correct.
-    reflexivity.
-  - intro Hneq.
-    split.
-    + intro H; inversion H.
-    + intros (Heq, _).
-      symmetry in Heq.
-      apply (eqb_eq nat) in Heq.
-      simpl in Heq.
-      exfalso.
-      congruence.
+  rewrite eval_precond_correct.
+  repeat (more_fuel; simpl).
+  rewrite if_false_is_and.
+  rewrite (eqb_eq nat).
+  intuition.
 Qed.
 
 Definition multisig_iter_body :
-  instruction _
+  instruction _ _
     (key ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
     (nat ::: list (option signature) ::: bytes ::: action_ty :::
@@ -288,7 +275,7 @@ Definition multisig_iter_body :
 Lemma multisig_iter_body_correct k n sigs packed
       (st : stack (action_ty ::: storage_ty ::: nil)) fuel psi :
     14 <= fuel ->
-    precond (eval multisig_iter_body fuel (k, (n, (sigs, (packed, st))))) psi
+    precond (eval env multisig_iter_body fuel (k, (n, (sigs, (packed, st))))) psi
     <->
     match sigs with
     | nil => false
@@ -313,7 +300,7 @@ Proof.
 Qed.
 
 Definition multisig_iter :
-  instruction _
+  instruction _ _
     (list key ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
     (nat ::: list (option signature) ::: bytes ::: action_ty :::
@@ -327,7 +314,7 @@ Definition multisig_iter :
 Lemma multisig_iter_correct keys n sigs packed
       (st : stack (action_ty ::: storage_ty ::: nil)) fuel psi :
     length keys * 14 + 1 <= fuel ->
-    precond (eval multisig_iter fuel (keys, (n, (sigs, (packed, st))))) psi <->
+    precond (eval env multisig_iter fuel (keys, (n, (sigs, (packed, st))))) psi <->
     (exists first_sigs remaining_sigs,
         length first_sigs = length keys /\
         sigs = (first_sigs ++ remaining_sigs)%list /\
@@ -443,7 +430,7 @@ Proof.
 Qed.
 
 Definition multisig_tail :
-  instruction _
+  instruction _ _
     (nat ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
     (pair (list operation) storage_ty ::: nil) :=
@@ -467,7 +454,7 @@ Qed.
 Lemma multisig_tail_correct
       threshold n sigs packed action counter keys psi fuel :
     13 <= fuel ->
-    precond (eval multisig_tail fuel (threshold, (n, (sigs, (packed, (action, ((counter, (threshold, keys)), tt))))))) psi <->
+    precond (eval env multisig_tail fuel (threshold, (n, (sigs, (packed, (action, ((counter, (threshold, keys)), tt))))))) psi <->
     ((threshold <= n)%N /\
      match action with
      | inl (amout, contr) =>
@@ -525,7 +512,7 @@ Lemma multisig_correct
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
   let new_storage : data storage_ty := (new_stored_counter, (new_threshold, new_keys)) in
   14 * length keys + 37 <= fuel ->
-  eval multisig fuel ((params, storage), tt) = Return _ ((returned_operations, new_storage), tt) <->
+  eval env multisig fuel ((params, storage), tt) = Return _ ((returned_operations, new_storage), tt) <->
   multisig_spec counter action sigs stored_counter threshold keys new_stored_counter new_threshold new_keys returned_operations.
 Proof.
   intros params storage new_storage Hfuel.
@@ -544,15 +531,16 @@ Proof.
     rewrite eval_precond_correct.
     more_fuel; simplify_instruction.
     match goal with
-    | |- semantics.eval_precond fuel ?i ?t ?st <-> ?r =>
-      pose (t) as then_; change (semantics.eval_precond fuel i then_ st <-> r)
+    | |- eval_precond fuel env ?i ?t ?st <-> ?r =>
+      pose (t) as then_; change (eval_precond fuel env i then_ st <-> r)
     end.
     more_fuel; simplify_instruction.
     more_fuel; simplify_instruction.
     more_fuel; simplify_instruction.
+    simplify_instruction.
     match goal with
-    | |- semantics.eval_precond fuel ?i ?t ?st <-> ?r =>
-      pose (t) as iter; change (semantics.eval_precond fuel i iter st <-> r)
+    | |- eval_precond fuel env ?i ?t ?st <-> ?r =>
+      pose (t) as iter; change (eval_precond fuel env i iter st <-> r)
     end.
     more_fuel. simplify_instruction.
     subst iter.

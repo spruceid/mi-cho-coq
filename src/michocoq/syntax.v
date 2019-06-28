@@ -281,153 +281,150 @@ Inductive operation_constant : Set := Mk_operation : str -> operation_constant.
 Inductive mutez_constant : Set := Mk_mutez : tez.mutez -> mutez_constant.
 Inductive chain_id_constant : Set := Mk_chain_id : str -> chain_id_constant.
 
-Module Type SelfType.
-  Parameter self_type : type.
-End SelfType.
-
 Module Type ContractContext.
   Parameter get_contract_type : contract_constant -> Datatypes.option type.
 End ContractContext.
 
-Module Syntax(ST : SelfType)(C:ContractContext).
+Module Syntax(C:ContractContext).
 
 Inductive elt_pair (a b : Set) : Set :=
 | Elt : a -> b -> elt_pair a b.
 
 
 Inductive instruction :
-  forall (tail_fail_flag : Datatypes.bool) (A B : Datatypes.list type), Set :=
-| NOOP {A} : instruction Datatypes.false A A    (* Undocumented *)
-| FAILWITH {A B a} : instruction Datatypes.true (a ::: A) B
-| SEQ {A B C tff} : instruction Datatypes.false A B -> instruction tff B C -> instruction tff A C
-(* The instruction SEQ I C is written "{ I ; C }" in Michelson *)
-| IF_ {A B tffa tffb} :
-    instruction tffa A B -> instruction tffb A B ->
-    instruction (tffa && tffb) (bool ::: A) B
+  forall (self_type : Datatypes.option type) (tail_fail_flag : Datatypes.bool) (A B : Datatypes.list type), Set :=
+| NOOP {self_type A} : instruction self_type Datatypes.false A A    (* Undocumented *)
+| FAILWITH {self_type A B a} : instruction self_type Datatypes.true (a ::: A) B
+| SEQ {self_type A B C tff} : instruction self_type Datatypes.false A B -> instruction self_type tff B C -> instruction self_type tff A C
+(* The instruction self_type SEQ I C is written "{self_type  I ; C }" in Michelson *)
+| IF_ {self_type A B tffa tffb} :
+    instruction self_type tffa A B -> instruction self_type tffb A B ->
+    instruction self_type (tffa && tffb) (bool ::: A) B
 (* "IF" is a reserved keyword in file Coq.Init.Logic because it is
 part of the notation "'IF' c1 'then' c2 'else' c3" so we cannot call
 this constructor "IF" but we can make a notation for it. *)
-| LOOP {A} : instruction Datatypes.false A (bool ::: A) -> instruction Datatypes.false (bool ::: A) A
-| LOOP_LEFT {a b A} : instruction Datatypes.false (a :: A) (or a b :: A) ->
-                      instruction Datatypes.false (or a b :: A) (b :: A)
-| EXEC {a b C} : instruction Datatypes.false (a ::: lambda a b ::: C) (b :: C)
-| APPLY {a b c D} {_ : Bool.Is_true (is_packable a)} :
-    instruction Datatypes.false (a ::: lambda (pair a b) c ::: D) (lambda b c ::: D)
-| DUP {a A} : instruction Datatypes.false (a ::: A) (a ::: a ::: A)
-| SWAP {a b A} : instruction Datatypes.false (a ::: b ::: A) (b ::: a ::: A)
-| PUSH (a : type) (x : concrete_data a) {A} : instruction Datatypes.false A (a :: A)
-| UNIT {A} : instruction Datatypes.false A (unit :: A)
-| LAMBDA (a b : type) {A tff} : instruction tff (a :: nil) (b :: nil) ->
-                     instruction Datatypes.false A (lambda a b :: A)
-| EQ {S} : instruction Datatypes.false (int ::: S) (bool ::: S)
-| NEQ {S} : instruction Datatypes.false (int ::: S) (bool ::: S)
-| LT {S} : instruction Datatypes.false (int ::: S) (bool ::: S)
-| GT {S} : instruction Datatypes.false (int ::: S) (bool ::: S)
-| LE {S} : instruction Datatypes.false (int ::: S) (bool ::: S)
-| GE {S} : instruction Datatypes.false (int ::: S) (bool ::: S)
-| OR {b} {s : bitwise_struct b} {S} : instruction Datatypes.false (b ::: b ::: S) (b ::: S)
-| AND {b} {s : bitwise_struct b} {S} : instruction Datatypes.false (b ::: b ::: S) (b ::: S)
-| XOR {b} {s : bitwise_struct b} {S} : instruction Datatypes.false (b ::: b ::: S) (b ::: S)
-| NOT {b} {s : not_struct b} {S} : instruction Datatypes.false (b ::: S) (not_ret_type _ s ::: S)
-| NEG {n} {s : neg_struct n} {S} : instruction Datatypes.false (n ::: S) (int ::: S)
-| ABS {S} : instruction Datatypes.false (int ::: S) (nat ::: S)
-| ISNAT {S} : instruction Datatypes.false (int ::: S) (option nat ::: S)
-| INT {S} : instruction Datatypes.false (nat ::: S) (int ::: S)
-| ADD {a b} {s : add_struct a b} {S} :
-    instruction Datatypes.false (a ::: b ::: S) (add_ret_type _ _ s ::: S)
-| SUB {a b} {s : sub_struct a b} {S} :
-    instruction Datatypes.false (a ::: b ::: S) (sub_ret_type _ _ s ::: S)
-| MUL {a b} {s : mul_struct a b} {S} :
-    instruction Datatypes.false (a ::: b ::: S) (mul_ret_type _ _ s ::: S)
-| EDIV {a b} {s : ediv_struct a b} {S} : instruction Datatypes.false (a ::: b ::: S) (option (pair (ediv_quo_type _ _ s) (ediv_rem_type _ _ s)) :: S)
-| LSL {S} : instruction Datatypes.false (nat ::: nat ::: S) (nat ::: S)
-| LSR {S} : instruction Datatypes.false (nat ::: nat ::: S) (nat ::: S)
-| COMPARE {a : comparable_type} {S} : instruction Datatypes.false (a ::: a ::: S) (int ::: S)
-| CONCAT {a} {i : stringlike_struct a} {S} : instruction Datatypes.false (a ::: a ::: S) (a ::: S)
-| SIZE {a} {i : size_struct a} {S} :
-    instruction Datatypes.false (a ::: S) (nat ::: S)
-| SLICE {a} {i : stringlike_struct a} {S} :
-    instruction Datatypes.false (nat ::: nat ::: a ::: S) (option a ::: S)
-| PAIR {a b S} : instruction Datatypes.false (a ::: b ::: S) (pair a b :: S)
-| CAR {a b S} : instruction Datatypes.false (pair a b :: S) (a :: S)
-| CDR {a b S} : instruction Datatypes.false (pair a b :: S) (b :: S)
-| EMPTY_SET elt {S} : instruction Datatypes.false S (set elt ::: S)
-| MEM {elt a} {i : mem_struct elt a} {S} :
-    instruction Datatypes.false (elt ::: a ::: S) (bool ::: S)
-| UPDATE {elt val collection} {i : update_struct elt val collection} {S} :
-    instruction Datatypes.false (elt ::: val ::: collection ::: S) (collection ::: S)
-| ITER {collection} {i : iter_struct collection} {A} :
-    instruction Datatypes.false (iter_elt_type _ i ::: A) A -> instruction Datatypes.false (collection :: A) A
-| EMPTY_MAP (key : comparable_type) (val : type) {S} :
-    instruction Datatypes.false S (map key val :: S)
-| GET {key collection} {i : get_struct key collection} {S} :
-    instruction Datatypes.false (key ::: collection ::: S) (option (get_val_type _ _ i) :: S)
-| MAP {collection b} {i : map_struct collection b} {A} :
-    instruction Datatypes.false (map_in_type _ _ i :: A) (b :: A) ->
-    instruction Datatypes.false (collection :: A) (map_out_collection_type _ _ i :: A)
-| SOME {a S} : instruction Datatypes.false (a :: S) (option a :: S)
-| NONE (a : type) {S} : instruction Datatypes.false S (option a :: S)
+| LOOP {self_type A} : instruction self_type Datatypes.false A (bool ::: A) -> instruction self_type Datatypes.false (bool ::: A) A
+| LOOP_LEFT {self_type a b A} : instruction self_type Datatypes.false (a :: A) (or a b :: A) ->
+                      instruction self_type Datatypes.false (or a b :: A) (b :: A)
+| EXEC {self_type a b C} : instruction self_type Datatypes.false (a ::: lambda a b ::: C) (b :: C)
+| APPLY {self_type a b c D} {_ : Bool.Is_true (is_packable a)} :
+    instruction self_type Datatypes.false (a ::: lambda (pair a b) c ::: D) (lambda b c ::: D)
+| DUP {self_type a A} : instruction self_type Datatypes.false (a ::: A) (a ::: a ::: A)
+| SWAP {self_type a b A} : instruction self_type Datatypes.false (a ::: b ::: A) (b ::: a ::: A)
+| PUSH (a : type) (x : concrete_data a) {self_type A} : instruction self_type Datatypes.false A (a :: A)
+| UNIT {self_type A} : instruction self_type Datatypes.false A (unit :: A)
+| LAMBDA (a b : type) {self_type A tff} :
+    instruction None tff (a :: nil) (b :: nil) ->
+    instruction self_type Datatypes.false A (lambda a b :: A)
+| EQ {self_type S} : instruction self_type Datatypes.false (int ::: S) (bool ::: S)
+| NEQ {self_type S} : instruction self_type Datatypes.false (int ::: S) (bool ::: S)
+| LT {self_type S} : instruction self_type Datatypes.false (int ::: S) (bool ::: S)
+| GT {self_type S} : instruction self_type Datatypes.false (int ::: S) (bool ::: S)
+| LE {self_type S} : instruction self_type Datatypes.false (int ::: S) (bool ::: S)
+| GE {self_type S} : instruction self_type Datatypes.false (int ::: S) (bool ::: S)
+| OR {self_type b} {s : bitwise_struct b} {S} : instruction self_type Datatypes.false (b ::: b ::: S) (b ::: S)
+| AND {self_type b} {s : bitwise_struct b} {S} : instruction self_type Datatypes.false (b ::: b ::: S) (b ::: S)
+| XOR {self_type b} {s : bitwise_struct b} {S} : instruction self_type Datatypes.false (b ::: b ::: S) (b ::: S)
+| NOT {self_type b} {s : not_struct b} {S} : instruction self_type Datatypes.false (b ::: S) (not_ret_type _ s ::: S)
+| NEG {self_type n} {s : neg_struct n} {S} : instruction self_type Datatypes.false (n ::: S) (int ::: S)
+| ABS {self_type S} : instruction self_type Datatypes.false (int ::: S) (nat ::: S)
+| ISNAT {self_type S} : instruction self_type Datatypes.false (int ::: S) (option nat ::: S)
+| INT {self_type S} : instruction self_type Datatypes.false (nat ::: S) (int ::: S)
+| ADD {self_type a b} {s : add_struct a b} {S} :
+    instruction self_type Datatypes.false (a ::: b ::: S) (add_ret_type _ _ s ::: S)
+| SUB {self_type a b} {s : sub_struct a b} {S} :
+    instruction self_type Datatypes.false (a ::: b ::: S) (sub_ret_type _ _ s ::: S)
+| MUL {self_type a b} {s : mul_struct a b} {S} :
+    instruction self_type Datatypes.false (a ::: b ::: S) (mul_ret_type _ _ s ::: S)
+| EDIV {self_type a b} {s : ediv_struct a b} {S} : instruction self_type Datatypes.false (a ::: b ::: S) (option (pair (ediv_quo_type _ _ s) (ediv_rem_type _ _ s)) :: S)
+| LSL {self_type S} : instruction self_type Datatypes.false (nat ::: nat ::: S) (nat ::: S)
+| LSR {self_type S} : instruction self_type Datatypes.false (nat ::: nat ::: S) (nat ::: S)
+| COMPARE {self_type} {a : comparable_type} {S} : instruction self_type Datatypes.false (a ::: a ::: S) (int ::: S)
+| CONCAT {self_type a} {i : stringlike_struct a} {S} : instruction self_type Datatypes.false (a ::: a ::: S) (a ::: S)
+| SIZE {self_type a} {i : size_struct a} {S} :
+    instruction self_type Datatypes.false (a ::: S) (nat ::: S)
+| SLICE {self_type a} {i : stringlike_struct a} {S} :
+    instruction self_type Datatypes.false (nat ::: nat ::: a ::: S) (option a ::: S)
+| PAIR {self_type a b S} : instruction self_type Datatypes.false (a ::: b ::: S) (pair a b :: S)
+| CAR {self_type a b S} : instruction self_type Datatypes.false (pair a b :: S) (a :: S)
+| CDR {self_type a b S} : instruction self_type Datatypes.false (pair a b :: S) (b :: S)
+| EMPTY_SET elt {self_type S} : instruction self_type Datatypes.false S (set elt ::: S)
+| MEM {self_type elt a} {i : mem_struct elt a} {S} :
+    instruction self_type Datatypes.false (elt ::: a ::: S) (bool ::: S)
+| UPDATE {self_type elt val collection} {i : update_struct elt val collection} {S} :
+    instruction self_type Datatypes.false (elt ::: val ::: collection ::: S) (collection ::: S)
+| ITER {self_type collection} {i : iter_struct collection} {A} :
+    instruction self_type Datatypes.false (iter_elt_type _ i ::: A) A -> instruction self_type Datatypes.false (collection :: A) A
+| EMPTY_MAP (key : comparable_type) (val : type) {self_type S} :
+    instruction self_type Datatypes.false S (map key val :: S)
+| GET {self_type key collection} {i : get_struct key collection} {S} :
+    instruction self_type Datatypes.false (key ::: collection ::: S) (option (get_val_type _ _ i) :: S)
+| MAP {self_type collection b} {i : map_struct collection b} {A} :
+    instruction self_type Datatypes.false (map_in_type _ _ i :: A) (b :: A) ->
+    instruction self_type Datatypes.false (collection :: A) (map_out_collection_type _ _ i :: A)
+| SOME {self_type a S} : instruction self_type Datatypes.false (a :: S) (option a :: S)
+| NONE (a : type) {self_type S} : instruction self_type Datatypes.false S (option a :: S)
 (* Not the one documented, see https://gitlab.com/tezos/tezos/issues/471 *)
-| IF_NONE {a A B tffa tffb} :
-    instruction tffa A B -> instruction tffb (a :: A) B ->
-    instruction (tffa && tffb) (option a :: A) B
-| LEFT {a} (b : type) {S} : instruction Datatypes.false (a :: S) (or a b :: S)
-| RIGHT (a : type) {b S} : instruction Datatypes.false (b :: S) (or a b :: S)
-| IF_LEFT {a b A B tffa tffb} :
-    instruction tffa (a :: A) B ->
-    instruction tffb (b :: A) B ->
-    instruction (tffa && tffb) (or a b :: A) B
-| IF_RIGHT {a b A B tffa tffb} :
-    instruction tffa (b :: A) B ->
-    instruction tffb (a :: A) B ->
-    instruction (tffa && tffb) (or a b :: A) B
-| CONS {a S} : instruction Datatypes.false (a ::: list a ::: S) (list a :: S)
-| NIL (a : type) {S} : instruction Datatypes.false S (list a :: S)
-| IF_CONS {a A B tffa tffb} :
-    instruction tffa (a ::: list a ::: A) B ->
-    instruction tffb A B ->
-    instruction (tffa && tffb) (list a :: A) B
-| CREATE_CONTRACT {S tff} (g p : type) :
-    instruction tff (pair p g :: nil) (pair (list operation) g :: nil) ->
-    instruction Datatypes.false
+| IF_NONE {self_type a A B tffa tffb} :
+    instruction self_type tffa A B -> instruction self_type tffb (a :: A) B ->
+    instruction self_type (tffa && tffb) (option a :: A) B
+| LEFT {self_type a} (b : type) {S} : instruction self_type Datatypes.false (a :: S) (or a b :: S)
+| RIGHT (a : type) {self_type b S} : instruction self_type Datatypes.false (b :: S) (or a b :: S)
+| IF_LEFT {self_type a b A B tffa tffb} :
+    instruction self_type tffa (a :: A) B ->
+    instruction self_type tffb (b :: A) B ->
+    instruction self_type (tffa && tffb) (or a b :: A) B
+| IF_RIGHT {self_type a b A B tffa tffb} :
+    instruction self_type tffa (b :: A) B ->
+    instruction self_type tffb (a :: A) B ->
+    instruction self_type (tffa && tffb) (or a b :: A) B
+| CONS {self_type a S} : instruction self_type Datatypes.false (a ::: list a ::: S) (list a :: S)
+| NIL (a : type) {self_type S} : instruction self_type Datatypes.false S (list a :: S)
+| IF_CONS {self_type a A B tffa tffb} :
+    instruction self_type tffa (a ::: list a ::: A) B ->
+    instruction self_type tffb A B ->
+    instruction self_type (tffa && tffb) (list a :: A) B
+| CREATE_CONTRACT {self_type S tff} (g p : type) :
+    instruction (Some p) tff (pair p g :: nil) (pair (list operation) g :: nil) ->
+    instruction self_type Datatypes.false
                 (option key_hash ::: mutez ::: g ::: S)
                 (operation ::: address ::: S)
-| TRANSFER_TOKENS {p S} :
-    instruction Datatypes.false (p ::: mutez ::: contract p ::: S) (operation ::: S)
-| SET_DELEGATE {S} :
-    instruction Datatypes.false (option key_hash ::: S) (operation ::: S)
-| BALANCE {S} : instruction Datatypes.false S (mutez ::: S)
-| ADDRESS {p S} : instruction Datatypes.false (contract p ::: S) (address ::: S)
-| CONTRACT {S} p : instruction Datatypes.false (address ::: S) (option (contract p) ::: S)
+| TRANSFER_TOKENS {self_type p S} :
+    instruction self_type Datatypes.false (p ::: mutez ::: contract p ::: S) (operation ::: S)
+| SET_DELEGATE {self_type S} :
+    instruction self_type Datatypes.false (option key_hash ::: S) (operation ::: S)
+| BALANCE {self_type S} : instruction self_type Datatypes.false S (mutez ::: S)
+| ADDRESS {self_type p S} : instruction self_type Datatypes.false (contract p ::: S) (address ::: S)
+| CONTRACT {self_type S} p : instruction self_type Datatypes.false (address ::: S) (option (contract p) ::: S)
 (* Mistake in the doc: the return type must be an option *)
-| SOURCE {S} : instruction Datatypes.false S (address ::: S)
-| SENDER {S} : instruction Datatypes.false S (address ::: S)
-| SELF {S} : instruction Datatypes.false S (contract ST.self_type :: S)
+| SOURCE {self_type S} : instruction self_type Datatypes.false S (address ::: S)
+| SENDER {self_type S} : instruction self_type Datatypes.false S (address ::: S)
+| SELF {self_type S} : instruction (Some self_type) Datatypes.false S (contract self_type :: S)
 (* p should be the current parameter type *)
-| AMOUNT {S} : instruction Datatypes.false S (mutez ::: S)
-| IMPLICIT_ACCOUNT {S} : instruction Datatypes.false (key_hash ::: S) (contract unit :: S)
-| NOW {S} : instruction Datatypes.false S (timestamp ::: S)
-| PACK {a S} : instruction Datatypes.false (a ::: S) (bytes ::: S)
-| UNPACK a {S} : instruction Datatypes.false (bytes ::: S) (option a ::: S)
-| HASH_KEY {S} : instruction Datatypes.false (key ::: S) (key_hash ::: S)
-| BLAKE2B {S} : instruction Datatypes.false (bytes ::: S) (bytes ::: S)
-| SHA256 {S} : instruction Datatypes.false (bytes ::: S) (bytes ::: S)
-| SHA512 {S} : instruction Datatypes.false (bytes ::: S) (bytes ::: S)
-| CHECK_SIGNATURE {S} : instruction Datatypes.false (key ::: signature ::: bytes ::: S) (bool ::: S)
-| DIG (n : Datatypes.nat) {S1 S2 t} :
+| AMOUNT {self_type S} : instruction self_type Datatypes.false S (mutez ::: S)
+| IMPLICIT_ACCOUNT {self_type S} : instruction self_type Datatypes.false (key_hash ::: S) (contract unit :: S)
+| NOW {self_type S} : instruction self_type Datatypes.false S (timestamp ::: S)
+| PACK {self_type a S} : instruction self_type Datatypes.false (a ::: S) (bytes ::: S)
+| UNPACK a {self_type S} : instruction self_type Datatypes.false (bytes ::: S) (option a ::: S)
+| HASH_KEY {self_type S} : instruction self_type Datatypes.false (key ::: S) (key_hash ::: S)
+| BLAKE2B {self_type S} : instruction self_type Datatypes.false (bytes ::: S) (bytes ::: S)
+| SHA256 {self_type S} : instruction self_type Datatypes.false (bytes ::: S) (bytes ::: S)
+| SHA512 {self_type S} : instruction self_type Datatypes.false (bytes ::: S) (bytes ::: S)
+| CHECK_SIGNATURE {self_type S} : instruction self_type Datatypes.false (key ::: signature ::: bytes ::: S) (bool ::: S)
+| DIG (n : Datatypes.nat) {self_type S1 S2 t} :
     length S1 = n ->
-    instruction Datatypes.false (S1 +++ (t ::: S2)) (t ::: S1 +++ S2)
-| DUG (n : Datatypes.nat) {S1 S2 t} :
+    instruction self_type Datatypes.false (S1 +++ (t ::: S2)) (t ::: S1 +++ S2)
+| DUG (n : Datatypes.nat) {self_type S1 S2 t} :
     length S1 = n ->
-    instruction Datatypes.false (t ::: S1 +++ S2) (S1 +++ (t ::: S2))
-| DIP (n : Datatypes.nat) {A B C} :
+    instruction self_type Datatypes.false (t ::: S1 +++ S2) (S1 +++ (t ::: S2))
+| DIP (n : Datatypes.nat) {self_type A B C} :
     length A = n ->
-    instruction Datatypes.false B C ->
-    instruction Datatypes.false (A +++ B) (A +++ C)
-| DROP (n : Datatypes.nat) {A B} :
+    instruction self_type Datatypes.false B C ->
+    instruction self_type Datatypes.false (A +++ B) (A +++ C)
+| DROP (n : Datatypes.nat) {self_type A B} :
     length A = n ->
-    instruction Datatypes.false (A +++ B) B
-| CHAIN_ID {S} : instruction Datatypes.false S (chain_id ::: S)
+    instruction self_type Datatypes.false (A +++ B) B
+| CHAIN_ID {self_type S} : instruction self_type Datatypes.false S (chain_id ::: S)
 
 with
 concrete_data : type -> Set :=
@@ -457,7 +454,7 @@ concrete_data : type -> Set :=
 | Concrete_map {a : comparable_type} {b} :
     Datatypes.list (elt_pair (concrete_data a) (concrete_data b)) ->
     concrete_data (map a b)
-| Instruction {a b} tff : instruction tff (a ::: nil) (b ::: nil) ->
+| Instruction {a b} tff : instruction None tff (a ::: nil) (b ::: nil) ->
                           concrete_data (lambda a b)
 | Chain_id_constant : chain_id_constant -> concrete_data chain_id.
 (* TODO: add the no-ops CAST and RENAME *)
@@ -466,10 +463,9 @@ Coercion int_constant := Int_constant.
 Coercion nat_constant := Nat_constant.
 Coercion string_constant := String_constant.
 
-Definition full_contract storage :=
-  instruction
-    Datatypes.false
-    ((pair ST.self_type storage) ::: nil)
+Definition full_contract param storage :=
+  instruction (Some param) Datatypes.false
+    ((pair param storage) ::: nil)
     ((pair (list operation) storage) ::: nil).
 
 Notation "'IF'" := (IF_).
@@ -478,7 +474,7 @@ Definition stack_type := Datatypes.list type.
 Notation "A ;; B" := (SEQ A B) (at level 100, right associativity).
 
 (* For debugging purpose, a version of ;; with explicit stack type *)
-Notation "A ;;; S ;;;; B" := (@SEQ _ S _ A B) (at level 100, only parsing).
+Notation "A ;;; S ;;;; B" := (@SEQ _ _ S _ A B) (at level 100, only parsing).
 
 Notation "n ~Mutez" := (exist _ (int64.of_Z n) eq_refl) (at level 100).
 
