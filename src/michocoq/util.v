@@ -38,7 +38,7 @@ Ltac simplify_instruction :=
     end
   end.
 
-(* essentially the same as simplify_insrtuction but reduces only one step *)
+(* essentially the same as simplify_instruction but reduces only one step *)
 Ltac simplify_instruction_light :=
   match goal with
   | |- context c[semantics.eval_precond ?env (S ?n) ?i ?psi] =>
