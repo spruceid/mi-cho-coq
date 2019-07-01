@@ -114,7 +114,7 @@ Fixpoint check_all_signatures (sigs : Datatypes.list (Datatypes.option (data sig
   match sigs, keys with
   | nil, nil => true
   | nil, cons _ _ => false
-  | cons _ _, nil => true
+  | cons _ _, nil => false
   | cons (Some sig) sigs, cons k keys =>
     andb (check_sig k sig) (check_all_signatures sigs keys check_sig)
   | cons None sigs, cons _ keys =>
