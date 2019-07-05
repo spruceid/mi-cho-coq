@@ -31,7 +31,7 @@ Require Import comparable error.
 
 Module Type Env(C:ContractContext).
   Export C.
-  Module Macros := Macros(C). Export Macros.
+  Module macros := Macros(C). Export macros.
   Fixpoint data (a : type) {struct a} : Set :=
     match a with
     | Comparable_type b => comparable_data b
@@ -47,7 +47,7 @@ Module Type Env(C:ContractContext).
     | map a b => map.map (comparable_data a) (data b) (compare a)
     | big_map a b => map.map (comparable_data a) (data b) (compare a)
     | lambda a b =>
-      Macros.Syntax.instruction (a ::: nil) (b ::: nil)
+      instruction (a ::: nil) (b ::: nil)
     | contract a => {s : contract_constant | C.get_contract_type s = Return _ a }
     end.
 
@@ -305,7 +305,7 @@ Module Semantics(E:Env)(C:ContractContext).
          end) l
     | @Concrete_map a b l =>
       (fix concrete_data_map_to_data
-           (l : Datatypes.list (Syntax.elt_pair (concrete_data a) (concrete_data b))) :=
+           (l : Datatypes.list (elt_pair (concrete_data a) (concrete_data b))) :=
          match l with
          | nil => map.empty _ _ _
          | cons (Elt _ _ x y) l =>

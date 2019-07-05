@@ -19,14 +19,13 @@
 (* FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER *)
 (* DEALINGS IN THE SOFTWARE. *)
 
-
 Require Import syntax.
 Require Import comparable.
 
 Module Macros(C:ContractContext).
 
-Module Syntax := Syntax C.
-Export Syntax.
+Module syntax := Syntax C.
+Export syntax.
 
 Definition instr := instruction.
 
