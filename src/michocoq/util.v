@@ -25,31 +25,6 @@ Import syntax.
 Import comparable.
 Require Import semantics.
 
-Ltac simplify_instruction :=
-  match goal with
-    |- ?g =>
-    match g with
-    | context c[semantics.eval_precond ?env (S ?n) ?i ?psi] =>
-      is_var i ||
-             (let simplified := (eval simpl in (semantics.eval_precond env (S n) i psi)) in
-              let full := context c[simplified] in
-              let final := eval cbv beta zeta iota in full in
-              change final)
-    end
-  end.
-
-(* essentially the same as simplify_instruction but reduces only one step *)
-Ltac simplify_instruction_light :=
-  match goal with
-  | |- context c[semantics.eval_precond ?env (S ?n) ?i ?psi] =>
-    is_var i ||
-           ( let rem_fuel := fresh "fuel" in
-             remember n as rem_fuel;
-             let simplified := (eval simpl in (semantics.eval_precond env (S rem_fuel) i psi)) in
-             change (semantics.eval_precond env (S rem_fuel) i psi) with simplified;
-             subst rem_fuel)
-  end.
-
 Ltac more_fuel :=
   match goal with
     | Hfuel : (_ <= ?fuel) |- _ =>

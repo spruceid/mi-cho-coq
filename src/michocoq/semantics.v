@@ -22,17 +22,17 @@
 
 (* Oprational semantics of the Michelson language *)
 
-Require Import syntax.
 Require Import ZArith.
 Require Import String.
+Require Import syntax macros.
 Require NPeano.
 
 Require Import comparable error.
-Import syntax.
 
-Section semantics.
+Module Semantics(C:ContractContext).
 
-  Context {get_contract_type : contract_constant -> M type} {parameter_ty : type}.
+  Module Macros := Macros C.
+  Export Macros.
 
   Fixpoint data (a : type) {struct a} : Set :=
     match a with
@@ -49,8 +49,8 @@ Section semantics.
     | map a b => map.map (comparable_data a) (data b) (compare a)
     | big_map a b => map.map (comparable_data a) (data b) (compare a)
     | lambda a b =>
-      @instruction get_contract_type parameter_ty (a ::: nil) (b ::: nil)
-    | contract a => {s : contract_constant | get_contract_type s = Return _ a }
+      instruction (a ::: nil) (b ::: nil)
+    | contract a => {s : contract_constant | C.get_contract_type s = Return _ a }
     end.
 
   Record proto_env : Set :=
@@ -77,7 +77,7 @@ Section semantics.
         contract_ : forall p, data address -> data (option (contract p));
         source : data address;
         sender : data address;
-        self : data (contract parameter_ty);
+        self : data (contract C.self_type);
         amount : tez.mutez;
         implicit_account :
           comparable_data key_hash -> data (contract unit);
@@ -93,7 +93,7 @@ Section semantics.
           data key -> data signature -> data bytes -> data bool
       }.
 
-  Variable env : proto_env.
+  Axiom env : proto_env.
 
   Fixpoint stack (t : stack_type) : Set :=
     match t with
@@ -277,7 +277,7 @@ Section semantics.
     | Key_constant x => Mk_key x
     | Key_hash_constant x => Mk_key_hash x
     | Mutez_constant (Mk_mutez x) => x
-    | @Contract_constant _ _ a x H => exist _ x H
+    | @Contract_constant a x H => exist _ x H
     | Unit => tt
     | True_ => true
     | False_ => false
@@ -287,7 +287,7 @@ Section semantics.
     | Some_ a => Some (concrete_data_to_data _ a)
     | None_ => None
     | Concrete_list l => List.map (concrete_data_to_data _) l
-    | @Concrete_set _ _ a l =>
+    | @Concrete_set a l =>
       (fix concrete_data_set_to_data (l : Datatypes.list (concrete_data a)) :=
          match l with
          | nil => set.empty _ _
@@ -301,9 +301,9 @@ Section semantics.
              (concrete_data_to_data a x)
              (concrete_data_set_to_data l)
          end) l
-    | @Concrete_map _ _ a b l =>
+    | @Concrete_map a b l =>
       (fix concrete_data_map_to_data
-           (l : Datatypes.list (elt_pair (concrete_data a) (concrete_data b))) :=
+           (l : Datatypes.list (Syntax.elt_pair (concrete_data a) (concrete_data b))) :=
          match l with
          | nil => map.empty _ _ _
          | cons (Elt _ _ x y) l =>
@@ -363,7 +363,6 @@ Section semantics.
     | Add_variant_tez_tez =>
       fun x y => tez.of_Z (tez.to_Z x + tez.to_Z y)
     end.
-
 
   Definition sub a b c (v : sub_variant a b c) : data a -> data b -> M (data c) :=
     match v with
@@ -527,7 +526,7 @@ Section semantics.
     | O => fun SA => Failed _ Out_of_fuel
     | S n =>
       match i in instruction A B return stack A -> M (stack B) with
-      | @FAILWITH _ _ A B a =>
+      | @FAILWITH A B a =>
         fun '(x, _) => Failed _ (Assertion_Failure (data a) x)
 
       (* According to the documentation, FAILWITH's argument should
@@ -565,53 +564,53 @@ Section semantics.
       | GT => fun '(x, SA) => Return _ ((x >? 0)%Z, SA)
       | LE => fun '(x, SA) => Return _ ((x <=? 0)%Z, SA)
       | GE => fun '(x, SA) => Return _ ((x >=? 0)%Z, SA)
-      | @OR _ _ _ s =>
+      | @OR _ s _ =>
         fun '(x, (y, SA)) => Return _ (or_fun _ (bitwise_variant_field _ s) x y, SA)
-      | @AND _ _ _ s =>
+      | @AND _ s _ =>
         fun '(x, (y, SA)) => Return _ (and _ (bitwise_variant_field _ s) x y, SA)
-      | @XOR _ _ _ s =>
+      | @XOR _ s _ =>
         fun '(x, (y, SA)) => Return _ (xor _ (bitwise_variant_field _ s) x y, SA)
-      | @NOT _ _ _ s =>
+      | @NOT _ s _ =>
         fun '(x, SA) => Return _ (not _ _ (not_variant_field _ s) x, SA)
-      | @NEG _ _ _ s =>
+      | @NEG _ s _ =>
         fun '(x, SA) => Return _ (neg _ (neg_variant_field _ s) x, SA)
       | ABS => fun '(x, SA) => Return _ (Z.abs_N x, SA)
-      | @ADD _ _ _ _ s =>
+      | @ADD _ _ s _ =>
         fun '(x, (y, SA)) =>
           bind (fun r => Return _ (r, SA))
                (add _ _ _ (add_variant_field _ _ s) x y)
-      | @SUB _ _ _ _ s =>
+      | @SUB _ _ s _ =>
         fun '(x, (y, SA)) =>
           bind (fun r => Return _ (r, SA))
                (sub _ _ _ (sub_variant_field _ _ s) x y)
-      | @MUL _ _ _ _ s =>
+      | @MUL _ _ s _ =>
         fun '(x, (y, SA)) =>
           bind (fun r => Return _ (r, SA))
                (mul _ _ _ (mul_variant_field _ _ s) x y)
-      | @EDIV _ _ _ _ s =>
+      | @EDIV _ _ s _ =>
         fun '(x, (y, SA)) =>
           Return _ (ediv _ _ _ _ (ediv_variant_field _ _ s) x y, SA)
       | LSL => fun '(x, (y, SA)) => Return _ (N.shiftl x y, SA)
       | LSR => fun '(x, (y, SA)) => Return _ (N.shiftr x y, SA)
       | COMPARE =>
         fun '(x, (y, SA)) => Return _ (comparison_to_int (compare _ x y), SA)
-      | @CONCAT _ _ _ s =>
+      | @CONCAT _ s _ =>
         fun '(x, (y, SA)) =>
           Return _ (concat _ (stringlike_variant_field _ s) x y, SA)
-      | @SLICE _ _ _ i =>
+      | @SLICE _ i _ =>
         fun '(n1, (n2, (s, SA))) =>
           Return _ (slice _ (stringlike_variant_field _ i) n1 n2 s, SA)
       | PAIR => fun '(x, (y, SA)) => Return _ ((x, y), SA)
       | CAR => fun '((x, y), SA) => Return _ (x, SA)
       | CDR => fun '((x, y), SA) => Return _ (y, SA)
       | EMPTY_SET a => fun SA => Return _ (set.empty _ (compare a), SA)
-      | @MEM _ _ _ _ s =>
+      | @MEM _ _ s _ =>
         fun '(x, (y, SA)) =>
           Return _ (mem _ _ (mem_variant_field _ _ s) x y, SA)
-      | @UPDATE _ _ _ _ _ s =>
+      | @UPDATE _ _ _ s _ =>
         fun '(x, (y, (z, SA))) =>
           Return _ (update _ _ _ (update_variant_field _ _ _ s) x y z, SA)
-      | @ITER _ _ _ s _ body =>
+      | @ITER _ s _ body =>
         fun '(x, SA) =>
           match iter_destruct _ _ (iter_variant_field _ s) x with
           | None => Return _ SA
@@ -620,14 +619,14 @@ Section semantics.
                     eval (ITER body) n (y, SB))
                  (eval body n (a, SA))
           end
-      | @SIZE _ _ _ s =>
+      | @SIZE _ s _ =>
         fun '(x, SA) => Return _ (N.of_nat (size _ (size_variant_field _ s) x), SA)
       | EMPTY_MAP k val =>
         fun SA => Return _ (map.empty (comparable_data k) (data val) _, SA)
-      | @GET _ _ _ _ s =>
+      | @GET _ _ s _ =>
         fun '(x, (y, SA)) =>
           Return _ (get _ _ _ (get_variant_field _ _ s) x y, SA)
-      | @MAP _ _ _ _ s _ body =>
+      | @MAP _ _ s _ body =>
         let v := (map_variant_field _ _ s) in
         fun '(x, SA) =>
           match map_destruct _ _ _ _ v x with
@@ -874,50 +873,50 @@ Section semantics.
     | GT => fun psi '(x, SA) => psi ((x >? 0)%Z, SA)
     | LE => fun psi '(x, SA) => psi ((x <=? 0)%Z, SA)
     | GE => fun psi '(x, SA) => psi ((x >=? 0)%Z, SA)
-    | @OR _ _ _ s =>
+    | @OR _ s _ =>
       fun psi '(x, (y, SA)) => psi (or_fun _ (bitwise_variant_field _ s) x y, SA)
-    | @AND _ _ _ s =>
+    | @AND _ s _ =>
       fun psi '(x, (y, SA)) => psi (and _ (bitwise_variant_field _ s) x y, SA)
-    | @XOR _ _ _ s =>
+    | @XOR _ s _ =>
       fun psi '(x, (y, SA)) => psi (xor _ (bitwise_variant_field _ s) x y, SA)
-    | @NOT _ _ _ s =>
+    | @NOT _ s _ =>
       fun psi '(x, SA) => psi (not _ _ (not_variant_field _ s) x, SA)
-    | @NEG _ _ _ s =>
+    | @NEG _ s _ =>
       fun psi '(x, SA) => psi (neg _ (neg_variant_field _ s) x, SA)
     | ABS => fun psi '(x, SA) => psi (Z.abs_N x, SA)
-    | @ADD _ _ _ _ s =>
+    | @ADD _ _ s _ =>
       fun psi '(x, (y, SA)) =>
         precond (add _ _ _ (add_variant_field _ _ s) x y) (fun z => psi (z, SA))
-    | @SUB _ _ _ _ s =>
+    | @SUB _ _ s _ =>
       fun psi '(x, (y, SA)) =>
         precond (sub _ _ _ (sub_variant_field _ _ s) x y) (fun z => psi (z, SA))
-    | @MUL _ _ _ _ s =>
+    | @MUL _ _ s _ =>
       fun psi '(x, (y, SA)) =>
         precond (mul _ _ _ (mul_variant_field _ _ s) x y) (fun z => psi (z, SA))
-    | @EDIV _ _ _ _ s =>
+    | @EDIV _ _ s _ =>
       fun psi '(x, (y, SA)) =>
         psi (ediv _ _ _ _ (ediv_variant_field _ _ s) x y, SA)
     | LSL => fun psi '(x, (y, SA)) => psi (N.shiftl x y, SA)
     | LSR => fun psi '(x, (y, SA)) => psi (N.shiftr x y, SA)
     | COMPARE =>
       fun psi '(x, (y, SA)) => psi (comparison_to_int (compare _ x y), SA)
-    | @CONCAT _ _ _ s =>
+    | @CONCAT _ s _ =>
       fun psi '(x, (y, SA)) =>
         psi (concat _ (stringlike_variant_field _ s) x y, SA)
-    | @SLICE _ _ _ i =>
+    | @SLICE _ i _ =>
       fun psi '(n1, (n2, (s, SA))) =>
         psi (slice _ (stringlike_variant_field _ i) n1 n2 s, SA)
     | PAIR => fun psi '(x, (y, SA)) => psi ((x, y), SA)
     | CAR => fun psi '((x, y), SA) => psi (x, SA)
     | CDR => fun psi '((x, y), SA) => psi (y, SA)
     | EMPTY_SET a => fun psi SA => psi (set.empty _ (compare a), SA)
-    | @MEM _ _ _ _ s =>
+    | @MEM _ _ s _ =>
       fun psi '(x, (y, SA)) =>
         psi (mem _ _ (mem_variant_field _ _ s) x y, SA)
-    | @UPDATE _ _ _ _ _ s =>
+    | @UPDATE _ _ _ s _ =>
       fun psi '(x, (y, (z, SA))) =>
         psi (update _ _ _ (update_variant_field _ _ _ s) x y z, SA)
-    | @ITER _ _ _ s _ body =>
+    | @ITER _ s _ body =>
       fun psi '(x, SA) =>
         match iter_destruct _ _ (iter_variant_field _ s) x with
         | None => psi SA
@@ -926,13 +925,13 @@ Section semantics.
                        (fun SB => eval_precond_n (ITER body) psi (y, SB))
                        (a, SA)
         end
-    | @SIZE _ _ _ s =>
+    | @SIZE _ s _ =>
       fun psi '(x, SA) => psi (N.of_nat (size _ (size_variant_field _ s) x), SA)
     | EMPTY_MAP k val =>
       fun psi SA => psi (map.empty (comparable_data k) (data val) _, SA)
-    | @GET _ _ _ _ s =>
+    | @GET _ _ s _ =>
       fun psi '(x, (y, SA)) => psi (get _ _ _ (get_variant_field _ _ s) x y, SA)
-    | @MAP _ _ _ _ s _ body =>
+    | @MAP _ _ s _ body =>
       let v := (map_variant_field _ _ s) in
       fun psi '(x, SA) =>
         match map_destruct _ _ _ _ v x with
@@ -1179,4 +1178,29 @@ Section semantics.
     - reflexivity.
   Qed.
 
-End semantics.
+Ltac simplify_instruction :=
+  match goal with
+    |- ?g =>
+    match g with
+    | context c[eval_precond (S ?n) ?i ?psi] =>
+      is_var i ||
+             (let simplified := (eval simpl in (eval_precond (S n) i psi)) in
+              let full := context c[simplified] in
+              let final := eval cbv beta zeta iota in full in
+              change final)
+    end
+  end.
+
+(* essentially the same as simplify_instruction but reduces only one step *)
+Ltac simplify_instruction_light :=
+  match goal with
+  | |- context c[eval_precond (S ?n) ?i ?psi] =>
+    is_var i ||
+           ( let rem_fuel := fresh "fuel" in
+             remember n as rem_fuel;
+             let simplified := (eval simpl in (eval_precond (S rem_fuel) i psi)) in
+             change (eval_precond env (S rem_fuel) i psi) with simplified;
+             subst rem_fuel)
+  end.
+
+End Semantics.

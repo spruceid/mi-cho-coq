@@ -75,6 +75,8 @@ Structure bitwise_struct (a : type) :=
 Canonical Structure bitwise_bool : bitwise_struct bool := {| bitwise_variant_field := Bitwise_variant_bool |}.
 Canonical Structure bitwise_nat : bitwise_struct nat := {| bitwise_variant_field := Bitwise_variant_nat |}.
 
+Set Warnings "-redundant-canonical-projection".
+
 (* Logical negation is also overloaded for int *)
 Inductive not_variant : type -> type -> Set :=
 | Not_variant_bool : not_variant bool bool
@@ -98,7 +100,6 @@ Canonical Structure neg_nat : neg_struct nat :=
   {| neg_variant_field := Neg_variant_nat |}.
 Canonical Structure neg_int : neg_struct int :=
   {| neg_variant_field := Neg_variant_int |}.
-
 (* ADD *)
 Inductive add_variant : type -> type -> type -> Set :=
 | Add_variant_nat_nat : add_variant nat nat nat
@@ -312,16 +313,16 @@ Inductive address_constant : Set := Mk_address : str -> address_constant.
 Inductive operation_constant : Set := Mk_operation : str -> operation_constant.
 Inductive mutez_constant : Set := Mk_mutez : tez.mutez -> mutez_constant.
 
-Section syntax.
+Module Type ContractContext.
+  Parameter get_contract_type : contract_constant -> M type.
+  Parameter self_type : type.
+End ContractContext.
 
-Context {get_contract_type : contract_constant -> M type}.
-
+Module Syntax(C:ContractContext).
 
 Inductive elt_pair (a b : Set) : Set :=
 | Elt : a -> b -> elt_pair a b.
 
-(* The type of the parameter of the current contract *)
-Context {self_type : type}.
 
 Inductive instruction : Datatypes.list type -> Datatypes.list type -> Set :=
 | NOOP {A} : instruction A A    (* Undocumented *)
@@ -432,7 +433,7 @@ this constructor "IF" but we can make a notation for it. *)
 (* Mistake in the doc: the return type must be an option *)
 | SOURCE {S} : instruction S (address ::: S)
 | SENDER {S} : instruction S (address ::: S)
-| SELF {S} : instruction S (contract self_type :: S)
+| SELF {S} : instruction S (contract C.self_type :: S)
 (* p should be the current parameter type *)
 | AMOUNT {S} : instruction S (mutez ::: S)
 | IMPLICIT_ACCOUNT {S} : instruction (key_hash ::: S) (contract unit :: S)
@@ -463,7 +464,7 @@ concrete_data : type -> Set :=
 | Key_hash_constant : String.string -> concrete_data key_hash
 | Mutez_constant : mutez_constant -> concrete_data mutez
 | Contract_constant {a} : forall cst : contract_constant,
-    get_contract_type cst = Return _ a -> concrete_data (contract a)
+    C.get_contract_type cst = Return _ a -> concrete_data (contract a)
 | Unit : concrete_data unit
 | True_ : concrete_data bool
 | False_ : concrete_data bool
@@ -482,17 +483,12 @@ concrete_data : type -> Set :=
                       concrete_data (lambda a b).
 (* TODO: add the no-ops CAST and RENAME *)
 
-
 Coercion int_constant := Int_constant.
 Coercion nat_constant := Nat_constant.
 Coercion string_constant := String_constant.
 
-End syntax.
-
-Definition full_contract {get_contract_type} params storage :=
-  @instruction
-    get_contract_type
-    params
+Definition full_contract params storage :=
+  instruction
     ((pair params storage) ::: nil)
     ((pair (list operation) storage) ::: nil).
 
@@ -506,4 +502,7 @@ Notation "A ;;; S ;;;; B" := (@SEQ _ S _ A B) (at level 100, only parsing).
 
 Notation "n ~Mutez" := (exist _ (int64.of_Z n) eq_refl) (at level 100).
 
-Notation "n ~mutez" := (syntax.Mutez_constant (syntax.Mk_mutez (n ~Mutez))) (at level 100).
+Notation "n ~mutez" := (Mutez_constant (Mk_mutez (n ~Mutez))) (at level 100).
+
+End Syntax.
+

@@ -23,11 +23,12 @@
 Require Import syntax.
 Require Import comparable.
 
-Section macros.
+Module Macros(C:ContractContext).
 
-Context {get_contract_type : contract_constant -> error.M type} {self_ty : type}.
+Module Syntax := Syntax C.
+Export Syntax.
 
-Definition instr := @instruction get_contract_type self_ty.
+Definition instr := instruction.
 
 Definition CMPEQ {a : comparable_type} {S} :
   instr (a ::: a ::: S) (bool ::: S) := COMPARE ;; EQ.
@@ -152,4 +153,4 @@ Definition MAP_CDR {a b1 b2 S} (code : instr (b1 ::: pair a b1 ::: S) (b2 ::: pa
 Definition UNPAPAIR {a b c S} : instr (pair a (pair b c) :: S) (a ::: b ::: c ::: S) := UNPAIR ;; DIP UNPAIR.
 Definition PAPAIR {a b c S} : instr (a ::: b ::: c ::: S) (pair a (pair b c) :: S) := DIP PAIR;; PAIR.
 
-End macros.
+End Macros.
