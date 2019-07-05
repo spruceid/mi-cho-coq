@@ -28,6 +28,8 @@ Require Import util.
 Import error.
 Require List.
 
+Module multisig(C:ContractContext)(E:Env).
+
 Definition action_ty := or (pair mutez (contract unit)) (or (option key_hash) (pair nat (list key))).
 
 Definition parameter_ty := (pair
@@ -38,11 +40,7 @@ Definition parameter_ty := (pair
 
 Definition storage_ty := pair nat (pair nat (list key)).
 
-Module ContractContext <: syntax.ContractContext.
-  Axiom get_contract_type : contract_constant -> error.M type.
-  Definition self_type := parameter_ty.
-End ContractContext.
-Module semantics := Semantics ContractContext. Import semantics.
+Module semantics := Semantics E C. Import semantics.
 
 Definition ADD_nat {S} : instruction (nat ::: nat ::: S) (nat ::: S) := ADD.
 
@@ -141,7 +139,7 @@ Definition multisig_spec
       (fun k sig =>
          check_signature
            env k sig
-           (pack env pack_ty (address_ env parameter_ty (self env),
+           (pack env pack_ty (address_ env self_type (self env),
                              (counter, action)))) /\
     (count_signatures first_sigs >= threshold)%N /\
     new_stored_counter = (1 + stored_counter)%N /\
@@ -203,7 +201,7 @@ Definition multisig_head_spec
         (keys,
          (sigs,
           (pack env pack_ty
-                (address_ env parameter_ty (self env), (counter, action)),
+                (address_ env self_type (self env), (counter, action)),
            (action, (storage, tt))))))) psi.
 
 Lemma fold_eval_precond fuel :
@@ -620,3 +618,5 @@ Proof.
     do 9 apply Le.le_n_S.
     apply le_0_n.
 Qed.
+
+End multisig.

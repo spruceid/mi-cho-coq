@@ -30,14 +30,12 @@ Require Import util.
 Import error.
 Require List.
 
+Module vote(C:ContractContext)(E:Env).
+
 Definition parameter_ty := option (or (pair key_hash mutez) (or key_hash (or unit key_hash))).
 Definition storage_ty := key_hash.
 
-Module ContractContext <: syntax.ContractContext.
-  Axiom get_contract_type : contract_constant -> error.M type.
-  Definition self_type := parameter_ty.
-End ContractContext.
-Module semantics := Semantics ContractContext. Import semantics.
+Module semantics := Semantics E C. Import semantics.
 
 Definition manager : full_contract parameter_ty storage_ty :=
   (UNPAIR ;;
@@ -145,3 +143,5 @@ Proof.
         contradiction.
   - intuition congruence.
 Qed.
+
+End vote.

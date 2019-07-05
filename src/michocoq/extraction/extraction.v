@@ -22,4 +22,4 @@
 
 Require Extraction.
 Require Import Michocoq.semantics.
-(* Recursive Extraction Library semantics. *) (* TODO Uncaught exception Not_found ? *)
+(* Recursive Extraction Library semantics. *)

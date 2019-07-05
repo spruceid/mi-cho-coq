@@ -20,32 +20,24 @@
 (* DEALINGS IN THE SOFTWARE. *)
 
 Require Import String.
-Require Import Michocoq.macros.
-Require Import ProofIrrelevanceFacts.
-Import syntax.
-Import comparable.
+Require Import syntax macros semantics comparable util.
 Require Import ZArith.
-Require Import semantics.
-Require Import util.
 Import error.
 Require List.
 Require tez.
 Require int64.
 Require map.
 
+Module vote(C:ContractContext)(E:Env).
 
 Definition parameter_ty := string.
 Definition storage_ty := map string int.
 
-Module ContractContext <: syntax.ContractContext.
-  Axiom get_contract_type : contract_constant -> error.M type.
-  Definition self_type := Comparable_type parameter_ty.
-End ContractContext.
-Module semantics := Semantics ContractContext. Import semantics.
+Module semantics := Semantics E C. Import semantics.
 
 Definition vote : full_contract parameter_ty storage_ty :=
   (
-    AMOUNT;;
+    AMOUNT ;;
     PUSH mutez (5000000 ~mutez);;
     COMPARE;; GT;;
     IF ( FAIL ) ( NOOP );;
@@ -114,7 +106,7 @@ Proof.
         try inversion gtamount.
       exfalso. clear gtamount. 
       unfold tez.to_Z in gtamountcontra.
-      unfold tez.to_int64 in *. destruct (semantics.amount env) as [t _].
+      unfold tez.to_int64 in *. destruct (Env.amount env) as [t _].
       apply Z.compare_ge_iff in gtamountcontra.
       apply gtamountcontra. clear gtamountcontra.
       unfold int64.compare, int64.of_Z, int64.to_Z at 1 in amount.
@@ -196,3 +188,5 @@ Proof.
         apply map.map_memget in H2. destruct H2 as [v H2].
         simpl in H2. rewrite H2 in mapget. discriminate mapget.
 Qed.
+
+End vote.

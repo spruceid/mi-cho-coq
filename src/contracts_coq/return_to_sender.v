@@ -28,14 +28,12 @@ Require Import util.
 Import error.
 Require List.
 
+Module return_to_sender(C:ContractContext)(E:Env).
+
 Definition parameter_ty := unit.
 Definition storage_ty := unit.
 
-Module ContractContext <: syntax.ContractContext.
-  Axiom get_contract_type : contract_constant -> error.M type.
-  Definition self_type := parameter_ty.
-End ContractContext.
-Module semantics := Semantics ContractContext. Import semantics.
+Module semantics := Semantics E C. Import semantics.
 
 Definition return_to_sender : full_contract parameter_ty storage_ty :=
   (
@@ -129,3 +127,5 @@ Proof.
         -- congruence.
         -- discriminate.
 Qed.
+
+End return_to_sender.

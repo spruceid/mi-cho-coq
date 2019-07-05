@@ -29,11 +29,9 @@ Require NPeano.
 
 Require Import comparable error.
 
-Module Semantics(C:ContractContext).
-
-  Module Macros := Macros C.
-  Export Macros.
-
+Module Type Env(C:ContractContext).
+  Export C.
+  Module Macros := Macros(C). Export Macros.
   Fixpoint data (a : type) {struct a} : Set :=
     match a with
     | Comparable_type b => comparable_data b
@@ -49,7 +47,7 @@ Module Semantics(C:ContractContext).
     | map a b => map.map (comparable_data a) (data b) (compare a)
     | big_map a b => map.map (comparable_data a) (data b) (compare a)
     | lambda a b =>
-      instruction (a ::: nil) (b ::: nil)
+      Macros.Syntax.instruction (a ::: nil) (b ::: nil)
     | contract a => {s : contract_constant | C.get_contract_type s = Return _ a }
     end.
 
@@ -92,8 +90,12 @@ Module Semantics(C:ContractContext).
         check_signature :
           data key -> data signature -> data bytes -> data bool
       }.
+  Parameter env:proto_env.
+End Env.
 
-  Axiom env : proto_env.
+Module Semantics(E:Env)(C:ContractContext).
+
+  Module Env := E(C). Export Env.
 
   Fixpoint stack (t : stack_type) : Set :=
     match t with
