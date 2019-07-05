@@ -33,22 +33,15 @@ Require tez.
 Require int64.
 Require map.
 
-Section vote.
 
 Definition parameter_ty := string.
-
 Definition storage_ty := map string int.
 
-Context {get_contract_type : contract_constant -> error.M type} {env : @proto_env get_contract_type parameter_ty}.
-
-Definition instruction := @syntax.instruction get_contract_type parameter_ty.
-Definition data := @semantics.data get_contract_type parameter_ty.
-Definition stack := @semantics.stack get_contract_type parameter_ty.
-Definition mem := @semantics.mem get_contract_type parameter_ty.
-Definition get := @semantics.get get_contract_type parameter_ty.
-Definition eval {A B : stack_type} := @semantics.eval _ _ env A B.
-Definition eval_precond := @semantics.eval_precond _ _ env.
-Definition full_contract := @syntax.full_contract get_contract_type.
+Module ContractContext <: syntax.ContractContext.
+  Axiom get_contract_type : contract_constant -> error.M type.
+  Definition self_type := Comparable_type parameter_ty.
+End ContractContext.
+Module semantics := Semantics ContractContext. Import semantics.
 
 Definition vote : full_contract parameter_ty storage_ty :=
   (
@@ -203,5 +196,3 @@ Proof.
         apply map.map_memget in H2. destruct H2 as [v H2].
         simpl in H2. rewrite H2 in mapget. discriminate mapget.
 Qed.
-
-End vote.

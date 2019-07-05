@@ -30,20 +30,14 @@ Require Import util.
 Import error.
 Require List.
 
-Section manager.
-
 Definition parameter_ty := option (or (pair key_hash mutez) (or key_hash (or unit key_hash))).
-
-Context {get_contract_type : contract_constant -> error.M type} {env : @proto_env get_contract_type parameter_ty}.
-
-Definition instruction := @syntax.instruction get_contract_type parameter_ty.
-Definition data := @semantics.data get_contract_type parameter_ty.
-Definition stack := @semantics.stack get_contract_type parameter_ty.
-Definition eval {A B : stack_type} := @semantics.eval _ _ env A B.
-Definition eval_precond := @semantics.eval_precond _ _ env.
-Definition full_contract := @syntax.full_contract get_contract_type.
-
 Definition storage_ty := key_hash.
+
+Module ContractContext <: syntax.ContractContext.
+  Axiom get_contract_type : contract_constant -> error.M type.
+  Definition self_type := parameter_ty.
+End ContractContext.
+Module semantics := Semantics ContractContext. Import semantics.
 
 Definition manager : full_contract parameter_ty storage_ty :=
   (UNPAIR ;;
@@ -151,5 +145,3 @@ Proof.
         contradiction.
   - intuition congruence.
 Qed.
-
-End manager.

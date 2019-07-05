@@ -28,8 +28,6 @@ Require Import util.
 Import error.
 Require List.
 
-Section multisig.
-
 Definition action_ty := or (pair mutez (contract unit)) (or (option key_hash) (pair nat (list key))).
 
 Definition parameter_ty := (pair
@@ -38,21 +36,17 @@ Definition parameter_ty := (pair
                 action_ty)
              (list (option signature))).
 
-Context {get_contract_type : contract_constant -> error.M type} {env : @proto_env get_contract_type parameter_ty}.
+Definition storage_ty := pair nat (pair nat (list key)).
 
-Definition instruction := @syntax.instruction get_contract_type parameter_ty.
-Definition data := @semantics.data get_contract_type parameter_ty.
-Definition stack := @semantics.stack get_contract_type parameter_ty.
-Definition eval {A B : stack_type} := @semantics.eval _ _ env A B.
-Definition eval_precond := @semantics.eval_precond _ _ env.
+Module ContractContext <: syntax.ContractContext.
+  Axiom get_contract_type : contract_constant -> error.M type.
+  Definition self_type := parameter_ty.
+End ContractContext.
+Module semantics := Semantics ContractContext. Import semantics.
 
 Definition ADD_nat {S} : instruction (nat ::: nat ::: S) (nat ::: S) := ADD.
 
-Definition storage_ty := pair nat (pair nat (list key)).
-
-
 Definition pack_ty := pair address (pair nat action_ty).
-
 
 Definition multisig : full_contract parameter_ty storage_ty :=
   (
@@ -60,7 +54,7 @@ Definition multisig : full_contract parameter_ty storage_ty :=
     DIP
       (
         UNPAIR ;;
-        DUP ;; @SELF _ parameter_ty _ ;; ADDRESS ;; PAIR ;;
+        DUP ;; SELF ;; ADDRESS ;; PAIR ;;
         PACK ;;
         DIP ( UNPAIR ;; DIP SWAP ) ;; SWAP
       ) ;;
@@ -174,7 +168,7 @@ Definition multisig_head (then_ : instruction (nat ::: list key ::: list (option
     DIP
       (
         UNPAIR ;;
-        DUP ;; @SELF _ parameter_ty _ ;; ADDRESS ;; PAIR ;;
+        DUP ;; SELF ;; ADDRESS ;; PAIR ;;
         PACK ;;
         DIP ( UNPAIR ;; DIP SWAP ) ;; SWAP
       ) ;;
@@ -213,8 +207,8 @@ Definition multisig_head_spec
            (action, (storage, tt))))))) psi.
 
 Lemma fold_eval_precond fuel :
-  eval_precond_body env (@semantics.eval_precond _ _ env fuel) =
-  @semantics.eval_precond _ _ env (S fuel).
+  eval_precond_body (@semantics.eval_precond fuel) =
+  @semantics.eval_precond (S fuel).
 Proof.
   reflexivity.
 Qed.
@@ -241,7 +235,6 @@ Lemma multisig_head_correct
                        fuel then_ psi.
 Proof.
   intros params storage fuel Hfuel.
-  unfold eval.
   rewrite eval_precond_correct.
   unfold multisig_head.
   unfold "+", params, storage, multisig_head_spec.
@@ -253,7 +246,6 @@ Proof.
     apply (and_right Heq).
     do 9 rewrite fold_eval_precond.
     rewrite <- eval_precond_correct.
-    unfold eval.
     reflexivity.
   - intro Hneq.
     split.
@@ -304,7 +296,6 @@ Lemma multisig_iter_body_correct k n sigs packed
     end.
 Proof.
   intro Hfuel.
-  unfold eval.
   rewrite eval_precond_correct.
   do 14 more_fuel.
   simplify_instruction.
@@ -341,7 +332,6 @@ Lemma multisig_iter_correct keys n sigs packed
           first_sigs keys (fun k sig => check_signature env k sig packed) /\
         psi ((count_signatures first_sigs + n)%N, (remaining_sigs, (packed, st)))).
 Proof.
-  unfold eval.
   rewrite eval_precond_correct.
   generalize n sigs packed fuel; clear n sigs packed fuel.
   induction keys as [|key keys]; intros n sigs packed fuel Hfuel.
@@ -487,7 +477,6 @@ Lemma multisig_tail_correct
 Proof.
   intro Hfuel.
   change (data (list key)) in keys.
-  unfold eval.
   rewrite eval_precond_correct.
   unfold multisig_tail.
   do 4 more_fuel.
@@ -557,15 +546,15 @@ Proof.
     rewrite eval_precond_correct.
     more_fuel; simplify_instruction.
     match goal with
-    | |- semantics.eval_precond env fuel ?i ?t ?st <-> ?r =>
-      pose (t) as then_; change (semantics.eval_precond env fuel i then_ st <-> r)
+    | |- semantics.eval_precond fuel ?i ?t ?st <-> ?r =>
+      pose (t) as then_; change (semantics.eval_precond fuel i then_ st <-> r)
     end.
     more_fuel; simplify_instruction.
     more_fuel; simplify_instruction.
     more_fuel; simplify_instruction.
     match goal with
-    | |- semantics.eval_precond env fuel ?i ?t ?st <-> ?r =>
-      pose (t) as iter; change (semantics.eval_precond env fuel i iter st <-> r)
+    | |- semantics.eval_precond fuel ?i ?t ?st <-> ?r =>
+      pose (t) as iter; change (semantics.eval_precond fuel i iter st <-> r)
     end.
     more_fuel. simplify_instruction.
     subst iter.
@@ -631,5 +620,3 @@ Proof.
     do 9 apply Le.le_n_S.
     apply le_0_n.
 Qed.
-
-End multisig.

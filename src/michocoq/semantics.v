@@ -1199,7 +1199,7 @@ Ltac simplify_instruction_light :=
            ( let rem_fuel := fresh "fuel" in
              remember n as rem_fuel;
              let simplified := (eval simpl in (eval_precond (S rem_fuel) i psi)) in
-             change (eval_precond env (S rem_fuel) i psi) with simplified;
+             change (eval_precond (S rem_fuel) i psi) with simplified;
              subst rem_fuel)
   end.
 

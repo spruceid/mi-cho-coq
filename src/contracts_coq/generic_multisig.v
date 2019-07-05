@@ -29,8 +29,6 @@ Require Import Lia.
 Import error.
 Require List.
 
-Section multisig.
-
 Definition parameter_ty :=
   (or unit
       (pair
@@ -40,17 +38,15 @@ Definition parameter_ty :=
                   (pair nat (list key))))
          (list (option signature)))).
 
-Context {get_contract_type : contract_constant -> error.M type} {env : @proto_env get_contract_type parameter_ty}.
+Definition storage_ty := pair nat (pair nat (list key)).
 
-Definition instruction := @syntax.instruction get_contract_type parameter_ty.
-Definition data := @semantics.data get_contract_type parameter_ty.
-Definition stack := @semantics.stack get_contract_type parameter_ty.
-Definition eval {A B : stack_type} := @semantics.eval _ _ env A B.
-Definition eval_precond := @semantics.eval_precond _ _ env.
+Module ContractContext <: syntax.ContractContext.
+  Axiom get_contract_type : contract_constant -> error.M type.
+  Definition self_type := parameter_ty.
+End ContractContext.
+Module semantics := Semantics ContractContext. Import semantics.
 
 Definition ADD_nat {S} : instruction (nat ::: nat ::: S) (nat ::: S) := ADD.
-
-Definition storage_ty := pair nat (pair nat (list key)).
 
 Definition multisig : full_contract parameter_ty storage_ty :=
   (
@@ -185,7 +181,7 @@ Definition multisig_head {A} (then_ : instruction (nat ::: list key ::: list (op
     DIP
       (
         UNPAIR ;;
-        DUP ;; @SELF _ parameter_ty _ ;; ADDRESS ;; PAIR ;;
+        DUP ;; SELF ;; ADDRESS ;; PAIR ;;
         PACK ;;
         DIP ( UNPAIR ;; DIP SWAP ) ;; SWAP
       ) ;;
@@ -215,7 +211,7 @@ Definition multisig_head_spec
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
   amount env = (0 ~Mutez) /\
   counter = stored_counter /\
-  semantics.eval_precond env
+  semantics.eval_precond
        fuel then_
        psi
        (threshold,
@@ -226,7 +222,7 @@ Definition multisig_head_spec
            (action, (storage, tt)))))).
 
 Ltac fold_eval_precond :=
-  change (eval_precond_body env (@semantics.eval_precond _ _ env ?fuel)) with (@semantics.eval_precond _ _ env (S fuel)).
+  change (eval_precond_body (@eval_precond ?fuel)) with (@eval_precond (S fuel)).
 
 Lemma multisig_head_correct
       A
@@ -246,7 +242,7 @@ Lemma multisig_head_correct
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
   forall fuel,
     12 <= fuel ->
-    (semantics.eval_precond env (12 + fuel) (multisig_head then_) psi (params, (storage, tt)))
+    (semantics.eval_precond (12 + fuel) (multisig_head then_) psi (params, (storage, tt)))
         <->
         multisig_head_spec A counter action sigs stored_counter threshold keys fuel then_ psi.
 Proof.
@@ -293,7 +289,7 @@ Definition multisig_iter_body :
 Lemma multisig_iter_body_correct k n sigs packed
       (st : stack (action_ty ::: storage_ty ::: nil)) fuel psi :
     17 <= fuel ->
-    semantics.eval_precond env fuel multisig_iter_body psi (k, (n, (sigs, (packed, st))))
+    semantics.eval_precond fuel multisig_iter_body psi (k, (n, (sigs, (packed, st))))
     <->
     match sigs with
     | nil => false
@@ -329,7 +325,7 @@ Definition multisig_iter :
 Lemma multisig_iter_correct keys n sigs packed
       (st : stack (action_ty ::: storage_ty ::: nil)) fuel psi :
     length keys * 17 + 1 <= fuel ->
-    semantics.eval_precond env fuel multisig_iter psi (keys, (n, (sigs, (packed, st)))) <->
+    semantics.eval_precond fuel multisig_iter psi (keys, (n, (sigs, (packed, st)))) <->
     (exists first_sigs remaining_sigs,
         length first_sigs = length keys /\
         sigs = (first_sigs ++ remaining_sigs)%list /\
@@ -474,7 +470,7 @@ Qed.
 Lemma multisig_tail_correct
       threshold n sigs packed action counter (keys : data (list key)) psi fuel :
   3 <= fuel ->
-  precond (semantics.eval env multisig_tail (10 + fuel) (threshold, (n, (sigs, (packed, (action, ((counter, (threshold, keys)), tt))))))) psi <->
+  precond (semantics.eval multisig_tail (10 + fuel) (threshold, (n, (sigs, (packed, (action, ((counter, (threshold, keys)), tt))))))) psi <->
   sigs = nil /\
   ((threshold <= n)%N /\
    match action with
@@ -489,7 +485,6 @@ Lemma multisig_tail_correct
    end).
 Proof.
   intro Hfuel.
-  unfold eval.
   rewrite eval_precond_correct.
   unfold multisig_tail.
   change (10 + fuel) with (S (S (S (S (6 + fuel))))).
@@ -508,7 +503,7 @@ Proof.
         rewrite <- eval_precond_correct.
         unfold precond.
         change (2 + fuel) with (S (S fuel)).
-        case (semantics.eval env lam (S (S fuel)) (tt, tt)).
+        case (semantics.eval lam (S (S fuel)) (tt, tt)).
         -- intro; split; intro H; inversion H.
         -- intro s; reflexivity.
       * reflexivity.
@@ -548,7 +543,6 @@ Proof.
   rewrite multisig_split.
   rewrite PeanoNat.Nat.add_comm in Hfuel.
   subst storage. subst new_storage.
-  unfold eval.
   rewrite eval_precond_correct.
   destruct params as [()| ((counter, action), sigs)].
   - split; simpl.
@@ -621,5 +615,3 @@ Proof.
         -- destruct Haction as (Ht, (Hk, Hops)); subst; reflexivity.
       * destruct Haction as (Ht, (Hk, Hops)); subst; reflexivity.
 Qed.
-
-End multisig.
