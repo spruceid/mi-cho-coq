@@ -313,12 +313,15 @@ Inductive address_constant : Set := Mk_address : str -> address_constant.
 Inductive operation_constant : Set := Mk_operation : str -> operation_constant.
 Inductive mutez_constant : Set := Mk_mutez : tez.mutez -> mutez_constant.
 
+Module Type SelfType.
+  Parameter self_type : type.
+End SelfType.
+
 Module Type ContractContext.
   Parameter get_contract_type : contract_constant -> M type.
-  Parameter self_type : type.
 End ContractContext.
 
-Module Syntax(C:ContractContext).
+Module Syntax(ST : SelfType)(C:ContractContext).
 
 Inductive elt_pair (a b : Set) : Set :=
 | Elt : a -> b -> elt_pair a b.
@@ -433,7 +436,7 @@ this constructor "IF" but we can make a notation for it. *)
 (* Mistake in the doc: the return type must be an option *)
 | SOURCE {S} : instruction S (address ::: S)
 | SENDER {S} : instruction S (address ::: S)
-| SELF {S} : instruction S (contract C.self_type :: S)
+| SELF {S} : instruction S (contract ST.self_type :: S)
 (* p should be the current parameter type *)
 | AMOUNT {S} : instruction S (mutez ::: S)
 | IMPLICIT_ACCOUNT {S} : instruction (key_hash ::: S) (contract unit :: S)
@@ -487,9 +490,9 @@ Coercion int_constant := Int_constant.
 Coercion nat_constant := Nat_constant.
 Coercion string_constant := String_constant.
 
-Definition full_contract params storage :=
+Definition full_contract storage :=
   instruction
-    ((pair params storage) ::: nil)
+    ((pair ST.self_type storage) ::: nil)
     ((pair (list operation) storage) ::: nil).
 
 Notation "'IF'" := (IF_).
@@ -505,4 +508,3 @@ Notation "n ~Mutez" := (exist _ (int64.of_Z n) eq_refl) (at level 100).
 Notation "n ~mutez" := (Mutez_constant (Mk_mutez (n ~Mutez))) (at level 100).
 
 End Syntax.
-

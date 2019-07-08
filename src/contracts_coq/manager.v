@@ -30,14 +30,18 @@ Require Import util.
 Import error.
 Require List.
 
-Module vote(C:ContractContext)(E:Env).
-
 Definition parameter_ty := option (or (pair key_hash mutez) (or key_hash (or unit key_hash))).
 Definition storage_ty := key_hash.
 
-Module semantics := Semantics E C. Import semantics.
+Module ST : (SelfType with Definition self_type := parameter_ty).
+  Definition self_type := parameter_ty.
+End ST.
 
-Definition manager : full_contract parameter_ty storage_ty :=
+Module vote(C:ContractContext)(E:Env ST C).
+
+Module semantics := Semantics ST C E. Import semantics.
+
+Definition manager : full_contract storage_ty :=
   (UNPAIR ;;
    IF_SOME (
    DUUP ;;

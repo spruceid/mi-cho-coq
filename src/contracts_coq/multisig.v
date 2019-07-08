@@ -28,8 +28,6 @@ Require Import util.
 Import error.
 Require List.
 
-Module multisig(C:ContractContext)(E:Env).
-
 Definition action_ty := or (pair mutez (contract unit)) (or (option key_hash) (pair nat (list key))).
 
 Definition parameter_ty := (pair
@@ -40,13 +38,19 @@ Definition parameter_ty := (pair
 
 Definition storage_ty := pair nat (pair nat (list key)).
 
-Module semantics := Semantics E C. Import semantics.
+Module ST : (SelfType with Definition self_type := parameter_ty).
+  Definition self_type := parameter_ty.
+End ST.
+
+Module multisig(C:ContractContext)(E:Env ST C).
+
+Module semantics := Semantics ST C E. Import semantics.
 
 Definition ADD_nat {S} : instruction (nat ::: nat ::: S) (nat ::: S) := ADD.
 
 Definition pack_ty := pair address (pair nat action_ty).
 
-Definition multisig : full_contract parameter_ty storage_ty :=
+Definition multisig : full_contract storage_ty :=
   (
     UNPAIR ;; SWAP ;; DUP ;; DIP SWAP ;;
     DIP
@@ -139,7 +143,7 @@ Definition multisig_spec
       (fun k sig =>
          check_signature
            env k sig
-           (pack env pack_ty (address_ env self_type (self env),
+           (pack env pack_ty (address_ env ST.self_type (self env),
                              (counter, action)))) /\
     (count_signatures first_sigs >= threshold)%N /\
     new_stored_counter = (1 + stored_counter)%N /\
@@ -201,7 +205,7 @@ Definition multisig_head_spec
         (keys,
          (sigs,
           (pack env pack_ty
-                (address_ env self_type (self env), (counter, action)),
+                (address_ env ST.self_type (self env), (counter, action)),
            (action, (storage, tt))))))) psi.
 
 Lemma fold_eval_precond fuel :

@@ -22,9 +22,9 @@
 Require Import syntax.
 Require Import comparable.
 
-Module Macros(C:ContractContext).
+Module Macros(ST:SelfType)(C:ContractContext).
 
-Module syntax := Syntax C.
+Module syntax := Syntax ST C.
 Export syntax.
 
 Definition instr := instruction.

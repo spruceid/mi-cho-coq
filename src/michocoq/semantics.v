@@ -29,9 +29,9 @@ Require NPeano.
 
 Require Import comparable error.
 
-Module Type Env(C:ContractContext).
+Module EnvDef(ST : SelfType)(C:ContractContext).
   Export C.
-  Module macros := Macros(C). Export macros.
+  Module macros := Macros(ST)(C). Export macros.
   Fixpoint data (a : type) {struct a} : Set :=
     match a with
     | Comparable_type b => comparable_data b
@@ -75,7 +75,7 @@ Module Type Env(C:ContractContext).
         contract_ : forall p, data address -> data (option (contract p));
         source : data address;
         sender : data address;
-        self : data (contract C.self_type);
+        self : data (contract ST.self_type);
         amount : tez.mutez;
         implicit_account :
           comparable_data key_hash -> data (contract unit);
@@ -90,12 +90,16 @@ Module Type Env(C:ContractContext).
         check_signature :
           data key -> data signature -> data bytes -> data bool
       }.
+End EnvDef.
+
+Module Type Env(ST : SelfType)(C:ContractContext).
+  Include EnvDef ST C.
   Parameter env:proto_env.
 End Env.
 
-Module Semantics(E:Env)(C:ContractContext).
+Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
 
-  Module Env := E(C). Export Env.
+  Export E.
 
   Fixpoint stack (t : stack_type) : Set :=
     match t with

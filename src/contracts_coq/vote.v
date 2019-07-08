@@ -28,14 +28,18 @@ Require tez.
 Require int64.
 Require map.
 
-Module vote(C:ContractContext)(E:Env).
-
-Definition parameter_ty := string.
+Definition parameter_ty : type := string.
 Definition storage_ty := map string int.
 
-Module semantics := Semantics E C. Import semantics.
+Module ST : (syntax.SelfType with Definition self_type := parameter_ty).
+  Definition self_type := parameter_ty.
+End ST.
 
-Definition vote : full_contract parameter_ty storage_ty :=
+Module vote(C:ContractContext)(E:Env ST C).
+
+Module semantics := Semantics ST C E. Import semantics.
+
+Definition vote : full_contract storage_ty :=
   (
     AMOUNT ;;
     PUSH mutez (5000000 ~mutez);;
@@ -56,7 +60,7 @@ Definition vote_spec
            (returned_operations : data (list operation)) :=
   (* Preconditions *)
   (Z.ge (tez.to_Z (amount env)) 5000000) /\
-  mem parameter_ty _ (Mem_variant_map _ int) param storage /\
+  mem string _ (Mem_variant_map _ int) param storage /\
   (* Postconditions *)
   (forall s, (mem _ _ (Mem_variant_map _ int) s storage) <->
         (mem _ _ (Mem_variant_map _ int) s new_storage)) /\
@@ -106,7 +110,7 @@ Proof.
         try inversion gtamount.
       exfalso. clear gtamount. 
       unfold tez.to_Z in gtamountcontra.
-      unfold tez.to_int64 in *. destruct (Env.amount env) as [t _].
+      unfold tez.to_int64 in *. destruct (E.amount env) as [t _].
       apply Z.compare_ge_iff in gtamountcontra.
       apply gtamountcontra. clear gtamountcontra.
       unfold int64.compare, int64.of_Z, int64.to_Z at 1 in amount.

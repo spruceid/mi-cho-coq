@@ -28,14 +28,18 @@ Require Import util.
 Import error.
 Require List.
 
-Module return_to_sender(C:ContractContext)(E:Env).
-
 Definition parameter_ty := unit.
 Definition storage_ty := unit.
 
-Module semantics := Semantics E C. Import semantics.
+Module ST : (SelfType with Definition self_type := parameter_ty).
+  Definition self_type := parameter_ty.
+End ST.
 
-Definition return_to_sender : full_contract parameter_ty storage_ty :=
+Module return_to_sender(C:ContractContext)(E:Env ST C).
+
+Module semantics := Semantics ST C E. Import semantics.
+
+Definition return_to_sender : full_contract storage_ty :=
   (
     CDR ;;
     NIL operation ;;
