@@ -29,8 +29,9 @@ Require Import semantics.
 Require Import util.
 Import error.
 Require List.
+Require Import Lia.
 
-Definition parameter_ty := option (or (pair key_hash mutez) (or key_hash (or unit key_hash))).
+Definition parameter_ty := or (or (lambda unit (list operation)) key_hash) unit.
 Definition storage_ty := key_hash.
 
 Module ST : (SelfType with Definition self_type := parameter_ty).
@@ -43,39 +44,39 @@ Module semantics := Semantics ST C E. Import semantics.
 
 Definition manager : full_contract storage_ty :=
   (UNPAIR ;;
-   IF_SOME (
-   DUUP ;;
-   IMPLICIT_ACCOUNT ;; ADDRESS ;;
-   SENDER ;;
-   IFCMPNEQ (a := address)
-     (SENDER ;; PUSH string (String_constant "Only the owner can operate.") ;; PAIR ;; FAILWITH)
-     (DIP (NIL operation) ;;
-      IF_LEFT
-        (DUP ;; DIP (CAR ;; IMPLICIT_ACCOUNT) ;; CDR ;; UNIT ;; TRANSFER_TOKENS ;; CONS ;; PAIR)
-        (IF_LEFT
-           (SOME ;; SET_DELEGATE ;; CONS ;; PAIR)
-           (IF_LEFT
-              (DROP ;; NONE key_hash ;; SET_DELEGATE ;; CONS ;; PAIR)
-              (DIIP DROP;; SWAP ;; PAIR)))))
-   (NIL operation;; PAIR)).
+   IF_LEFT
+        (DUUP ;;
+        IMPLICIT_ACCOUNT ;; ADDRESS ;;
+        SENDER ;;
+        IFCMPNEQ (a := address)
+          (SENDER ;; PUSH string (String_constant "Only the owner can operate.") ;; PAIR ;; FAILWITH)
+          (IF_LEFT
+             (UNIT ;; EXEC ;; PAIR)
+             (DIP (NIL operation) ;;
+              (DIIP DROP;; SWAP ;; PAIR))))
+        (DROP;; NIL operation;; PAIR)).
 
 Definition manager_spec
            (storage : data storage_ty)
            (param : data parameter_ty)
            (new_storage : data storage_ty)
-           (returned_operations : data (list operation)) :=
+           (returned_operations : data (list operation))
+           (fuel : Datatypes.nat) :=
   match param with
-  | None => new_storage = storage /\ returned_operations = nil
-  | Some param =>
+  | inr tt =>
+    (* %default: anybody can send tokens this does not modify the
+    storage and produces no operation. *)
+    new_storage = storage /\ returned_operations = nil
+  | inl param =>
+    (* All other cases are only available to the stored manager. *)
     sender env = address_ env unit (implicit_account env storage) /\
     match param with
-    | inl (destination, amount) =>
-      new_storage = storage /\ returned_operations = (transfer_tokens env unit tt amount (implicit_account env destination) :: nil)%list
-    | inr (inl new_delegate) =>
-      new_storage = storage /\ returned_operations = (set_delegate env (Some new_delegate) :: nil)%list
-    | inr (inr (inl tt)) =>
-      new_storage = storage /\ returned_operations = (set_delegate env None :: nil)%list
-    | inr (inr (inr new_manager)) =>
+    | inl lam =>
+      (* %do *)
+      new_storage = storage /\
+      eval lam fuel (tt, tt) = Return _ (returned_operations, tt)
+    | inr new_manager =>
+      (* %set_manager *)
       new_storage = new_manager /\ returned_operations = nil
     end
   end.
@@ -108,6 +109,14 @@ Proof.
   intuition.
 Qed.
 
+Lemma fold_eval_precond fuel :
+  eval_precond_body env (@semantics.eval_precond _ _ env fuel) =
+  @semantics.eval_precond _ _ env (S fuel).
+Proof.
+  reflexivity.
+Qed.
+
+
 Lemma manager_correct
       (storage : data storage_ty)
       (param : data parameter_ty)
@@ -115,11 +124,13 @@ Lemma manager_correct
       (returned_operations : data (list operation))
       (fuel : Datatypes.nat) :
   fuel >= 42 ->
-  eval manager fuel ((param, storage), tt) = Return _ ((returned_operations, new_storage), tt)
-  <-> manager_spec storage param new_storage returned_operations.
+  eval manager (13 + fuel) ((param, storage), tt) = Return _ ((returned_operations, new_storage), tt)
+  <-> manager_spec storage param new_storage returned_operations fuel.
 Proof.
   intro Hfuel.
-  unfold ">=" in Hfuel.
+  remember (13 + fuel) as fuel2.
+  assert (29 <= fuel2) by lia.
+  (* unfold ">=" in Hfuel. *)
   unfold eval.
   rewrite return_precond.
   rewrite eval_precond_correct.
@@ -131,21 +142,39 @@ Proof.
     + intro Htrue.
       apply (eqb_eq address) in Htrue.
       apply and_right.
-
       * assumption.
       * simpl.
         do 3 (more_fuel; simplify_instruction).
-        destruct param as [(destination, amount)|[new_delegate|[()|new_manager]]];
-          repeat (more_fuel; simplify_instruction); intuition congruence.
+        destruct param as [lam | new_manager].
+        -- repeat (more_fuel; simplify_instruction).
+           assert (fuel = S fuel2) by lia.
+           rewrite fold_eval_precond.
+           subst fuel. clear Hfuel.
+           simplify_instruction.
+           rewrite fold_eval_precond.
+           rewrite <- eval_precond_correct.
+           rewrite precond_exists.
+           unfold precond_ex.
+           split.
+           ++ intros ((ops, []), (Hops, Hs)).
+              unfold eval.
+              injection Hs; intros; subst.
+              auto.
+           ++ intros ([], Hlam).
+              exists (returned_operations, tt).
+              auto.
+        -- repeat (more_fuel; simplify_instruction).
+           intuition congruence.
     + intro Hfalse.
       apply (eqb_neq address) in Hfalse.
       simpl.
       repeat (more_fuel; simplify_instruction).
       split.
       * intros Hf; inversion Hf.
-      * intros (H, _).
+      * intros (He, _).
         contradiction.
-  - intuition congruence.
+  - destruct d.
+    intuition congruence.
 Qed.
 
 End manager.
