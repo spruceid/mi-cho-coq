@@ -31,7 +31,7 @@ Import error.
 Require List.
 Require Import Lia.
 
-Definition parameter_ty := or (or (lambda unit (list operation)) key_hash) unit.
+Definition parameter_ty := or (lambda unit (list operation)) unit.
 Definition storage_ty := key_hash.
 
 Module ST : (SelfType with Definition self_type := parameter_ty).
@@ -50,11 +50,8 @@ Definition manager : full_contract storage_ty :=
         SENDER ;;
         IFCMPNEQ (a := address)
           (SENDER ;; PUSH string (String_constant "Only the owner can operate.") ;; PAIR ;; FAILWITH)
-          (IF_LEFT
-             (UNIT ;; EXEC ;; PAIR)
-             (DIP (NIL operation) ;;
-              (DIIP DROP;; SWAP ;; PAIR))))
-        (DROP;; NIL operation;; PAIR)).
+          (UNIT ;; EXEC ;; PAIR))
+        (DROP ;; NIL operation ;; PAIR)).
 
 Definition manager_spec
            (storage : data storage_ty)
@@ -67,18 +64,11 @@ Definition manager_spec
     (* %default: anybody can send tokens this does not modify the
     storage and produces no operation. *)
     new_storage = storage /\ returned_operations = nil
-  | inl param =>
-    (* All other cases are only available to the stored manager. *)
+  | inl lam =>
+    (* %do is only available to the stored manager. *)
     sender env = address_ env unit (implicit_account env storage) /\
-    match param with
-    | inl lam =>
-      (* %do *)
-      new_storage = storage /\
-      eval lam fuel (tt, tt) = Return _ (returned_operations, tt)
-    | inr new_manager =>
-      (* %set_manager *)
-      new_storage = new_manager /\ returned_operations = nil
-    end
+    new_storage = storage /\
+    eval lam fuel (tt, tt) = Return _ (returned_operations, tt)
   end.
 
 Lemma eqb_eq a c1 c2 :
@@ -124,19 +114,18 @@ Lemma manager_correct
       (returned_operations : data (list operation))
       (fuel : Datatypes.nat) :
   fuel >= 42 ->
-  eval manager (13 + fuel) ((param, storage), tt) = Return _ ((returned_operations, new_storage), tt)
+  eval manager (12 + fuel) ((param, storage), tt) = Return _ ((returned_operations, new_storage), tt)
   <-> manager_spec storage param new_storage returned_operations fuel.
 Proof.
   intro Hfuel.
-  remember (13 + fuel) as fuel2.
-  assert (29 <= fuel2) by lia.
-  (* unfold ">=" in Hfuel. *)
+  remember (12 + fuel) as fuel2.
+  assert (30 <= fuel2) by lia.
   unfold eval.
   rewrite return_precond.
   rewrite eval_precond_correct.
   unfold manager_spec.
   do 5 (more_fuel; simplify_instruction).
-  destruct param as [param|].
+  destruct param as [lam|].
   - do 4 (more_fuel; simplify_instruction).
     case_eq (BinInt.Z.eqb (comparison_to_int (address_compare (sender env) (address_ env unit (implicit_account env storage)))) Z0).
     + intro Htrue.
@@ -145,26 +134,24 @@ Proof.
       * assumption.
       * simpl.
         do 3 (more_fuel; simplify_instruction).
-        destruct param as [lam | new_manager].
-        -- repeat (more_fuel; simplify_instruction).
-           assert (fuel = S fuel2) by lia.
-           rewrite fold_eval_precond.
-           subst fuel. clear Hfuel.
-           simplify_instruction.
-           rewrite fold_eval_precond.
-           rewrite <- eval_precond_correct.
-           rewrite precond_exists.
-           unfold precond_ex.
-           split.
-           ++ intros ((ops, []), (Hops, Hs)).
-              unfold eval.
-              injection Hs; intros; subst.
-              auto.
-           ++ intros ([], Hlam).
-              exists (returned_operations, tt).
-              auto.
-        -- repeat (more_fuel; simplify_instruction).
-           intuition congruence.
+        repeat (more_fuel; simplify_instruction).
+        simpl in Heqfuel2.
+        assert (fuel = S fuel2) by lia.
+        rewrite fold_eval_precond.
+        subst fuel. clear Hfuel.
+        simplify_instruction.
+        rewrite fold_eval_precond.
+        rewrite <- eval_precond_correct.
+        rewrite precond_exists.
+        unfold precond_ex.
+        split.
+        ++ intros ((ops, []), (Hops, Hs)).
+           unfold eval.
+           injection Hs; intros; subst.
+           auto.
+        ++ intros ([], Hlam).
+           exists (returned_operations, tt).
+           auto.
     + intro Hfalse.
       apply (eqb_neq address) in Hfalse.
       simpl.
