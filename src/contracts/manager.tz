@@ -1,7 +1,6 @@
 parameter
   (or
-     (or (lambda unit (list operation))
-         key_hash)
+     (lambda unit (list operation))
      unit);
 storage key_hash;
 code
@@ -12,8 +11,5 @@ code
         SENDER ;
         IFCMPNEQ
           { SENDER ; PUSH string "Only the owner can operate." ; PAIR ; FAILWITH }
-          { IF_LEFT
-              { UNIT ; EXEC ; PAIR }
-              { DIP { NIL operation } ;
-                { DIIP { DROP } ; SWAP ; PAIR }}}}
+          { UNIT ; EXEC ; PAIR }}
       { DROP ; NIL operation ; PAIR }};
