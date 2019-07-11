@@ -1,7 +1,7 @@
 parameter
   (or
-     (lambda unit (list operation))
-     unit);
+     (lambda %do unit (list operation))
+     (unit %default));
 storage key_hash;
 code
   { UNPAIR ;
