@@ -37,7 +37,7 @@ Module ST : (SelfType with Definition self_type := parameter_ty).
   Definition self_type := parameter_ty.
 End ST.
 
-Module vote(C:ContractContext)(E:Env ST C).
+Module manager(C:ContractContext)(E:Env ST C).
 
 Module semantics := Semantics ST C E. Import semantics.
 
@@ -148,4 +148,4 @@ Proof.
   - intuition congruence.
 Qed.
 
-End vote.
+End manager.
