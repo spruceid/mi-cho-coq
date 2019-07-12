@@ -82,10 +82,10 @@ Inductive instruction : Set :=
 | SHA256 : instruction
 | SHA512 : instruction
 | CHECK_SIGNATURE : instruction
-| DIG : Datatypes.nat -> instruction
-| DUG : Datatypes.nat -> instruction
-| DIP : Datatypes.nat -> instruction -> instruction
-| DROP : Datatypes.nat -> instruction
+| DIG : nat -> instruction
+| DUG : nat -> instruction
+| DIP : nat -> instruction -> instruction
+| DROP : nat -> instruction
 | CHAIN_ID : instruction
 with
 concrete_data : Set :=
@@ -109,6 +109,6 @@ concrete_data : Set :=
 | Some_ : concrete_data -> concrete_data
 | None_ : concrete_data
 | Elt : concrete_data -> concrete_data -> concrete_data
-| Concrete_seq : Datatypes.list concrete_data -> concrete_data
+| Concrete_seq : list concrete_data -> concrete_data
 | Instruction : instruction -> concrete_data
 | Chain_id_constant : syntax.chain_id_constant -> concrete_data.

@@ -804,8 +804,6 @@ Module untyper(ST: SelfType)(C:ContractContext).
         reflexivity.
       + admit.
       + admit.
-      + admit.
-      + admit.
   Admitted.
 
 End untyper.
