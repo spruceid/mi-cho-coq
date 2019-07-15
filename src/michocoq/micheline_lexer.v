@@ -152,18 +152,20 @@ lex_micheline_multiline_comment (input : string) loc :=
   | Empty_string => error.Failed _ (error.Lexing loc)
   end.
 
+CoFixpoint const_buffer (t : micheline_parser.Aut.Gram.token) : micheline_parser.MenhirLibParser.Inter.buffer :=
+  micheline_parser.MenhirLibParser.Inter.Buf_cons t (const_buffer t).
 
-Fixpoint tokens_to_parser (ts : list (location * location * token)) : error.M (Streams.Stream parser_token) :=
+Fixpoint tokens_to_parser (ts : list (location * location * token)) : error.M micheline_parser.MenhirLibParser.Inter.buffer :=
   match ts with
-  | nil => error.Return _ (Streams.const (token_to_parser (location_start, location_start, EOF)))
+  | nil => error.Return _ (const_buffer (token_to_parser (location_start, location_start, EOF)))
   | cons t ts =>
     error.bind
-      (fun s => error.Return _ (Streams.Cons (token_to_parser t) s))
+      (fun s => error.Return _ (micheline_parser.MenhirLibParser.Inter.Buf_cons (token_to_parser t) s))
       (tokens_to_parser ts)
   end.
 
 Definition lex_micheline_to_parser (input : string)
-  : error.M (Streams.Stream parser_token) :=
+  : error.M micheline_parser.MenhirLibParser.Inter.buffer :=
   error.bind tokens_to_parser (lex_micheline input location_start).
 
 (* Some interesting lemmas *)

@@ -20,11 +20,11 @@ Module Main(ST : syntax.SelfType).
     error.bind
       (fun s =>
          match micheline_parser.file fuel s with
-         | micheline_parser.Parser.Inter.Fail_pr =>
+         | micheline_parser.MenhirLibParser.Inter.Fail_pr =>
            error.Failed _ error.Parsing
-         | micheline_parser.Parser.Inter.Timeout_pr =>
+         | micheline_parser.MenhirLibParser.Inter.Timeout_pr =>
            error.Failed _ error.Parsing_Out_of_Fuel
-         | micheline_parser.Parser.Inter.Parsed_pr m _ =>
+         | micheline_parser.MenhirLibParser.Inter.Parsed_pr m _ =>
            error.Return _ m
          end)
       (micheline_lexer.lex_micheline_to_parser input).

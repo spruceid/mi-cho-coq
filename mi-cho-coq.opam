@@ -20,7 +20,7 @@ depends: [
   "coq-ott"
   "ott"
   "menhir"
-  "coq-menhirlib"
+  "coq-menhirlib" {>= "20190626"}
 ]
 
 tags: [

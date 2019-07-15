@@ -3,8 +3,8 @@ Require Import micheline_syntax location.
 %}
 
 %token <location * location> LBRACE RBRACE SEMICOLON LPAREN RPAREN EOF
-%token <location * location * string> PRIM STR BYTES
-%token <location * location * Z> NUMBER
+%token <location * location * string> PRIMt STRt BYTESt
+%token <location * location * Z> NUMBERt
 
 %start <loc_micheline> file
 
@@ -15,15 +15,15 @@ Require Import micheline_syntax location.
 %%
 
 atom:
-    STR {
+    STRt {
       let '((b, e), s) := $1 in
       Mk_loc_micheline (b, e, STR s)
     }
-  | BYTES {
+  | BYTESt {
       let '((b, e), s) := $1 in
       Mk_loc_micheline (b, e, BYTES s)
     }
-  | NUMBER {
+  | NUMBERt {
       let '((b, e), z) := $1 in
       Mk_loc_micheline (b, e, NUMBER z) }
   | LBRACE seq RBRACE {
@@ -35,7 +35,7 @@ atom:
 arg:
     atom { $1 }
   | LPAREN app RPAREN { $2 }
-  | PRIM {
+  | PRIMt {
       let '((b, e), _) := $1 in
       Mk_loc_micheline (b, e, PRIM $1 nil)
     }
@@ -52,7 +52,7 @@ args:
 
 micheline:
     atom { $1 }
-  | PRIM {
+  | PRIMt {
       let '((b, e), _) := $1 in
       Mk_loc_micheline (b, e, PRIM $1 nil)
     }
@@ -65,7 +65,7 @@ seq:
 ;
 
 app:
-    PRIM args {
+    PRIMt args {
       let '((b, _), _) := $1 in
       let '((_, e), l) := $2 in
       Mk_loc_micheline (b, e, PRIM $1 l)
