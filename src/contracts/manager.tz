@@ -6,10 +6,26 @@ storage key_hash;
 code
   { UNPAIR ;
     IF_LEFT
-      { DUUP ;
-        IMPLICIT_ACCOUNT ; ADDRESS ;
+      { # 'do' entrypoint
+        # Assert no token was sent:
+        # to send tokens, the default entry point should be used
+        PUSH mutez 0 ;
+        AMOUNT ;
+        ASSERT_CMPEQ ;
+        # Assert that the sender is the manager
+        DUUP ;
+        IMPLICIT_ACCOUNT ;
+        ADDRESS ;
         SENDER ;
-        IFCMPNEQ
-          { SENDER ; PUSH string "Only the owner can operate." ; PAIR ; FAILWITH }
-          { UNIT ; EXEC ; PAIR }}
-      { DROP ; NIL operation ; PAIR }};
+        ASSERT_CMPEQ ;
+        # Execute the lambda argument
+        UNIT ;
+        EXEC ;
+        PAIR ;
+      }
+      { # 'default' entrypoint
+        DROP ;
+        NIL operation ;
+        PAIR ;
+      }
+  };
