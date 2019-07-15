@@ -1,5 +1,5 @@
 Require Import ZArith List.
-Require Import syntax.
+Require Import syntax semantics.
 Require Import untyped_syntax error.
 
 
@@ -610,6 +610,7 @@ Module Typer(ST: SelfType)(C:ContractContext).
       Return _ (Inferred_type _ _ syntax.SHA512)
     | CHECK_SIGNATURE, key :: signature :: Comparable_type bytes :: A =>
       Return _ (Inferred_type _ _ syntax.CHECK_SIGNATURE)
+    (* TODO Dig and Dug *)
     | _, _ => Failed _ Typing
     end.
 End Typer.

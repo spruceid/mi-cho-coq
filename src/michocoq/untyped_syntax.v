@@ -112,3 +112,9 @@ concrete_data : Set :=
 | Concrete_seq : list concrete_data -> concrete_data
 | Instruction : instruction -> concrete_data
 | Chain_id_constant : syntax.chain_id_constant -> concrete_data.
+
+(* Some macros *)
+Definition UNPAIR : instruction :=
+  SEQ DUP (SEQ CAR (DIP 1 CDR)).
+Definition UNPAPAIR : instruction :=
+  SEQ UNPAIR (DIP 1 UNPAIR).

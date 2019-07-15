@@ -4,7 +4,7 @@ Require Import untyped_syntax error.
 Require typer.
 Require Eqdep_dec.
 
-Module untyper(ST: SelfType)(C:ContractContext).
+Module Untyper(ST: SelfType)(C:ContractContext).
 
   Module syntax := Syntax ST C.
   Module typer := typer.Typer ST C.
@@ -806,4 +806,4 @@ Module untyper(ST: SelfType)(C:ContractContext).
       + admit.
   Admitted.
 
-End untyper.
+End Untyper.

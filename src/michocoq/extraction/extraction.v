@@ -23,3 +23,6 @@
 Require Extraction.
 Require Import Michocoq.semantics.
 Recursive Extraction Library semantics.
+
+Require Import Michocoq.typer.
+Recursive Extraction Library typer.
