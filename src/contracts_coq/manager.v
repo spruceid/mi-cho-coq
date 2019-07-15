@@ -24,7 +24,7 @@ Require Import String.
 Require Import Michocoq.macros.
 Import syntax.
 Import comparable.
-Require Import NArith.
+Require Import ZArith.
 Require Import semantics.
 Require Import util.
 Import error.
@@ -45,13 +45,29 @@ Module semantics := Semantics ST C E. Import semantics.
 Definition manager : full_contract storage_ty :=
   (UNPAIR ;;
    IF_LEFT
-        (DUUP ;;
-        IMPLICIT_ACCOUNT ;; ADDRESS ;;
-        SENDER ;;
-        IFCMPNEQ (a := address)
-          (SENDER ;; PUSH string (String_constant "Only the owner can operate.") ;; PAIR ;; FAILWITH)
-          (UNIT ;; EXEC ;; PAIR))
-        (DROP ;; NIL operation ;; PAIR)).
+   ( (* 'do' entrypoint *)
+     (* Assert no token was sent: *)
+     (* to send tokens, the default entry point should be used *)
+     PUSH mutez (0 ~mutez) ;;
+     AMOUNT ;;
+     ASSERT_CMPEQ ;;
+     (* Assert that the sender is the manager *)
+     DUUP ;;
+     IMPLICIT_ACCOUNT ;;
+     ADDRESS ;;
+     SENDER ;;
+     ASSERT_CMPEQ ;;
+     (* Execute the lambda argument *)
+     UNIT ;;
+     EXEC ;;
+     PAIR
+   )
+   ( (* 'default' entrypoint *)
+     DROP ;;
+     NIL operation ;;
+     PAIR
+   )
+  ).
 
 Definition manager_spec
            (storage : data storage_ty)
@@ -65,7 +81,8 @@ Definition manager_spec
     storage and produces no operation. *)
     new_storage = storage /\ returned_operations = nil
   | inl lam =>
-    (* %do is only available to the stored manager. *)
+    (* %do is only available to the stored manager and rejects non-null amounts*)
+    amount env = (0 ~Mutez) /\
     sender env = address_ env unit (implicit_account env storage) /\
     new_storage = storage /\
     eval lam fuel (tt, tt) = Return _ (returned_operations, tt)
@@ -99,6 +116,11 @@ Proof.
   intuition.
 Qed.
 
+Lemma and_both {P Q R : Prop} : (Q <-> R) -> ((P /\ Q) <-> (P /\ R)).
+Proof.
+  intuition.
+Qed.
+
 Lemma fold_eval_precond fuel :
   eval_precond_body env (@semantics.eval_precond _ _ env fuel) =
   @semantics.eval_precond _ _ env (S fuel).
@@ -106,6 +128,13 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma if_false_is_and (b : Datatypes.bool) P : (if b then P else false) <-> b = true /\ P.
+Proof.
+  destruct b.
+  - intuition.
+  - generalize not_false.
+    intuition discriminate.
+Qed.
 
 Lemma manager_correct
       (storage : data storage_ty)
@@ -114,54 +143,43 @@ Lemma manager_correct
       (returned_operations : data (list operation))
       (fuel : Datatypes.nat) :
   fuel >= 42 ->
-  eval manager (12 + fuel) ((param, storage), tt) = Return _ ((returned_operations, new_storage), tt)
+  eval manager (13 + fuel) ((param, storage), tt) = Return _ ((returned_operations, new_storage), tt)
   <-> manager_spec storage param new_storage returned_operations fuel.
 Proof.
   intro Hfuel.
-  remember (12 + fuel) as fuel2.
+  remember (13 + fuel) as fuel2.
   assert (30 <= fuel2) by lia.
   unfold eval.
   rewrite return_precond.
   rewrite eval_precond_correct.
   unfold manager_spec.
   do 5 (more_fuel; simplify_instruction).
-  destruct param as [lam|].
-  - do 4 (more_fuel; simplify_instruction).
-    case_eq (BinInt.Z.eqb (comparison_to_int (address_compare (sender env) (address_ env unit (implicit_account env storage)))) Z0).
-    + intro Htrue.
-      apply (eqb_eq address) in Htrue.
-      apply and_right.
-      * assumption.
-      * simpl.
-        do 3 (more_fuel; simplify_instruction).
-        repeat (more_fuel; simplify_instruction).
-        simpl in Heqfuel2.
-        assert (fuel = S fuel2) by lia.
-        rewrite fold_eval_precond.
-        subst fuel. clear Hfuel.
-        simplify_instruction.
-        rewrite fold_eval_precond.
-        rewrite <- eval_precond_correct.
-        rewrite precond_exists.
-        unfold precond_ex.
-        split.
-        ++ intros ((ops, []), (Hops, Hs)).
-           unfold eval.
-           injection Hs; intros; subst.
-           auto.
-        ++ intros ([], Hlam).
-           exists (returned_operations, tt).
-           auto.
-    + intro Hfalse.
-      apply (eqb_neq address) in Hfalse.
-      simpl.
-      repeat (more_fuel; simplify_instruction).
-      split.
-      * intros Hf; inversion Hf.
-      * intros (He, _).
-        contradiction.
-  - destruct d.
-    intuition congruence.
+  destruct param as [lam|[]].
+  - do 5 (more_fuel; simplify_instruction).
+    simplify_instruction.
+    rewrite if_false_is_and.
+    rewrite (eqb_eq mutez).
+    apply and_both.
+    do 5 (more_fuel; simplify_instruction).
+    rewrite if_false_is_and.
+    rewrite (eqb_eq address).
+    apply and_both.
+    simpl in Heqfuel2.
+    rewrite fold_eval_precond.
+    assert (fuel = S (S fuel2)) by lia.
+    subst fuel. clear Hfuel.
+    rewrite <- eval_precond_correct.
+    rewrite precond_exists.
+    unfold precond_ex.
+    split.
+    ++ intros ((ops, []), (Hops, Hs)).
+       unfold eval.
+       injection Hs; intros; subst.
+       auto.
+    ++ intros ([], Hlam).
+       exists (returned_operations, tt).
+       auto.
+  - intuition congruence.
 Qed.
 
 End manager.
