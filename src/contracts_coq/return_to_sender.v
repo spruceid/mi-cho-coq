@@ -35,7 +35,7 @@ Module return_to_sender(C:ContractContext).
 
 Module semantics := Semantics C. Import semantics.
 
-Definition return_to_sender : full_contract _ parameter_ty storage_ty :=
+Definition return_to_sender : full_contract _ parameter_ty None storage_ty :=
   (
     CDR ;;
     NIL operation ;;
@@ -44,7 +44,7 @@ Definition return_to_sender : full_contract _ parameter_ty storage_ty :=
        IFCMPEQ NOOP
          (
            SOURCE ;;
-           CONTRACT unit ;;
+           CONTRACT None unit ;;
            ASSERT_SOME ;;
            AMOUNT ;;
            UNIT ;;
@@ -83,7 +83,7 @@ Lemma return_to_sender_correct :
   <->
   (amount env = (0 ~Mutez) /\ ops = nil) \/
   (amount env <> (0 ~Mutez) /\
-    exists ctr, contract_ env unit (source env) = Some ctr /\
+    exists ctr, contract_ env None unit (source env) = Some ctr /\
            ops = ((transfer_tokens env unit tt (amount env) ctr) :: nil)%list).
 Proof.
   intros env ops fuel Hfuel.
@@ -91,43 +91,30 @@ Proof.
   unfold eval.
   rewrite eval_precond_correct.
   unfold ">=" in Hfuel.
-  do 8 (more_fuel ; simpl).
-  fold (simple_compare mutez).
-  fold (compare mutez).
-  case_eq ((comparison_to_int (compare mutez (0 ~Mutez) (amount env)) =? 0)%Z).
-  - (* true *)
-    intro Heq.
-    rewrite eqb_eq in Heq.
-    do 1 (more_fuel ; simpl).
-    split.
-    + intro Hops.
-      injection Hops.
-      intro; subst ops.
-      intuition.
-    + intros [(Hl, Hops)|(Hr, _)].
-      * simpl.
-        subst; reflexivity.
-      * symmetry in Heq.
-        contradiction.
-  - intro Hneq.
-    rewrite eqb_neq in Hneq.
-    do 7 (more_fuel ; simpl).
-    destruct (contract_ env unit (source env)).
-    + (* Some *)
-      split.
-      * intro H ; right; split.
-        -- congruence.
-        -- eexists ; intuition ; injection H.
-           symmetry; assumption.
-      * intros [(Habs, _)| (_, (ctr, (He, Hops)))].
-        -- congruence.
-        -- injection He; intro; subst d; subst ops; reflexivity.
-    + (* None *)
-      simpl. split.
-      * intro H; inversion H.
-      * intros [(Habs, _)|(ctr, (He, (Hops, _)))].
-        -- congruence.
-        -- discriminate.
+  repeat (more_fuel ; simpl).
+  rewrite destruct_if.
+  apply or_both; apply and_both_0.
+  - rewrite (eqb_eq mutez).
+    intuition.
+  - intuition congruence.
+  - rewrite bool_not_false.
+    rewrite (eqb_eq mutez).
+    intuition.
+  - pose (c := contract_ env None unit (source env)).
+    pose (transfer := transfer_tokens env unit tt (amount env)).
+    change (match c with Some b => ((transfer b :: nil)%list, tt, tt) = (ops, tt, tt) | None => False end <-> (exists ctr, c = Some ctr /\ ops = (transfer ctr :: nil)%list)).
+    destruct c.
+    + split.
+      * intro H.
+        exists d.
+        intuition congruence.
+      * intros (c, (Hc, Hops)).
+        injection Hc; clear Hc.
+        intro; subst.
+        reflexivity.
+    + split; [contradiction|].
+      intros (c, (Habs, _)).
+      discriminate.
 Qed.
 
 End return_to_sender.

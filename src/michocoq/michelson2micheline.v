@@ -37,6 +37,15 @@ Fixpoint michelson2micheline_ctype (ct: comparable_type) : loc_micheline :=
                [michelson2micheline_sctype sct; michelson2micheline_ctype ct]
   end.
 
+Definition michelson2micheline_atype michelson2micheline_type (t : type) (an : annot_o) : loc_micheline :=
+  match an, michelson2micheline_type t with
+  | None, m => m
+  | Some an, Mk_loc_micheline (loca, locb, (PRIM (loc1, loc2, p) l)) =>
+    Mk_loc_micheline (loca, locb, (PRIM (loc1, loc2, p) (dummy_prim an nil :: l)))
+  | Some an, m => (* Cannot happen *)
+    dummy_prim "strange_annotated_type" nil
+  end.
+
 Fixpoint michelson2micheline_type (t : type) : loc_micheline :=
   match t with
   | Comparable_type ct => michelson2micheline_sctype ct
@@ -50,8 +59,8 @@ Fixpoint michelson2micheline_type (t : type) : loc_micheline :=
   | contract t' => dummy_prim "contract" [michelson2micheline_type t']
   | pair t1 t2 =>
     dummy_prim "pair" [michelson2micheline_type t1; michelson2micheline_type t2]
-  | or t1 t2 =>
-    dummy_prim "or" [michelson2micheline_type t1; michelson2micheline_type t2]
+  | or t1 n1 t2 n2 =>
+    dummy_prim "or" [michelson2micheline_atype michelson2micheline_type t1 n1; michelson2micheline_atype michelson2micheline_type t2 n2]
   | lambda t1 t2 =>
     dummy_prim "lambda" [michelson2micheline_type t1; michelson2micheline_type t2]
   | map ct1 t2 =>
@@ -145,20 +154,24 @@ Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
   | EMPTY_BIG_MAP ct t => dummy_prim "EMPTY_BIG_MAP"
                                      [michelson2micheline_ctype ct;
                                         michelson2micheline_type t]
-  | MEM => dummy_prim "MEM" nil
-  | UPDATE => dummy_prim "UPDATE" nil
-  | CREATE_CONTRACT t1 t2 i => dummy_prim "CREATE_CONTRACT"
+  | MEM => dummy_prim "MEM" []
+  | UPDATE => dummy_prim "UPDATE" []
+  | CREATE_CONTRACT t1 t2 an i => dummy_prim "CREATE_CONTRACT"
                                           [michelson2micheline_type t1;
-                                             michelson2micheline_type t2;
-                                             dummy_seq (michelson2micheline_ins i)]
+                                             michelson2micheline_atype
+                                               michelson2micheline_type t2 an;
+                                             michelson2micheline_ins i]
   | TRANSFER_TOKENS => dummy_prim "TRANSFER_TOKENS" []
   | SET_DELEGATE => dummy_prim "SET_DELEGATE" []
   | BALANCE => dummy_prim "BALANCE" []
   | ADDRESS => dummy_prim "ADDRESS" []
-  | CONTRACT t => dummy_prim "CONTRACT" [michelson2micheline_type t]
+  | CONTRACT None t => dummy_prim "CONTRACT" [michelson2micheline_type t]
+  | CONTRACT (Some an) t =>
+    dummy_prim "CONTRACT" [dummy_prim an []; michelson2micheline_type t]
   | SOURCE => dummy_prim "SOURCE" []
   | SENDER => dummy_prim "SENDER" []
-  | SELF => dummy_prim "SELF" []
+  | SELF None => dummy_prim "SELF" []
+  | SELF (Some an) => dummy_prim "SELF" [dummy_prim an []]
   | AMOUNT => dummy_prim "AMOUNT" []
   | IMPLICIT_ACCOUNT => dummy_prim "IMPLICIT_ACCOUNT" []
   | NOW => dummy_prim "NOW" []

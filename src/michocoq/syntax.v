@@ -214,8 +214,10 @@ Canonical Structure mem_bigmap key val : mem_struct key (big_map key val) :=
 (* UPDATE *)
 Inductive update_variant : comparable_type -> type -> type -> Set :=
 | Update_variant_set a : update_variant a bool (set a)
-| Update_variant_map key val : update_variant key (option val) (map key val)
-| Update_variant_bigmap key val : update_variant key (option val) (big_map key val).
+| Update_variant_map key val :
+    update_variant key (option val) (map key val)
+| Update_variant_bigmap key val :
+    update_variant key (option val) (big_map key val).
 Structure update_struct key val collection :=
   Mk_update { update_variant_field : update_variant key val collection }.
 Canonical Structure update_set a : update_struct a bool (set a) :=
@@ -228,16 +230,18 @@ Canonical Structure update_bigmap key val :=
 (* ITER *)
 Inductive iter_variant : type -> type -> Set :=
 | Iter_variant_set (a : comparable_type) : iter_variant a (set a)
-| Iter_variant_map (key : comparable_type) val : iter_variant (pair key val) (map key val)
+| Iter_variant_map (key : comparable_type) val :
+    iter_variant (pair key val) (map key val)
 | Iter_variant_list a : iter_variant a (list a).
 Structure iter_struct collection :=
   Mk_iter { iter_elt_type : type;
             iter_variant_field : iter_variant iter_elt_type collection }.
-Canonical Structure iter_set a : iter_struct (set a) :=
+Canonical Structure iter_set (a : comparable_type) : iter_struct (set a) :=
   {| iter_variant_field := Iter_variant_set a |}.
-Canonical Structure iter_map key val : iter_struct (map key val) :=
+Canonical Structure iter_map (key : comparable_type) val :
+  iter_struct (map key val) :=
   {| iter_variant_field := Iter_variant_map key val |}.
-Canonical Structure iter_list a : iter_struct (list a) :=
+Canonical Structure iter_list (a : type) : iter_struct (list a) :=
   {| iter_variant_field := Iter_variant_list a |}.
 
 (* GET *)
@@ -247,9 +251,9 @@ Inductive get_variant : comparable_type -> type -> type -> Set :=
 Structure get_struct key collection :=
   Mk_get { get_val_type : type;
            get_variant_field : get_variant key get_val_type collection }.
-Canonical Structure get_map key val : get_struct key (map key val) :=
+Canonical Structure get_map key (val : type) : get_struct key (map key val) :=
   {| get_variant_field := Get_variant_map key val |}.
-Canonical Structure get_bigmap key val : get_struct key (big_map key val) :=
+Canonical Structure get_bigmap key (val : type) : get_struct key (big_map key val) :=
   {| get_variant_field := Get_variant_bigmap key val |}.
 
 (* MAP *)
@@ -262,9 +266,10 @@ Structure map_struct collection b :=
   Mk_map { map_in_type : type; map_out_collection_type : type;
            map_variant_field :
              map_variant map_in_type b collection map_out_collection_type }.
-Canonical Structure map_map key val b : map_struct (map key val) b :=
+Canonical Structure map_map (key : comparable_type) val b :
+  map_struct (map key val) b :=
   {| map_variant_field := Map_variant_map key val b |}.
-Canonical Structure map_list a b : map_struct (list a) b :=
+Canonical Structure map_list (a : type) b : map_struct (list a) b :=
   {| map_variant_field := Map_variant_list a b |}.
 
 End Overloading.
@@ -284,9 +289,67 @@ Inductive chain_id_constant : Set := Mk_chain_id : str -> chain_id_constant.
 Inductive elt_pair (a b : Set) : Set :=
 | Elt : a -> b -> elt_pair a b.
 
+Definition stack_type := Datatypes.list type.
+
+Definition opt_bind {A B : Set} (m : Datatypes.option A) (f : A -> Datatypes.option B) : Datatypes.option B :=
+  match m with
+  | Some a => f a
+  | None => None
+  end.
+
+Definition opt_merge {A : Set} (m1 m2 : Datatypes.option A) : Datatypes.option A :=
+  match m1 with
+  | Some a1 => Some a1
+  | None => m2
+  end.
+
+Definition get_entrypoint_root (e : annotation) (a : type) (an : annot_o) :
+  Datatypes.option type :=
+  opt_bind an (fun e' =>
+                 match String.string_dec e e' with
+                 | left _ => Some a
+                 | right _ => None
+                 end).
+
+Fixpoint get_entrypoint (e : annotation) (a : type) (an : annot_o) : Datatypes.option type :=
+  opt_merge (get_entrypoint_root e a an)
+            (match a with
+             | or a annot_a b annot_b =>
+               opt_merge (get_entrypoint e a annot_a) (get_entrypoint e b annot_b)
+             | _ => None
+             end).
+
+Definition get_entrypoint_opt (e : annot_o) (a : type) (an : annot_o) :
+  Datatypes.option type :=
+  match e with
+  | None =>
+    opt_merge (get_entrypoint default_entrypoint.default a an)
+              (Some a)
+  | Some e => get_entrypoint e a an
+  end.
+
+Definition isSome {A : Set} (m : Datatypes.option A) : Prop :=
+  match m with
+  | None => False
+  | Some _ => True
+  end.
+
+Definition isSome_maybe {A : Set} error (o : Datatypes.option A) : error.M (isSome o) :=
+  match o return error.M (isSome o) with
+  | Some _ => error.Return I
+  | None => error.Failed _ error
+  end.
+
+Definition get_opt {A : Set} (m : Datatypes.option A) (H : isSome m) : A :=
+  match m, H with
+  | Some a, I => a
+  | None, H => match H with end
+  end.
+
+Definition self_info := Datatypes.option (type * annot_o)%type.
 
 Inductive instruction :
-  forall (self_type : Datatypes.option type) (tail_fail_flag : Datatypes.bool) (A B : Datatypes.list type), Set :=
+  forall (self_i : self_info) (tail_fail_flag : Datatypes.bool) (A B : Datatypes.list type), Set :=
 | NOOP {self_type A} : instruction self_type Datatypes.false A A    (* Undocumented *)
 | FAILWITH {self_type A B a} : instruction self_type Datatypes.true (a ::: A) B
 | SEQ {self_type A B C tff} : instruction self_type Datatypes.false A B -> instruction self_type tff B C -> instruction self_type tff A C
@@ -298,8 +361,8 @@ Inductive instruction :
 part of the notation "'IF' c1 'then' c2 'else' c3" so we cannot call
 this constructor "IF" but we can make a notation for it. *)
 | LOOP {self_type A} : instruction self_type Datatypes.false A (bool ::: A) -> instruction self_type Datatypes.false (bool ::: A) A
-| LOOP_LEFT {self_type a b A} : instruction self_type Datatypes.false (a :: A) (or a b :: A) ->
-                      instruction self_type Datatypes.false (or a b :: A) (b :: A)
+| LOOP_LEFT {self_type a b an bn A} : instruction self_type Datatypes.false (a :: A) (or a an b bn :: A) ->
+                      instruction self_type Datatypes.false (or a an b bn :: A) (b :: A)
 | EXEC {self_type a b C} : instruction self_type Datatypes.false (a ::: lambda a b ::: C) (b :: C)
 | APPLY {self_type a b c D} {_ : Bool.Is_true (is_packable a)} :
     instruction self_type Datatypes.false (a ::: lambda (pair a b) c ::: D) (lambda b c ::: D)
@@ -365,20 +428,20 @@ this constructor "IF" but we can make a notation for it. *)
 | IF_NONE {self_type a A B tffa tffb} :
     instruction self_type tffa A B -> instruction self_type tffb (a :: A) B ->
     instruction self_type (tffa && tffb) (option a :: A) B
-| LEFT {self_type a} (b : type) {S} : instruction self_type Datatypes.false (a :: S) (or a b :: S)
-| RIGHT (a : type) {self_type b S} : instruction self_type Datatypes.false (b :: S) (or a b :: S)
-| IF_LEFT {self_type a b A B tffa tffb} :
+| LEFT {self_type a} (b : type) {S} : instruction self_type Datatypes.false (a :: S) (or a None b None :: S)
+| RIGHT (a : type) {self_type b S} : instruction self_type Datatypes.false (b :: S) (or a None b None :: S)
+| IF_LEFT {self_type a an b bn A B tffa tffb} :
     instruction self_type tffa (a :: A) B ->
     instruction self_type tffb (b :: A) B ->
-    instruction self_type (tffa && tffb) (or a b :: A) B
+    instruction self_type (tffa && tffb) (or a an b bn :: A) B
 | CONS {self_type a S} : instruction self_type Datatypes.false (a ::: list a ::: S) (list a :: S)
 | NIL (a : type) {self_type S} : instruction self_type Datatypes.false S (list a :: S)
 | IF_CONS {self_type a A B tffa tffb} :
     instruction self_type tffa (a ::: list a ::: A) B ->
     instruction self_type tffb A B ->
     instruction self_type (tffa && tffb) (list a :: A) B
-| CREATE_CONTRACT {self_type S tff} (g p : type) :
-    instruction (Some p) tff (pair p g :: nil) (pair (list operation) g :: nil) ->
+| CREATE_CONTRACT {self_type S tff} (g p : type) (an : annot_o) :
+    instruction (Some (p, an)) tff (pair p g :: nil) (pair (list operation) g :: nil) ->
     instruction self_type Datatypes.false
                 (option key_hash ::: mutez ::: g ::: S)
                 (operation ::: address ::: S)
@@ -388,11 +451,12 @@ this constructor "IF" but we can make a notation for it. *)
     instruction self_type Datatypes.false (option key_hash ::: S) (operation ::: S)
 | BALANCE {self_type S} : instruction self_type Datatypes.false S (mutez ::: S)
 | ADDRESS {self_type p S} : instruction self_type Datatypes.false (contract p ::: S) (address ::: S)
-| CONTRACT {self_type S} p : instruction self_type Datatypes.false (address ::: S) (option (contract p) ::: S)
+| CONTRACT {self_type S} (annot_opt : Datatypes.option annotation) p : instruction self_type Datatypes.false (address ::: S) (option (contract p) ::: S)
 (* Mistake in the doc: the return type must be an option *)
 | SOURCE {self_type S} : instruction self_type Datatypes.false S (address ::: S)
 | SENDER {self_type S} : instruction self_type Datatypes.false S (address ::: S)
-| SELF {self_type S} : instruction (Some self_type) Datatypes.false S (contract self_type :: S)
+| SELF {self_type self_annot S} (annot_opt : annot_o) (H : isSome (get_entrypoint_opt annot_opt self_type self_annot)) :
+    instruction (Some (self_type, self_annot)) Datatypes.false S (contract (get_opt _ H) :: S)
 (* p should be the current parameter type *)
 | AMOUNT {self_type S} : instruction self_type Datatypes.false S (mutez ::: S)
 | IMPLICIT_ACCOUNT {self_type S} : instruction self_type Datatypes.false (key_hash ::: S) (contract unit :: S)
@@ -418,7 +482,6 @@ this constructor "IF" but we can make a notation for it. *)
     length A = n ->
     instruction self_type Datatypes.false (A +++ B) B
 | CHAIN_ID {self_type S} : instruction self_type Datatypes.false S (chain_id ::: S)
-
 with
 concrete_data : type -> Set :=
 | Int_constant : Z -> concrete_data int
@@ -435,8 +498,8 @@ concrete_data : type -> Set :=
 | True_ : concrete_data bool
 | False_ : concrete_data bool
 | Pair {a b : type} : concrete_data a -> concrete_data b -> concrete_data (pair a b)
-| Left {a b : type} : concrete_data a -> concrete_data (or a b)
-| Right {a b : type} : concrete_data b -> concrete_data (or a b)
+| Left {a b : type} (x : concrete_data a) an bn : concrete_data (or a an b bn)
+| Right {a b : type} (x : concrete_data b) an bn : concrete_data (or a an b bn)
 | Some_ {a : type} : concrete_data a -> concrete_data (option a)
 | None_ {a : type} : concrete_data (option a)
 | Concrete_list {a} : Datatypes.list (concrete_data a) -> concrete_data (list a)
@@ -445,7 +508,7 @@ concrete_data : type -> Set :=
 | Concrete_map {a : comparable_type} {b} :
     Datatypes.list (elt_pair (concrete_data a) (concrete_data b)) ->
     concrete_data (map a b)
-| Instruction {a b} tff : instruction None tff (a ::: nil) (b ::: nil) ->
+| Instruction {a b} tff : instruction (None) tff (a ::: nil) (b ::: nil) ->
                           concrete_data (lambda a b)
 | Chain_id_constant : chain_id_constant -> concrete_data chain_id.
 (* TODO: add the no-ops CAST and RENAME *)
@@ -454,8 +517,8 @@ Coercion int_constant := Int_constant.
 Coercion nat_constant := Nat_constant.
 Coercion string_constant := String_constant.
 
-Definition full_contract tff param storage :=
-  instruction (Some param) tff
+Definition full_contract tff param annot storage :=
+  instruction (Some (param, annot)) tff
     ((pair param storage) ::: nil)
     ((pair (list operation) storage) ::: nil).
 
@@ -463,17 +526,18 @@ Record contract_file : Set :=
   Mk_contract_file
     {
       contract_file_parameter : type;
+      contract_file_annotation : annot_o;
       contract_file_storage : type;
       contract_tff : Datatypes.bool;
       contract_file_code :
         full_contract
           contract_tff
           contract_file_parameter
+          contract_file_annotation
           contract_file_storage;
     }.
 
 Notation "'IF'" := (IF_).
-Definition stack_type := Datatypes.list type.
 
 Notation "A ;; B" := (SEQ A B) (at level 100, right associativity).
 

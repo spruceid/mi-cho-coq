@@ -40,7 +40,7 @@ Definition to_coq_concrete_data
   end.
 
 Fixpoint of_coq
-  {self_type : Datatypes.option syntax_type.type}
+  {self_type : syntax.self_info}
   {tail_fail_flag : Datatypes.bool}
   {A B : Datatypes.list syntax_type.type}
   (instruction : syntax.instruction self_type tail_fail_flag A B)
@@ -104,9 +104,9 @@ Fixpoint of_coq
         instr_ := instruction';
       |}
     )
-  | @LOOP_LEFT _ a b A instruction =>
+  | @LOOP_LEFT _ a b an bn A instruction =>
     let? bef := of_ocaml.syntax_type_equiv.typ.coq_to_ocamls (a :: A) in
-    let? aft := of_ocaml.syntax_type_equiv.typ.coq_to_ocamls (or a b :: A) in
+    let? aft := of_ocaml.syntax_type_equiv.typ.coq_to_ocamls (or a an b bn :: A) in
     let? instruction' := of_coq instruction in
     Some (Loop_left
       {|

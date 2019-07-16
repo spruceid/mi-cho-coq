@@ -31,14 +31,14 @@ Import error.
 Require List.
 Require Import Lia.
 
-Definition parameter_ty := or (lambda unit (list operation)) unit.
+Definition parameter_ty := or (lambda unit (list operation)) (Some "%do"%string) unit (Some "%default"%string).
 Definition storage_ty := key_hash.
 
 Module manager(C:ContractContext).
 
 Module semantics := Semantics C. Import semantics.
 
-Definition manager : full_contract _ parameter_ty storage_ty :=
+Definition manager : full_contract _ parameter_ty None storage_ty :=
   (UNPAIR ;;
    IF_LEFT
    ( (* 'do' entrypoint *)
@@ -66,7 +66,7 @@ Definition manager : full_contract _ parameter_ty storage_ty :=
   ).
 
 Definition manager_spec
-           (env : @proto_env (Some parameter_ty))
+           (env : @proto_env (Some (parameter_ty, None)))
            (storage : data storage_ty)
            (param : data parameter_ty)
            (new_storage : data storage_ty)
@@ -134,7 +134,7 @@ Proof.
 Qed.
 
 Lemma manager_correct
-      (env : @proto_env (Some parameter_ty))
+      (env : @proto_env (Some (parameter_ty, None)))
       (storage : data storage_ty)
       (param : data parameter_ty)
       (new_storage : data storage_ty)

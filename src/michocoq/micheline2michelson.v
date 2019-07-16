@@ -62,7 +62,7 @@ Fixpoint micheline2michelson_type (bem : loc_micheline) : M type :=
        | Mk_loc_micheline (_, PRIM (_, "or") (a :: b :: nil)) =>
         let! a := micheline2michelson_type a in
         let! b := micheline2michelson_type b in
-        Return (or a b)
+        Return (or a None b None)
        | Mk_loc_micheline (_, PRIM (_, "lambda") (a :: b :: nil)) =>
         let! a := micheline2michelson_type a in
         let! b := micheline2michelson_type b in
@@ -437,10 +437,10 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
   | Mk_loc_micheline (_, PRIM (_, "ADDRESS") nil) => Return ADDRESS
   | Mk_loc_micheline (_, PRIM (_, "CONTRACT") (ty :: nil)) =>
     let! ty := micheline2michelson_type ty in
-    Return (CONTRACT ty)
+    Return (CONTRACT None ty)
   | Mk_loc_micheline (_, PRIM (_, "SOURCE") nil) => Return SOURCE
   | Mk_loc_micheline (_, PRIM (_, "SENDER") nil) => Return SENDER
-  | Mk_loc_micheline (_, PRIM (_, "SELF") nil) => Return SELF
+  | Mk_loc_micheline (_, PRIM (_, "SELF") nil) => Return (SELF None)
   | Mk_loc_micheline (_, PRIM (_, "AMOUNT") nil) => Return AMOUNT
   | Mk_loc_micheline (_, PRIM (_, "IMPLICIT_ACCOUNT") nil) => Return IMPLICIT_ACCOUNT
   | Mk_loc_micheline (_, PRIM (_, "NOW") nil) => Return NOW
@@ -489,7 +489,7 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
     let! i := micheline2michelson_instruction i in
     let! sty := micheline2michelson_type storage_ty in
     let! pty := micheline2michelson_type params_ty in
-    Return (CREATE_CONTRACT sty pty i)
+    Return (CREATE_CONTRACT sty pty None i)
   | Mk_loc_micheline
       (_, PRIM (_, "CREATE_CONTRACT")
                (Mk_loc_micheline
@@ -501,7 +501,7 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
     let! i := micheline2michelson_instruction i in
     let! sty := micheline2michelson_type storage_ty in
     let! pty := micheline2michelson_type params_ty in
-    Return (CREATE_CONTRACT sty pty i)
+    Return (CREATE_CONTRACT sty pty None i)
   | Mk_loc_micheline (_, PRIM (_, "EMPTY_SET") (cty :: nil)) =>
     let! cty := micheline2michelson_ctype cty in
     Return (EMPTY_SET cty)

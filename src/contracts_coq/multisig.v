@@ -19,6 +19,7 @@
 (* FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER *)
 (* DEALINGS IN THE SOFTWARE. *)
 
+Require String.
 Require Import Michocoq.macros.
 Import syntax.
 Import comparable.
@@ -28,7 +29,13 @@ Require Import util.
 Import error.
 Require List.
 
-Definition action_ty := or (pair mutez (contract unit)) (or (option key_hash) (pair nat (list key))).
+Module annots.
+  Import String.
+  Definition delegate : string := "%delegate".
+  Definition change_keys : string := "%change_keys".
+End annots.
+
+Definition action_ty := or (pair mutez (contract unit)) None (or (option key_hash) (Some annots.delegate) (pair nat (list key)) (Some annots.change_keys)) None.
 
 Definition parameter_ty := (pair
              (pair
@@ -42,17 +49,17 @@ Module multisig(C:ContractContext).
 
 Module semantics := Semantics C. Import semantics.
 
-Definition ADD_nat {S} : instruction (Some parameter_ty) _ (nat ::: nat ::: S) (nat ::: S) := ADD.
+Definition ADD_nat {S} : instruction (Some (parameter_ty, None)) _ (nat ::: nat ::: S) (nat ::: S) := ADD.
 
 Definition pack_ty := pair (pair chain_id address) (pair nat action_ty).
 
-Definition multisig : full_contract _ parameter_ty storage_ty :=
+Definition multisig : full_contract _ parameter_ty None storage_ty :=
   (
     UNPAIR ;; SWAP ;; DUP ;; DIP1 SWAP ;;
     DIP1
       (
         UNPAIR ;;
-        DUP ;; SELF ;; ADDRESS ;; CHAIN_ID ;; PAIR ;; PAIR ;;
+        DUP ;; SELF (self_type := parameter_ty) (self_annot := None) None I ;; ADDRESS ;; CHAIN_ID ;; PAIR ;; PAIR ;;
         PACK ;;
         DIP1 ( UNPAIR ;; DIP1 SWAP ) ;; SWAP
       ) ;;
@@ -118,7 +125,7 @@ Fixpoint count_signatures (sigs : Datatypes.list (Datatypes.option (data signatu
 
 
 Definition multisig_spec
-           (env : @proto_env (Some parameter_ty))
+           (env : @proto_env (Some (parameter_ty, None)))
            (counter : N)
            (action : data action_ty)
            (sigs : Datatypes.list (Datatypes.option (data signature)))
@@ -140,7 +147,7 @@ Definition multisig_spec
       (fun k sig =>
          check_signature
            env k sig
-           (pack env pack_ty ((chain_id_ env, address_ env parameter_ty (self env)),
+           (pack env pack_ty ((chain_id_ env, address_ env parameter_ty (self env None I)),
                              (counter, action)))) /\
     (count_signatures first_sigs >= threshold)%N /\
     new_stored_counter = (1 + stored_counter)%N /\
@@ -159,7 +166,7 @@ Definition multisig_spec
       returned_operations = nil
     end.
 
-Definition multisig_head (then_ : instruction (Some parameter_ty) Datatypes.false (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) (pair (list operation) storage_ty ::: nil)) :
+Definition multisig_head (then_ : instruction (Some (parameter_ty, None)) Datatypes.false (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) (pair (list operation) storage_ty ::: nil)) :
   instruction _ _
               (pair parameter_ty storage_ty ::: nil)
               (pair (list operation) storage_ty ::: nil)
@@ -168,7 +175,7 @@ Definition multisig_head (then_ : instruction (Some parameter_ty) Datatypes.fals
     DIP1
       (
         UNPAIR ;;
-        DUP ;; SELF ;; ADDRESS ;; CHAIN_ID ;; PAIR ;; PAIR ;;
+        DUP ;; SELF (self_type := parameter_ty) (self_annot := None) None I ;; ADDRESS ;; CHAIN_ID ;; PAIR ;; PAIR ;;
         PACK ;;
         DIP1 ( UNPAIR ;; DIP1 SWAP ) ;; SWAP
       ) ;;
@@ -179,7 +186,7 @@ Definition multisig_head (then_ : instruction (Some parameter_ty) Datatypes.fals
     DIP1 SWAP ;; UNPAIR ;; then_.
 
 Definition multisig_head_spec
-           (env : @proto_env (Some parameter_ty))
+           (env : @proto_env (Some (parameter_ty, None)))
            (counter : N)
            (action : data action_ty)
            (sigs : Datatypes.list (Datatypes.option (data signature)))
@@ -204,18 +211,18 @@ Definition multisig_head_spec
         (keys,
          (sigs,
           (pack env pack_ty
-                ((chain_id_ env, address_ env parameter_ty (self env)), (counter, action)),
+                ((chain_id_ env, address_ env parameter_ty (self env None I)), (counter, action)),
            (action, (storage, tt))))))) psi.
 
 Lemma fold_eval_precond fuel :
   eval_precond_body (@semantics.eval_precond fuel) =
-  @semantics.eval_precond (S fuel) (Some parameter_ty).
+  @semantics.eval_precond (S fuel) (Some (parameter_ty, None)).
 Proof.
   reflexivity.
 Qed.
 
 Lemma multisig_head_correct
-      (env : @proto_env (Some parameter_ty))
+      (env : @proto_env (Some (parameter_ty, None)))
       (counter : N)
       (action : data action_ty)
       (sigs : Datatypes.list (Datatypes.option (data signature)))
@@ -290,11 +297,9 @@ Proof.
   simpl.
   destruct sigs as [|[sig|] sigs].
   - reflexivity.
-  - case (check_signature env k sig packed).
-    + tauto.
-    + split.
-      * intro H; inversion H.
-      * intros (H, _); discriminate.
+  - rewrite if_false_is_and.
+    apply and_both.
+    reflexivity.
   - reflexivity.
 Qed.
 
@@ -483,7 +488,7 @@ Proof.
 Qed.
 
 Lemma multisig_correct
-      (env : @proto_env (Some parameter_ty))
+      (env : @proto_env (Some (parameter_ty, None)))
       (counter : N)
       (action : data action_ty)
       (sigs : Datatypes.list (Datatypes.option (data signature)))

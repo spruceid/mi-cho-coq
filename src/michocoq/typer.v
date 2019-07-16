@@ -29,7 +29,7 @@ Qed.
         expected_input : Datatypes.list type;
         expected_output : Datatypes.list type;
         tff : Datatypes.bool;
-        self_type_ : Datatypes.option type;
+        self_type_ : syntax.self_info;
         i : instruction self_type_ tff input output;
       }.
 
@@ -243,17 +243,17 @@ Qed.
     | Left x =>
       fun ty =>
         match ty with
-        | or a b =>
+        | or a an b bn =>
           let! x := type_data x a in
-          Return (syntax.Left x)
+          Return (syntax.Left x an bn)
         | _ => Failed _ (Typing _ (d, ty))
         end
     | Right y =>
       fun ty =>
         match ty with
-        | or a b =>
+        | or a an b bn =>
           let! y := type_data y b in
-          Return (syntax.Right y)
+          Return (syntax.Right y an bn)
         | _ => Failed _ (Typing _ (d, ty))
         end
     | Some_ x =>
@@ -342,7 +342,7 @@ Qed.
       type_branches type_instruction i1 i2 _ _ _ (fun B tffa tffb => syntax.IF_)
     | IF_NONE i1 i2, option a :: A =>
       type_branches type_instruction i1 i2 _ _ _ (fun B tffa tffb => syntax.IF_NONE)
-    | IF_LEFT i1 i2, or a b :: A =>
+    | IF_LEFT i1 i2, or a an b bn :: A =>
       type_branches type_instruction i1 i2 _ _ _ (fun B tffa tffb => syntax.IF_LEFT)
     | IF_CONS i1 i2, list a :: A =>
       type_branches type_instruction i1 i2 _ _ _ (fun B tffa tffb => syntax.IF_CONS)
@@ -350,9 +350,9 @@ Qed.
       let! i := type_check_instruction_no_tail_fail
         type_instruction i A (bool ::: A) in
       Return (Inferred_type _ _ (syntax.LOOP i))
-    | LOOP_LEFT i, or a b :: A =>
+    | LOOP_LEFT i, or a an b bn :: A =>
       let! i := type_check_instruction_no_tail_fail
-        type_instruction i (a :: A) (or a b :: A) in
+        type_instruction i (a :: A) (or a an b bn :: A) in
       Return (Inferred_type _ _ (syntax.LOOP_LEFT i))
     | EXEC, a :: lambda a' b :: B =>
       let A := a :: lambda a' b :: B in
@@ -599,15 +599,15 @@ Qed.
       let! i := instruction_cast_domain A' A _ (syntax.CONS) in
       Return (Inferred_type _ _ i)
     | NIL a, A => Return (Inferred_type _ _ (syntax.NIL a))
-    | CREATE_CONTRACT g p i,
+    | CREATE_CONTRACT g p an i,
       option (Comparable_type key_hash) :: Comparable_type mutez :: g2 :: B =>
       let A :=
           option key_hash ::: mutez ::: g2 :: B in
       let A' :=
           option key_hash ::: mutez ::: g ::: B in
       let! existT _ tff i :=
-        type_check_instruction (self_type := Some p) type_instruction i (pair p g :: nil) (pair (list operation) g :: nil) in
-      let! i := instruction_cast_domain A' A _ (syntax.CREATE_CONTRACT g p i) in
+        type_check_instruction (self_type := (Some (p, an))) type_instruction i (pair p g :: nil) (pair (list operation) g :: nil) in
+      let! i := instruction_cast_domain A' A _ (syntax.CREATE_CONTRACT g p an i) in
       Return (Inferred_type _ _ i)
     | TRANSFER_TOKENS, p1 :: Comparable_type mutez :: contract p2 :: B =>
       let A := p1 ::: mutez ::: contract p2 ::: B in
@@ -620,15 +620,18 @@ Qed.
       Return (Inferred_type _ _ syntax.BALANCE)
     | ADDRESS, contract _ :: A =>
       Return (Inferred_type _ _ syntax.ADDRESS)
-    | CONTRACT ty, Comparable_type address :: A =>
-      Return (Inferred_type _ _ (syntax.CONTRACT ty))
+    | CONTRACT an ty, Comparable_type address :: A =>
+      Return (Inferred_type _ _ (syntax.CONTRACT an ty))
     | SOURCE, A =>
       Return (Inferred_type _ _ syntax.SOURCE)
     | SENDER, A =>
       Return (Inferred_type _ _ syntax.SENDER)
-    | SELF, A =>
+    | SELF an, A =>
       match self_type with
-      | Some sty => Return (Inferred_type _ _ syntax.SELF)
+      | Some (sty, san) =>
+        let error := Typing _ "No such self entrypoint"%string in
+        let! H := syntax.isSome_maybe error (syntax.get_entrypoint_opt an sty san) in
+        Return (Inferred_type _ _ (syntax.SELF an H))
       | None => Failed _ (Typing _ "SELF is not allowed inside lambdas"%string)
       end
     | AMOUNT, A =>

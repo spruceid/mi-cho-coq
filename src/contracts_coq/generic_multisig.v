@@ -29,14 +29,22 @@ Require Import Lia.
 Import error.
 Require List.
 
+Module annots.
+  Import String.
+  Definition main : string := "%main".
+  Definition operation : string := "%operation".
+  Definition change_keys : string := "%change_keys".
+End annots.
+
 Definition parameter_ty :=
-  (or unit
+  (or unit (Some default_entrypoint.default)
       (pair
          (pair nat
                (or
-                  (lambda unit (list operation))
-                  (pair nat (list key))))
-         (list (option signature)))).
+                  (lambda unit (list operation)) (Some annots.operation)
+                  (pair nat (list key)) (Some annots.change_keys)))
+         (list (option signature)))
+  (Some annots.main)).
 
 Module generic_multisig(C:ContractContext).
 
@@ -44,9 +52,9 @@ Definition storage_ty := pair nat (pair nat (list key)).
 
 Module semantics := Semantics C. Import semantics.
 
-Definition ADD_nat {S} : instruction (Some parameter_ty) _ (nat ::: nat ::: S) (nat ::: S) := ADD.
+Definition ADD_nat {S} : instruction (Some (parameter_ty, None)) _ (nat ::: nat ::: S) (nat ::: S) := ADD.
 
-Definition multisig : full_contract _ parameter_ty storage_ty :=
+Definition multisig : full_contract _ parameter_ty None storage_ty :=
   (
     UNPAIR ;;
     IF_LEFT
@@ -56,7 +64,9 @@ Definition multisig : full_contract _ parameter_ty storage_ty :=
         DIP1
           (
             UNPAIR ;;
-            DUP ;; SELF ;; ADDRESS ;; CHAIN_ID ;; PAIR ;; PAIR ;; PACK ;;
+            DUP ;; SELF (self_type := parameter_ty) (self_annot := None) None I ;;
+            ADDRESS ;; CHAIN_ID ;; PAIR ;; PAIR ;;
+            PACK ;;
             DIP1 ( UNPAIR ;; DIP1 SWAP ) ;; SWAP
           ) ;;
 
@@ -121,11 +131,14 @@ Fixpoint count_signatures (sigs : Datatypes.list (Datatypes.option (data signatu
   | cons (Some _) sigs => (count_signatures sigs + 1)%N
   end.
 
-Definition action_ty := or (lambda unit (list operation)) (pair nat (list key)).
+Definition action_ty :=
+  (or
+     (lambda unit (list operation)) (Some annots.operation)
+     (pair nat (list key)) (Some annots.change_keys)).
 Definition pack_ty := pair (pair chain_id address) (pair nat action_ty).
 
 Definition multisig_spec
-           (env : @proto_env (Some parameter_ty))
+           (env : @proto_env (Some (parameter_ty, None)))
            (parameter : data parameter_ty)
            (stored_counter : N)
            (threshold : N)
@@ -151,7 +164,7 @@ Definition multisig_spec
       (fun k sig =>
          check_signature
            env k sig
-           (pack env pack_ty (chain_id_ env, address_ env parameter_ty (self env),
+           (pack env pack_ty (chain_id_ env, address_ env unit (self env None I),
                               (counter, action)))) /\
     (count_signatures sigs >= threshold)%N /\
     new_stored_counter = (1 + stored_counter)%N /\
@@ -171,7 +184,7 @@ Definition multisig_spec
     end
   end.
 
-Definition multisig_head {A} (then_ : instruction (Some parameter_ty) Datatypes.false (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) A) :
+Definition multisig_head {A} (then_ : instruction (Some (parameter_ty, None)) Datatypes.false (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) A) :
   instruction _ _ (pair (pair nat action_ty) (list (option signature)) ::: pair nat (pair nat (list key)) ::: nil) A
 :=
     PUSH mutez (0 ~mutez);; AMOUNT;; ASSERT_CMPEQ;;
@@ -179,7 +192,9 @@ Definition multisig_head {A} (then_ : instruction (Some parameter_ty) Datatypes.
     DIP1
       (
         UNPAIR ;;
-        DUP ;; SELF ;; ADDRESS ;; CHAIN_ID ;; PAIR ;; PAIR ;; PACK ;;
+        DUP ;; SELF (self_type := parameter_ty) (self_annot := None) None I ;;
+        ADDRESS ;; CHAIN_ID ;; PAIR ;; PAIR ;;
+        PACK ;;
         DIP1 ( UNPAIR ;; DIP1 SWAP ) ;; SWAP
       ) ;;
 
@@ -190,7 +205,7 @@ Definition multisig_head {A} (then_ : instruction (Some parameter_ty) Datatypes.
 
 Definition multisig_head_spec
            A
-           (env : @proto_env (Some parameter_ty))
+           (env : @proto_env (Some (parameter_ty, None)))
            (counter : N)
            (action : data action_ty)
            (sigs : Datatypes.list (Datatypes.option (data signature)))
@@ -216,7 +231,7 @@ Definition multisig_head_spec
         (keys,
          (sigs,
           (pack env pack_ty
-                (chain_id_ env, address_ env parameter_ty (self env), (counter, action)),
+                (chain_id_ env, address_ env unit (self env None I), (counter, action)),
            (action, (storage, tt)))))).
 
 Ltac fold_eval_precond :=
@@ -224,7 +239,7 @@ Ltac fold_eval_precond :=
 
 Lemma multisig_head_correct
       A
-      (env : @proto_env (Some parameter_ty))
+      (env : @proto_env (Some (parameter_ty, None)))
       (counter : N)
       (action : data action_ty)
       (sigs : Datatypes.list (Datatypes.option (data signature)))
@@ -304,11 +319,9 @@ Proof.
   simpl.
   destruct sigs as [|[sig|] sigs].
   - reflexivity.
-  - case (check_signature env k sig packed).
-    + tauto.
-    + split.
-      * intro H; inversion H.
-      * intros (H, _); discriminate.
+  - rewrite if_false_is_and.
+    apply and_both.
+    reflexivity.
   - reflexivity.
 Qed.
 
@@ -437,7 +450,7 @@ Proof.
 Qed.
 
 Definition multisig_tail :
-  instruction (Some parameter_ty) _
+  instruction (Some (parameter_ty, None)) _
     (nat ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
     (pair (list operation) storage_ty ::: nil) :=
@@ -501,9 +514,7 @@ Proof.
       * do 2 fold_eval_precond.
         rewrite <- eval_precond_correct.
         change (2 + fuel) with (S (S fuel)).
-        case (semantics.eval _ lam (S (S fuel)) (tt, tt)).
-        -- intro; split; intro H; inversion H.
-        -- intro s; reflexivity.
+        reflexivity.
       * reflexivity.
     + intro Hle.
       apply (leb_gt nat) in Hle.
@@ -521,7 +532,7 @@ Proof.
 Qed.
 
 Lemma multisig_correct
-      (env : @proto_env (Some parameter_ty))
+      (env : @proto_env (Some (parameter_ty, None)))
       (params : data parameter_ty)
       (stored_counter : N)
       (threshold : N)

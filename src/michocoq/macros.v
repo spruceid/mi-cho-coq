@@ -23,7 +23,7 @@ Require Import syntax syntax_type.
 Require Import comparable.
 
 Section macros.
-  Context {self_type : Datatypes.option type}.
+  Context {self_type : self_info}.
 
 Definition CMPop (a : comparable_type) S (op : instruction self_type Datatypes.false (int ::: S) (bool ::: S))
            : instruction self_type Datatypes.false (a ::: a ::: S) (bool ::: S) := COMPARE ;; op.
@@ -90,9 +90,9 @@ Definition ASSERT_NONE {a S} : instruction self_type Datatypes.false (option a :
 Definition ASSERT_SOME {a S} : instruction self_type Datatypes.false (option a ::: S) (a ::: S) :=
   IF_NONE FAIL NOOP.
 
-Definition ASSERT_LEFT {a b S} : instruction self_type Datatypes.false (or a b ::: S) (a ::: S) :=
+Definition ASSERT_LEFT {a b an bn S} : instruction self_type Datatypes.false (or a an b bn ::: S) (a ::: S) :=
   IF_LEFT NOOP FAIL.
-Definition ASSERT_RIGHT {a b S} : instruction self_type Datatypes.false (or a b ::: S) (b ::: S) :=
+Definition ASSERT_RIGHT {a b an bn S} : instruction self_type Datatypes.false (or a an b bn ::: S) (b ::: S) :=
   IF_LEFT FAIL NOOP.
 
 Definition DROP1 {a SA} : instruction self_type Datatypes.false (a ::: SA) SA :=
@@ -141,7 +141,7 @@ Definition CDDR {a b c S} : instruction self_type Datatypes.false (pair a (pair 
 Definition IF_SOME {a SA SB tffa tffb} (bt : instruction self_type tffa _ _) (bf : instruction self_type tffb _ _) : instruction self_type _ (option a ::: SA) SB :=
   IF_NONE bf bt.
 
-Definition IF_RIGHT {a b SA SB tffa tffb} (bt : instruction self_type tffa _ _) (bf : instruction self_type tffb _ _) : instruction self_type _ (or a b ::: SA) SB :=
+Definition IF_RIGHT {a an b bn SA SB tffa tffb} (bt : instruction self_type tffa _ _) (bf : instruction self_type tffb _ _) : instruction self_type _ (or a an b bn ::: SA) SB :=
   IF_LEFT bf bt.
 
 Definition SET_CAR {a b S} : instruction self_type Datatypes.false (pair a b ::: a ::: S) (pair a b ::: S) :=

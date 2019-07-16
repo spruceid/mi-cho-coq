@@ -116,6 +116,10 @@ Proof.
   intuition.
 Qed.
 
+Lemma or_both {P Q R S} : P <-> R -> Q <-> S -> ((P \/ Q) <-> (R \/ S)).
+Proof.
+  intuition.
+Qed.
 
 Lemma eqb_eq a c1 c2 :
   BinInt.Z.eqb (comparison_to_int (compare a c1 c2)) Z0 = true <->
@@ -211,3 +215,15 @@ Lemma eq_sym_iff {A : Type} (x y : A) : x = y <-> y = x.
 Proof.
   split; apply eq_sym.
 Qed.
+
+Lemma destruct_if (b : Datatypes.bool) P Q :
+  (if b then P else Q) <-> ((b = true /\ P ) \/ (b = false /\ Q)).
+Proof.
+  destruct b; intuition discriminate.
+Qed.
+
+Lemma bool_not_false b : b = false <-> ~ b = true.
+Proof.
+  destruct b; intuition congruence.
+Qed.
+

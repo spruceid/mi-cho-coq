@@ -48,9 +48,10 @@ Definition contract_file_M : error.M syntax.contract_file :=
     typer.type_check_instruction typer.type_instruction i _ _ in
   error.Return
     {| contract_file_parameter := self_type;
-      contract_file_storage := storage_type;
-      contract_tff := tff;
-      contract_file_code := code; |}.
+       contract_file_annotation := None;
+       contract_file_storage := storage_type;
+       contract_tff := tff;
+       contract_file_code := code; |}.
 
 Definition is_lexed := error_pp.m_pp lexed_M.
 

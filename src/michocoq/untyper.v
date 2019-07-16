@@ -24,8 +24,8 @@ Require Import String.
     | syntax.True_ => True_
     | syntax.False_ => False_
     | syntax.Pair x y => Pair (untype_data x) (untype_data y)
-    | syntax.Left x => Left (untype_data x)
-    | syntax.Right y => Right (untype_data y)
+    | syntax.Left x _ _ => Left (untype_data x)
+    | syntax.Right y _ _ => Right (untype_data y)
     | syntax.Some_ x => Some_ (untype_data x)
     | syntax.None_ => None_
     | syntax.Concrete_list l => Concrete_seq (List.map (fun x => untype_data x) l)
@@ -100,15 +100,15 @@ Require Import String.
     | syntax.CONS => CONS
     | syntax.NIL a => NIL a
     | syntax.IF_CONS i1 i2 => IF_CONS (untype_instruction i1) (untype_instruction i2)
-    | syntax.CREATE_CONTRACT g p i => CREATE_CONTRACT g p (untype_instruction i)
+    | syntax.CREATE_CONTRACT g p an i => CREATE_CONTRACT g p an (untype_instruction i)
     | syntax.TRANSFER_TOKENS => TRANSFER_TOKENS
     | syntax.SET_DELEGATE => SET_DELEGATE
     | syntax.BALANCE => BALANCE
     | syntax.ADDRESS => ADDRESS
-    | syntax.CONTRACT a => CONTRACT a
+    | syntax.CONTRACT an a => CONTRACT an a
     | syntax.SOURCE => SOURCE
     | syntax.SENDER => SENDER
-    | syntax.SELF => SELF
+    | syntax.SELF an _ => SELF an
     | syntax.AMOUNT => AMOUNT
     | syntax.IMPLICIT_ACCOUNT => IMPLICIT_ACCOUNT
     | syntax.NOW => NOW
@@ -161,10 +161,10 @@ Require Import String.
             P st A B i1 ->
             P st (a ::: A) B i2 ->
             P st (option a ::: A) B (syntax.IF_NONE i1 i2))
-        (HIF_LEFT : forall st a b A B i1 i2,
+        (HIF_LEFT : forall st a b an bn A B i1 i2,
             P st (a ::: A) B i1 ->
             P st (b ::: A) B i2 ->
-            P st (or a b ::: A) B (syntax.IF_LEFT i1 i2))
+            P st (or a an b bn ::: A) B (syntax.IF_LEFT i1 i2))
         (HIF_CONS : forall st a A B i1 i2,
             P st (a ::: list a ::: A) B i1 ->
             P st A B i2 ->
@@ -222,7 +222,7 @@ Require Import String.
               fun _ => I) i2
        else
          fun _ => I) i1
-    | @syntax.IF_LEFT _ a b A B tffa tffb i1 i2 =>
+    | @syntax.IF_LEFT _ a an b bn A B tffa tffb i1 i2 =>
       (if tffa as tffa return
           forall i1, P' _ (tffa && tffb)%bool _ _ (syntax.IF_LEFT i1 i2)
        then
@@ -232,7 +232,7 @@ Require Import String.
                  P' _ tffb _ _ (syntax.IF_LEFT i1 i2)
             then
               fun i2 =>
-                HIF_LEFT _ _ _ _ _ i1 i2
+                HIF_LEFT _ _ _ _ _ _ _ i1 i2
                     (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
                     (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
             else
@@ -291,7 +291,7 @@ Require Import String.
       apply (syntax.IF_ i1 i2).
     - intros st a A B _ _ i1 i2.
       apply (syntax.IF_NONE i1 i2).
-    - intros st a b A B _ _ i1 i2.
+    - intros st a b an bn A B _ _ i1 i2.
       apply (syntax.IF_LEFT i1 i2).
     - intros st a A B _ _ i1 i2.
       apply (syntax.IF_CONS i1 i2).
@@ -376,7 +376,7 @@ Require Import String.
   Inductive IF_instruction : forall (A1 A2 A : Datatypes.list type), Set :=
   | IF_i A : IF_instruction A A (bool ::: A)
   | IF_NONE_i a A : IF_instruction A (a ::: A) (option a ::: A)
-  | IF_LEFT_i a b A : IF_instruction (a ::: A) (b ::: A) (or a b ::: A)
+  | IF_LEFT_i a b an bn A : IF_instruction (a ::: A) (b ::: A) (or a an b bn ::: A)
   | IF_CONS_i a A : IF_instruction (a ::: list a ::: A) A (list a ::: A).
 
   Definition IF_instruction_to_instruction {self_type} A1 A2 A (IFi : IF_instruction A1 A2 A) :
@@ -386,7 +386,7 @@ Require Import String.
     match IFi with
     | IF_i A => fun B ttffa tffb i1 i2 => syntax.IF_ i1 i2
     | IF_NONE_i a A => fun B ttffa tffb i1 i2 => syntax.IF_NONE i1 i2
-    | IF_LEFT_i a b A => fun B ttffa tffb i1 i2 => syntax.IF_LEFT i1 i2
+    | IF_LEFT_i a b an bn A => fun B ttffa tffb i1 i2 => syntax.IF_LEFT i1 i2
     | IF_CONS_i a A => fun B ttffa tffb i1 i2 => syntax.IF_CONS i1 i2
     end.
 
@@ -477,13 +477,13 @@ Require Import String.
         reflexivity.
       + trans_refl (
           let! x := typer.type_data (untype_data d) a in
-          Return (@syntax.Left a b x)
+          Return (@syntax.Left a b x an bn)
         ).
         rewrite (untype_type_data _ d).
         reflexivity.
       + trans_refl (
           let! x := typer.type_data (untype_data d) b in
-          Return (@syntax.Right a b x)
+          Return (@syntax.Right a b x an bn)
         ).
         rewrite (untype_type_data _ d).
         reflexivity.
@@ -602,7 +602,7 @@ Require Import String.
         rewrite untype_type_check_instruction_no_tail_fail; auto.
       + trans_refl (
           let! i := typer.type_check_instruction_no_tail_fail
-            typer.type_instruction (untype_instruction i) _ (or a b ::: A) in
+            typer.type_instruction (untype_instruction i) _ (or a an b bn ::: A) in
           Return (@typer.Inferred_type self_type _ _ (syntax.LOOP_LEFT i))
         ).
         rewrite untype_type_check_instruction_no_tail_fail; auto.
@@ -724,7 +724,7 @@ Require Import String.
              typer.type_instruction
              (untype_instruction i1)
              (untype_instruction i2) _ _ _
-             (IF_instruction_to_instruction _ _ _ (IF_LEFT_i a b A))).
+             (IF_instruction_to_instruction _ _ _ (IF_LEFT_i a b an bn A))).
         rewrite untype_type_branches; auto.
       + unfold untype_type_spec; simpl.
         rewrite instruction_cast_domain_same.
@@ -745,6 +745,16 @@ Require Import String.
       + unfold untype_type_spec; simpl.
         rewrite instruction_cast_domain_same.
         reflexivity.
+      + unfold untype_type_spec; simpl.
+        assert (isSome_maybe (Typing string "No such self entrypoint"%string)
+                             (get_entrypoint_opt annot_opt self_type self_annot) = Return H).
+        * destruct (get_entrypoint_opt annot_opt self_type self_annot) as [x|].
+          -- simpl.
+             destruct H.
+             reflexivity.
+          -- inversion H.
+        * rewrite H0.
+          reflexivity.
       + unfold untype_type_spec.
         simpl. unfold type_check_dig.
         simpl.

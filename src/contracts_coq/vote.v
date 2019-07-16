@@ -32,7 +32,7 @@ Definition storage_ty := map string int.
 Module vote(C:ContractContext).
 Module semantics := Semantics C. Import semantics.
 
-Definition vote : full_contract _ parameter_ty storage_ty :=
+Definition vote : full_contract _ parameter_ty None storage_ty :=
   (
     AMOUNT ;;
     PUSH mutez (5000000 ~mutez);;
@@ -47,7 +47,7 @@ Definition vote : full_contract _ parameter_ty storage_ty :=
     NIL operation;; PAIR ).
 
 Definition vote_spec
-           (env : @proto_env (Some parameter_ty))
+           (env : @proto_env (Some (parameter_ty, None)))
            (storage: data storage_ty)
            (param : data parameter_ty)
            (new_storage : data storage_ty)
@@ -79,7 +79,7 @@ Proof.
 Defined.
 
 Theorem vote_correct
-      (env : @proto_env (Some parameter_ty))
+      (env : @proto_env (Some (parameter_ty, None)))
       (storage : data storage_ty)
       (param : data parameter_ty)
       (new_storage : data storage_ty)

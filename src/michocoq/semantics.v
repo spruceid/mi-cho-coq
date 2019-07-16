@@ -45,7 +45,7 @@ Module Semantics(C : ContractContext).
     | key => key_constant
     | unit => Datatypes.unit
     | pair a b => data a * data b
-    | or a b => sum (data a) (data b)
+    | or a _ b _ => sum (data a) (data b)
     | option a => Datatypes.option (data a)
     | list a => Datatypes.list (data a)
     | set a => set.set (comparable_data a) (compare a)
@@ -58,13 +58,13 @@ Module Semantics(C : ContractContext).
     | chain_id => chain_id_constant
     end.
 
-  Record proto_env {self_ty : Datatypes.option type} : Set :=
+  Record proto_env {self_ty : self_info} : Type :=
     mk_proto_env
       {
-        create_contract : forall g p tff,
+        create_contract : forall g p annot tff,
           Datatypes.option (comparable_data key_hash) ->
           tez.mutez ->
-          syntax.instruction (Some p) tff
+          syntax.instruction (Some (p, annot)) tff
                              (pair p g ::: nil)
                              (pair (list operation) g ::: nil) ->
           data g -> data (pair operation address);
@@ -75,13 +75,17 @@ Module Semantics(C : ContractContext).
                        data operation;
         balance : tez.mutez;
         address_ : forall p, data (contract p) -> data address;
-        contract_ : forall p, data address -> data (option (contract p));
+        contract_ : Datatypes.option annotation -> forall p, data address ->
+                              data (option (contract p));
         source : data address;
         sender : data address;
-        self : match self_ty with
-               | None => Datatypes.unit
-               | Some self_ty => data (contract self_ty)
-               end;
+        self :
+            match self_ty with
+            | None => Datatypes.unit
+            | Some (ty, self_annot) =>
+              forall annot_opt H,
+                data (contract (get_opt (get_entrypoint_opt annot_opt ty self_annot) H))
+            end;
         amount : tez.mutez;
         implicit_account :
           comparable_data key_hash -> data (contract unit);
@@ -97,7 +101,9 @@ Module Semantics(C : ContractContext).
         chain_id_ : data chain_id
       }.
 
-  Definition no_self {self_type} (e : proto_env (self_ty := self_type)) :
+  Definition no_self
+             {self_type}
+             (e : proto_env (self_ty := self_type)) :
     proto_env (self_ty := None) :=
     mk_proto_env None
                  (create_contract e)
@@ -137,7 +143,7 @@ Module Semantics(C : ContractContext).
       stack t = s <-> stack_ind t s.
   Proof.
     intros t.
-    induction t; intros s; simpl.
+    induction t as [|a t]; intros s; simpl.
     - split; intros; subst.
       + constructor.
       + inversion H; reflexivity.
@@ -151,7 +157,7 @@ Module Semantics(C : ContractContext).
 
   Definition stack_app {l1} {l2} (S1 : stack l1) (S2 : stack l2) : stack (l1+++l2).
   Proof.
-    induction l1; simpl.
+    induction l1 as [|a l1]; simpl.
     - assumption.
     - inversion S1. split; auto.
   Defined.
@@ -216,8 +222,8 @@ Module Semantics(C : ContractContext).
     | True_ => true
     | False_ => false
     | Pair a b => (concrete_data_to_data _ a, concrete_data_to_data _ b)
-    | Left a => inl (concrete_data_to_data _ a)
-    | Right b => inr (concrete_data_to_data _ b)
+    | Left a _ _ => inl (concrete_data_to_data _ a)
+    | Right b _ _ => inr (concrete_data_to_data _ b)
     | Some_ a => Some (concrete_data_to_data _ a)
     | None_ => None
     | Concrete_list l => List.map (concrete_data_to_data _) l
@@ -303,10 +309,10 @@ Module Semantics(C : ContractContext).
     | pair a b, H, (x, y) =>
       Pair (data_to_concrete_data a (Is_true_and_left _ _ H) x)
            (data_to_concrete_data b (Is_true_and_right _ _ H) y)
-    | or a b, H, inl x =>
-      Left (data_to_concrete_data a (Is_true_and_left _ _ H) x)
-    | or a b, H, inr x =>
-      Right (data_to_concrete_data b (Is_true_and_right _ _ H) x)
+    | or a an b bn, H, inl x =>
+      Left (data_to_concrete_data a (Is_true_and_left _ _ H) x) an bn
+    | or a an b bn, H, inr x =>
+      Right (data_to_concrete_data b (Is_true_and_right _ _ H) x) an bn
     | lambda a b, _, existT _ tff f => Instruction tff f
     | chain_id, _, x => Chain_id_constant x
     end.
@@ -541,7 +547,7 @@ Module Semantics(C : ContractContext).
   amount of gas that is actually required to run the contract because
   in the SEQ case, both instructions are run with gas n *)
 
-  Fixpoint eval {param_ty : Datatypes.option type} {tff0} (env : @proto_env param_ty) {A : stack_type} {B : stack_type}
+  Fixpoint eval {param_ty : self_info} {tff0} (env : @proto_env param_ty) {A : stack_type} {B : stack_type}
            (i : instruction param_ty tff0 A B) (fuel : Datatypes.nat) (SA : stack A) {struct fuel} : M (stack B) :=
     match fuel with
     | O => Failed _ Out_of_fuel
@@ -681,18 +687,18 @@ Module Semantics(C : ContractContext).
         | cons a b => eval env bt n (a, (b, SA))
         | nil => eval env bf n SA
         end
-      | CREATE_CONTRACT _ _ f, (a, (b, (c, SA))), env =>
-        let (oper, addr) := create_contract env _ _ _ a b f c in
+      | CREATE_CONTRACT g p an f, (a, (b, (c, SA))), env =>
+        let (oper, addr) := create_contract env g p an _ a b f c in
         Return (oper, (addr, SA))
       | TRANSFER_TOKENS, (a, (b, (c, SA))), env =>
         Return (transfer_tokens env _ a b c, SA)
       | SET_DELEGATE, (x, SA), env => Return (set_delegate env x, SA)
       | BALANCE, SA, env => Return (balance env, SA)
       | ADDRESS, (x, SA), env => Return (address_ env _ x, SA)
-      | CONTRACT _, (x, SA), env => Return (contract_ env _ x, SA)
+      | CONTRACT ao p, (x, SA), env => Return (contract_ env ao p x, SA)
       | SOURCE, SA, env => Return (source env, SA)
       | SENDER, SA, env => Return (sender env, SA)
-      | SELF, SA, env => Return (self env, SA)
+      | SELF ao H, SA, env => Return (self env ao H, SA)
       | AMOUNT, SA, env => Return (amount env, SA)
       | IMPLICIT_ACCOUNT, (x, SA), env => Return (implicit_account env x, SA)
       | NOW, SA, env => Return (now env, SA)
@@ -954,8 +960,8 @@ Module Semantics(C : ContractContext).
       | cons a b => eval_precond_n env bt psi (a, (b, SA))
       | nil => eval_precond_n env bf psi SA
       end
-    | CREATE_CONTRACT _ _ f, env, psi, (a, (b, (c, SA))) =>
-      let (oper, addr) := create_contract env _ _ _ a b f c in
+    | CREATE_CONTRACT g p an f, env, psi, (a, (b, (c, SA))) =>
+      let (oper, addr) := create_contract env g p an _ a b f c in
       psi (oper, (addr, SA))
     | TRANSFER_TOKENS, env, psi, (a, (b, (c, SA))) =>
       psi (transfer_tokens env _ a b c, SA)
@@ -963,10 +969,10 @@ Module Semantics(C : ContractContext).
       psi (set_delegate env x, SA)
     | BALANCE, env, psi, SA => psi (balance env, SA)
     | ADDRESS, env, psi, (x, SA) => psi (address_ env _ x, SA)
-    | CONTRACT _, env, psi, (x, SA) => psi (contract_ env _ x, SA)
+    | CONTRACT ao p, env, psi, (x, SA) => psi (contract_ env ao p x, SA)
     | SOURCE, env, psi, SA => psi (source env, SA)
     | SENDER, env, psi, SA => psi (sender env, SA)
-    | SELF, env, psi, SA => psi (self env, SA)
+    | SELF ao H, env, psi, SA => psi (self env ao H, SA)
     | AMOUNT, env, psi, SA => psi (amount env, SA)
     | IMPLICIT_ACCOUNT, env, psi, (x, SA) => psi (implicit_account env x, SA)
     | NOW, env, psi, SA => psi (now env, SA)
@@ -1098,7 +1104,7 @@ Module Semantics(C : ContractContext).
     - reflexivity.
     - destruct st as ([|], st); apply IHn.
     - destruct st as (a, (b, (c, SA))).
-      destruct (create_contract env g p _ a b i c).
+      destruct (create_contract env g p an _ a b i c).
       reflexivity.
     - destruct st as (a, (b, (c, SA))).
       reflexivity.

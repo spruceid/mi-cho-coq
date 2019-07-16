@@ -29,27 +29,27 @@ Import error.
 Require List.
 
 
-Definition parameter_ty := (or unit mutez).
+Definition parameter_ty := (or unit None mutez None).
 Definition storage_ty := address.
 
 Module deposit(C:ContractContext).
 
 Module semantics := Semantics C. Import semantics.
 
-Definition deposit : full_contract _ parameter_ty storage_ty :=
+Definition deposit : full_contract _ parameter_ty None storage_ty :=
   ( DUP;; CAR;; DIP1 CDR;;
     IF_LEFT
       ( DROP1;; NIL operation )
       ( DIP1 ( DUP;;
                DUP;; SENDER;; COMPARE;; EQ;; IF NOOP FAILWITH;;
-               CONTRACT unit;; IF_NONE FAILWITH NOOP);;
+               CONTRACT None unit;; IF_NONE FAILWITH NOOP);;
         PUSH unit Unit;; TRANSFER_TOKENS;;
         NIL operation;; SWAP;; CONS);;
     PAIR ).
 
 Lemma deposit_correct :
-  forall (env : @proto_env (Some parameter_ty))
-         (input : data (or unit mutez)) storage_in
+  forall (env : @proto_env (Some (parameter_ty, None)))
+         (input : data (or unit None mutez None)) storage_in
          (ops : data (list operation)) storage_out
          (fuel : Datatypes.nat),
   fuel >= 42 ->
@@ -60,7 +60,7 @@ Lemma deposit_correct :
    | inl tt => ops = nil
    | inr am => (storage_in = sender env /\
                 exists c : data (contract unit),
-                  contract_ env unit storage_in = Some c /\
+                  contract_ env None unit storage_in = Some c /\
                   ops = cons (transfer_tokens env unit tt am c) nil)
    end).
 Proof.
@@ -76,7 +76,15 @@ Proof.
   - do 11 (more_fuel ; simpl).
     rewrite if_false_is_and.
     rewrite (eqb_eq address).
-    destruct (contract_ env unit storage_in).
+    remember (contract_ env None unit storage_in) as d.
+    match goal with
+      |- (_ /\ match ?x with | Some b => _ | None => _ end <-> _) =>
+      remember x as d2
+    end.
+    assert (d = d2) as Hdd2 by (subst; reflexivity).
+    rewrite <- Hdd2.
+    subst d2; clear Hdd2.
+    destruct d.
     + split.
       * intros (Hsend, Hops).
         subst storage_in.
@@ -84,7 +92,12 @@ Proof.
         do 2 (split; [reflexivity|]).
         exists d; split; reflexivity.
       * intros (Hstorage, (Hsend, (c, (Hcd, Hops)))).
-        intuition congruence.
+        split; [symmetry; assumption|].
+        subst ops.
+        f_equal.
+        injection Hcd.
+        intro; subst.
+        reflexivity.
     + split.
       * intuition.
       * intros (_, (_, (c, (Habs, _)))).

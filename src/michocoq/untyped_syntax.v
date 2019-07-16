@@ -61,15 +61,15 @@ Inductive instruction : Set :=
 | CONS : instruction
 | NIL : type -> instruction
 | IF_CONS : instruction -> instruction -> instruction
-| CREATE_CONTRACT : type -> type -> instruction -> instruction
+| CREATE_CONTRACT : type -> type -> annot_o -> instruction -> instruction
 | TRANSFER_TOKENS : instruction
 | SET_DELEGATE : instruction
 | BALANCE : instruction
 | ADDRESS : instruction
-| CONTRACT : type -> instruction
+| CONTRACT : annot_o -> type -> instruction
 | SOURCE : instruction
 | SENDER : instruction
-| SELF : instruction
+| SELF : annot_o -> instruction
 | AMOUNT : instruction
 | IMPLICIT_ACCOUNT : instruction
 | NOW : instruction

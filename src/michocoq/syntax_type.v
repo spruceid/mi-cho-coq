@@ -1,3 +1,15 @@
+Require String.
+
+Definition annotation := String.string.
+Definition annot_o := Datatypes.option annotation.
+
+Module default_entrypoint.
+  Import String.
+
+  Definition default : annotation := "%default"%string.
+
+End default_entrypoint.
+
 Inductive simple_comparable_type : Set :=
 | string
 | nat
@@ -19,21 +31,21 @@ Proof.
 Defined.
 
 Inductive type : Set :=
-| Comparable_type : simple_comparable_type -> type
-| key : type
-| unit : type
-| signature : type
-| option : type -> type
-| list : type -> type
-| set : comparable_type -> type
-| contract : type -> type
-| operation : type
-| pair : type -> type -> type
-| or : type -> type -> type
-| lambda : type -> type -> type
-| map : comparable_type -> type -> type
-| big_map : comparable_type -> type -> type
-| chain_id : type.
+| Comparable_type (_ : simple_comparable_type)
+| key
+| unit
+| signature
+| option (a : type)
+| list (a : type)
+| set (a : comparable_type)
+| contract (a : type)
+| operation
+| pair (a : type) (b : type)
+| or (a : type) (_ : annot_o) (b : type) (_ : annot_o)
+| lambda (a b : type)
+| map (k : comparable_type) (v : type)
+| big_map (k : comparable_type) (v : type)
+| chain_id.
 
 Fixpoint comparable_type_to_type (c : comparable_type) : type :=
   match c with
@@ -53,7 +65,7 @@ Fixpoint is_packable (a : type) : Datatypes.bool :=
   | option ty
   | list ty
   | map _ ty => is_packable ty
-  | pair a b | or a b => is_packable a && is_packable b
+  | pair a b | or a _ b _ => is_packable a && is_packable b
   end.
 
 Lemma type_dec (a b : type) : {a = b} + {a <> b}.
