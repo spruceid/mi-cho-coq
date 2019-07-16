@@ -61,7 +61,6 @@ Inductive type : Set :=
 Coercion Comparable_type : comparable_type >-> type.
 
 Infix ":::" := (@cons type) (at level 60, right associativity).
-Infix "+++" := (@app type) (at level 60, right associativity).
 
 
 Section Overloading.
@@ -449,12 +448,6 @@ this constructor "IF" but we can make a notation for it. *)
 | SHA256 {S} : instruction (bytes ::: S) (bytes ::: S)
 | SHA512 {S} : instruction (bytes ::: S) (bytes ::: S)
 | CHECK_SIGNATURE {S} : instruction (key ::: signature ::: bytes ::: S) (bool ::: S)
-| DIG (n : Datatypes.nat) {S1 S2 t} :
-    length S1 = n ->
-    instruction (S1 +++ (t ::: S2)) (t ::: S1 +++ S2)
-| DUG (n : Datatypes.nat) {S1 S2 t} :
-    length S1 = n ->
-    instruction (t ::: S1 +++ S2) (S1 +++ (t ::: S2))
 
 with
 concrete_data : type -> Set :=

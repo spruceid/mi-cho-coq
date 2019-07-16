@@ -107,171 +107,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | cons a A => data a * stack A
     end.
 
-  (** Stack manipulation *)
-  Inductive stack_ind : stack_type -> Set -> Prop :=
-  | stack_nil : stack_ind nil Datatypes.unit
-  | stack_cons : forall a A S,
-      stack_ind A S -> stack_ind (cons a A) (data a * S).
 
-  Lemma stack_iff_stack_ind : forall (t : stack_type) (s : Set),
-      stack t = s <-> stack_ind t s.
-  Proof.
-    intros t.
-    induction t; intros s; simpl.
-    - split; intros; subst.
-      + constructor.
-      + inversion H; reflexivity.
-    - split; intros; subst.
-      + constructor. rewrite <- (IHt (stack t)); reflexivity.
-      + inversion H; subst. 
-        assert (stack t = S) by (rewrite (IHt S); assumption); subst; reflexivity.
-  Qed.
-
-  Lemma nltz : forall n: Datatypes.nat, n < 0 -> False.
-  Proof. intros; omega. Qed.
-
-  Definition stack_app {l1} {l2} (S1 : stack l1) (S2 : stack l2) : stack (l1+++l2).
-  Proof.
-    induction l1; simpl.
-    - assumption.
-    - inversion S1. split; auto.
-  Qed.
-
-  (* Dig stuff *)
-
-  Fixpoint stacktype_split_dig (l : stack_type) (n : Datatypes.nat) : n < List.length l -> (stack_type * type * stack_type) :=
-    match l, n with
-    | List.nil, _ => (fun pf => match nltz n pf with end)
-    | List.cons x tl, 0 => (fun _ => (nil, x, tl))
-    | List.cons x xs', S n' => (fun pf => let '(l1, a, l2) := stacktype_split_dig xs' n' (lt_S_n n' (Datatypes.length xs') pf) in (List.cons x l1, a, l2))
-    end.
-
-  Lemma length_app_cons_dig : forall n l1 l2 t,
-      n = Datatypes.length l1 ->
-      n < Datatypes.length (l1 +++ t ::: l2).
-  Proof.
-    intros n l1 l2 t Hlen.
-    rewrite List.app_length. rewrite <- Hlen.
-    simpl. omega.
-  Qed.
-
-  Lemma stacktype_dig_proof_irrelevant : forall l n Hlen1 Hlen2,
-      stacktype_split_dig l n Hlen1 = stacktype_split_dig l n Hlen2.
-  Proof.
-    induction l; intros n Hlen1 Hlen2.
-    - simpl. specialize (nltz _ Hlen1) as Hfalse. inversion Hfalse.
-    - simpl. destruct n. reflexivity.
-      erewrite IHl. erewrite IHl at 2. eauto.
-  Qed.
-
-  Lemma stacktype_split_dig_exact : forall l1 l2 t n (Hlen : n = Datatypes.length l1),
-      stacktype_split_dig (l1+++t:::l2) n (length_app_cons_dig _ l1 l2 t Hlen) = (l1, t, l2).
-  Proof.
-    induction l1; intros l2 t n Hlen; simpl.
-    - destruct n. reflexivity.
-      inversion Hlen.
-    - destruct n. inversion Hlen.
-      simpl in Hlen; inversion Hlen.
-      specialize (IHl1 l2 t n H0).
-      specialize (stacktype_dig_proof_irrelevant (l1+++t:::l2) n (length_app_cons_dig n l1 l2 t H0)
-                                             (lt_S_n n (Datatypes.length (l1 +++ t ::: l2))
-                         (length_app_cons_dig (S n) (a ::: l1) l2 t Hlen))) as Hpi.
-      rewrite <- Hpi. rewrite IHl1. reflexivity.
-  Qed.
-
-  Fixpoint stack_split_dig {l} (SA : stack (l)) (n: Datatypes.nat) (pf : n < List.length l) :
-    let '(l1, a, l2) := stacktype_split_dig l n pf in (stack l1 * data a * stack l2).
-  Proof.
-    generalize dependent n.
-    induction l; intros n pf. simpl.
-    + destruct (nltz n pf).
-    + destruct n.
-      * simpl in *. destruct SA; repeat constructor; assumption.
-      * simpl in SA.
-        destruct SA as [x SA].
-        specialize (IHl SA n (lt_S_n n (Datatypes.length l) pf)). simpl in *. destruct (stacktype_split_dig l n (lt_S_n _ _ pf)) as [[l1' a'] l2'].
-        destruct IHl as [[sl1' sa'] sl2']; simpl. repeat constructor; assumption.
-  Defined.
-
-  Fixpoint stack_dig {l1 l2 t} (SA : stack (l1+++t:::l2)) (n: Datatypes.nat) (pf : n = Datatypes.length l1) : stack (t:::l1+++l2).
-  Proof.
-    specialize (stack_split_dig SA n (length_app_cons_dig _ l1 l2 t pf)).
-    rewrite stacktype_split_dig_exact.
-    intro H. simpl in *. destruct H as [[sl1 st] sl2]. split; auto.
-    apply stack_app; auto.
-  Defined.
-
-  (* Dug stuff *)
-
-  Lemma Snltz {A} : forall n',
-      S n' <= @Datatypes.length A nil -> False.
-  Proof.
-    intros n' Hlen; simpl in *. omega.
-  Qed.
-
-  Fixpoint stacktype_split_dug (l : stack_type) (n : Datatypes.nat) : n <= List.length l -> (stack_type * stack_type) :=
-    match l, n with
-    | _, 0 => (fun _ => (nil, l))
-    | List.nil, S n' => (fun pf => match (Snltz n' pf) with end)
-    | List.cons x xs', S n' => (fun pf => let '(l1, l2) := stacktype_split_dug xs' n' (le_S_n n' (Datatypes.length xs') pf) in (List.cons x l1, l2))
-    end.
-
-  Lemma stacktype_dug_proof_irrelevant : forall l n Hlen1 Hlen2,
-      stacktype_split_dug l n Hlen1 = stacktype_split_dug l n Hlen2.
-  Proof.
-    induction l; intros n Hlen1 Hlen2.
-    - simpl. destruct n. reflexivity.
-      simpl in Hlen1; omega.
-    - simpl. destruct n. reflexivity.
-      erewrite IHl. erewrite IHl at 2. eauto.
-  Qed.
-
-  Lemma length_app_cons_dug : forall n l1 l2,
-      n = Datatypes.length l1 ->
-      n <= Datatypes.length (l1 +++ l2).
-  Proof.
-    intros n l1 l2 Hlen.
-    simpl. rewrite List.app_length. rewrite <- Hlen.
-    omega.
-  Qed.
-
-  Lemma stacktype_split_dug_exact : forall l1 l2 n (Hlen : n = Datatypes.length l1),
-      stacktype_split_dug (l1+++l2) n (length_app_cons_dug _ l1 l2 Hlen) = (l1, l2).
-  Proof.
-    induction l1; intros l2 n Hlen; simpl.
-    - destruct n. induction l2; reflexivity. 
-      inversion Hlen.
-    - destruct n. inversion Hlen.
-      simpl in Hlen; inversion Hlen.
-      specialize (IHl1 l2 n H0).
-      specialize (stacktype_dug_proof_irrelevant (l1+++l2) n (length_app_cons_dug n l1 l2 H0)
-                                             (le_S_n n (Datatypes.length (l1 +++ l2))
-                         (length_app_cons_dug (S n) (a ::: l1) l2 Hlen))) as Hpi.
-      rewrite <- Hpi. rewrite IHl1. reflexivity.
-  Qed.
-
-  Fixpoint stack_split_dug {l} (SA : stack (l)) (n: Datatypes.nat) (pf : n <= List.length l) :
-    let '(l1, l2) := stacktype_split_dug l n pf in (stack l1 * stack l2).
-  Proof.
-    generalize dependent n.
-    induction l; intros n pf. simpl.
-    + destruct n; simpl. constructor; auto.
-      destruct (Snltz _ pf).
-    + destruct n.
-      * simpl in *. destruct SA; repeat constructor; assumption.
-      * simpl in SA.
-        destruct SA as [x SA].
-        specialize (IHl SA n (le_S_n n (Datatypes.length l) pf)). simpl in *. destruct (stacktype_split_dug l n (le_S_n _ _ pf)) as [l1' l2'].
-        destruct IHl as [sl1' sl2']; simpl. repeat constructor; assumption.
-  Defined.
-
-  Fixpoint stack_dug {l1 l2 t} (SA : stack (t:::l1+++l2)) (n: Datatypes.nat) (pf : n = Datatypes.length l1) : stack (l1+++t:::l2).
-  Proof.
-    inversion SA.
-    specialize (stack_split_dug H0 n (length_app_cons_dug _ l1 l2 pf)) as Hsplit.
-    rewrite stacktype_split_dug_exact in Hsplit. destruct Hsplit as [sl1 sl2].
-    apply stack_app; simpl; auto.
-  Defined.
 
   Fixpoint concrete_data_to_data (a : type) (d : concrete_data a) : data a :=
     match d with
@@ -713,8 +549,6 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       | CHECK_SIGNATURE =>
         fun '(x, (y, (z, SA))) =>
           Return _ (check_signature env x y z, SA)
-      | DIG n Hlen => fun SA => Return _ (stack_dig SA n (eq_sym Hlen))
-      | DUG n Hlen => fun SA => Return _ (stack_dug SA n (eq_sym Hlen))
       end
     end.
 
@@ -1025,10 +859,6 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | CHECK_SIGNATURE =>
       fun psi '(x, (y, (z, SA))) =>
         psi (check_signature env x y z, SA)
-    | DIG n Hlen => 
-      fun psi st => psi (stack_dig st n (eq_sym Hlen))
-    | DUG n Hlen =>
-      fun psi st => psi (stack_dug st n (eq_sym Hlen))
     end.
 
   Fixpoint eval_precond (fuel : Datatypes.nat) :
@@ -1180,8 +1010,6 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       reflexivity.
     - destruct st as (a, (b, (c, SA))).
       reflexivity.
-    - reflexivity.
-    - reflexivity.
   Qed.
 
 Ltac simplify_instruction :=
