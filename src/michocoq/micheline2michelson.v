@@ -38,7 +38,7 @@ Fixpoint micheline2michelson_type (bem : loc_micheline) : M syntax.type :=
        | Mk_loc_micheline (_, PRIM (_, "key") nil) => Return _ syntax.key
        | Mk_loc_micheline (_, PRIM (_, "unit") nil) => Return _ syntax.unit
        | Mk_loc_micheline (_, PRIM (_, "signature") nil) => Return _ syntax.signature
-       | Mk_loc_micheline (_, PRIM (_, "opertation") nil) => Return _ syntax.operation
+       | Mk_loc_micheline (_, PRIM (_, "operation") nil) => Return _ syntax.operation
        | Mk_loc_micheline (_, PRIM (_, "option") (a :: nil)) =>
          bind (fun a => Return _ (syntax.option a))
               (micheline2michelson_type a)
