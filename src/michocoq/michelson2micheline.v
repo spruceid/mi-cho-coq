@@ -72,10 +72,10 @@ Fixpoint michelson2micheline_data (d : concrete_data) : loc_micheline :=
   | Instruction _ => dummy_prim "NOOP" nil (* Should never occur *)
   end.
 
-Fixpoint michelson2micheline_instruction (i : instruction) : loc_micheline :=
+Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
   match i with
   | NOOP => dummy_prim "NOOP" nil
-  | untyped_syntax.SEQ i1 i2 => dummy_mich (SEQ ((michelson2micheline_instruction i1)::(michelson2micheline_instruction i2)::nil))
+  | untyped_syntax.SEQ i1 i2 => dummy_mich (SEQ ((michelson2micheline_ins i1)::(michelson2micheline_ins i2)::nil))
   | FAILWITH => dummy_prim "FAILWITH" nil
   | EXEC => dummy_prim "EXEC" nil
   | DROP => dummy_prim "DROP" nil
@@ -123,7 +123,7 @@ Fixpoint michelson2micheline_instruction (i : instruction) : loc_micheline :=
   | CREATE_CONTRACT_literal t1 t2 i => dummy_prim "CREATE_CONTRACT_literal"
                                                  ((michelson2micheline_type t1)
                                                     ::(michelson2micheline_type t2)
-                                                    ::(michelson2micheline_instruction i)::nil)
+                                                    ::(michelson2micheline_ins i)::nil)
   | CREATE_ACCOUNT => dummy_prim "CREATE_ACCOUNT" nil
   | TRANSFER_TOKENS => dummy_prim "TRANSFER_TOKENS" nil
   | SET_DELEGATE => dummy_prim "SET_DELEGATE" nil
@@ -144,31 +144,51 @@ Fixpoint michelson2micheline_instruction (i : instruction) : loc_micheline :=
   | SHA256 => dummy_prim "SHA256" nil
   | SHA512 => dummy_prim "SHA512" nil
   | CHECK_SIGNATURE => dummy_prim "CHECK_SIGNATURE" nil
-  | IF_ i1 i2 => dummy_prim "IF" ((michelson2micheline_instruction i1)
-                                   ::(michelson2micheline_instruction i2)::nil)
-  | IF_NONE i1 i2 => dummy_prim "IF_NONE" ((michelson2micheline_instruction i1)
-                                            ::(michelson2micheline_instruction i2)::nil)
-  | IF_LEFT i1 i2 => dummy_prim "IF_LEFT" ((michelson2micheline_instruction i1)
-                                            ::(michelson2micheline_instruction i2)::nil)
-  | IF_RIGHT i1 i2 => dummy_prim "IF_RIGHT" ((michelson2micheline_instruction i1)
-                                          ::(michelson2micheline_instruction i2)::nil)
-  | IF_CONS i1 i2 => dummy_prim "IF_CONS" ((michelson2micheline_instruction i1)
-                                          ::(michelson2micheline_instruction i2)::nil)
-  | LOOP i => dummy_prim "LOOP" ((michelson2micheline_instruction i)::nil)
-  | LOOP_LEFT i => dummy_prim "LOOP_LEFT" ((michelson2micheline_instruction i)::nil)
-  | DIP i => dummy_prim "DIP" ((michelson2micheline_instruction i)::nil)
-  | ITER i => dummy_prim "ITER" ((michelson2micheline_instruction i)::nil)
-  | MAP i => dummy_prim "MAP" ((michelson2micheline_instruction i)::nil)
+  | IF_ i1 i2 => dummy_prim "IF" ((michelson2micheline_ins i1)
+                                   ::(michelson2micheline_ins i2)::nil)
+  | IF_NONE i1 i2 => dummy_prim "IF_NONE" ((michelson2micheline_ins i1)
+                                            ::(michelson2micheline_ins i2)::nil)
+  | IF_LEFT i1 i2 => dummy_prim "IF_LEFT" ((michelson2micheline_ins i1)
+                                            ::(michelson2micheline_ins i2)::nil)
+  | IF_RIGHT i1 i2 => dummy_prim "IF_RIGHT" ((michelson2micheline_ins i1)
+                                          ::(michelson2micheline_ins i2)::nil)
+  | IF_CONS i1 i2 => dummy_prim "IF_CONS" ((michelson2micheline_ins i1)
+                                          ::(michelson2micheline_ins i2)::nil)
+  | LOOP i => dummy_prim "LOOP" ((michelson2micheline_ins i)::nil)
+  | LOOP_LEFT i => dummy_prim "LOOP_LEFT" ((michelson2micheline_ins i)::nil)
+  | DIP i => dummy_prim "DIP" ((michelson2micheline_ins i)::nil)
+  | ITER i => dummy_prim "ITER" ((michelson2micheline_ins i)::nil)
+  | MAP i => dummy_prim "MAP" ((michelson2micheline_ins i)::nil)
   | PUSH t d =>
     let t' := (michelson2micheline_type t) in
     match d with
-    | Instruction d' => dummy_prim "PUSH" (t'::(michelson2micheline_instruction d')::nil)
+    | Instruction d' => dummy_prim "PUSH" (t'::(michelson2micheline_ins d')::nil)
     | _ => dummy_prim "PUSH" (t'::(michelson2micheline_data d)::nil)
     end
   | LAMBDA t1 t2 i =>
     dummy_prim "LAMBDA" ((michelson2micheline_type t1)
                            ::(michelson2micheline_type t2)
-                           ::(michelson2micheline_instruction i)::nil)
+                           ::(michelson2micheline_ins i)::nil)
   | DIG n => dummy_prim "DIG" ((dummy_mich (NUMBER (BinInt.Z.of_nat n)))::nil)
   | DUG n => dummy_prim "DUG" ((dummy_mich (NUMBER (BinInt.Z.of_nat n)))::nil)
   end.
+
+Fixpoint flatten_seqs (l : loc_micheline) {struct l} :=
+  match l with
+    | Mk_loc_micheline (_, _, (SEQ ls)) =>
+      (fix collect_seqs ls : list loc_micheline :=
+         match ls with
+         | nil => nil
+         | hd::tl => (List.app (flatten_seqs hd) (collect_seqs tl))
+         end) ls
+    | Mk_loc_micheline (l1, l2, (PRIM s ls)) =>
+      Mk_loc_micheline (l1, l2, (PRIM s (map (fun s => let ls := flatten_seqs s in
+                                                  match ls with
+                                                  | hd::nil => hd
+                                                  | _ => Mk_loc_micheline (dummy_loc, dummy_loc, (SEQ ls))
+                                                  end) ls)))::nil
+    | s => s::nil
+  end.
+
+Definition michelson2micheline_instruction (i : instruction) : loc_micheline :=
+  Mk_loc_micheline (dummy_loc, dummy_loc, (SEQ (flatten_seqs (michelson2micheline_ins i)))).
