@@ -1,4 +1,4 @@
-Require Import String List.
+Require Import Ascii String Bool List.
 Require Import untyped_syntax micheline_syntax error location.
 
 Open Scope string.
@@ -74,7 +74,7 @@ Fixpoint michelson2micheline_data (d : concrete_data) : loc_micheline :=
 
 Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
   match i with
-  | NOOP => dummy_prim "NOOP" nil
+  | NOOP => dummy_prim "{}" nil
   | untyped_syntax.SEQ i1 i2 => dummy_mich (SEQ ((michelson2micheline_ins i1)::(michelson2micheline_ins i2)::nil))
   | FAILWITH => dummy_prim "FAILWITH" nil
   | EXEC => dummy_prim "EXEC" nil
@@ -173,6 +173,21 @@ Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
   | DUG n => dummy_prim "DUG" ((dummy_mich (NUMBER (BinInt.Z.of_nat n)))::nil)
   end.
 
+Definition eqb_ascii (a b : ascii) : bool :=
+ match a, b with
+ | Ascii a0 a1 a2 a3 a4 a5 a6 a7,
+   Ascii b0 b1 b2 b3 b4 b5 b6 b7 =>
+    Bool.eqb a0 b0 && Bool.eqb a1 b1 && Bool.eqb a2 b2 && Bool.eqb a3 b3
+    && Bool.eqb a4 b4 && Bool.eqb a5 b5 && Bool.eqb a6 b6 && Bool.eqb a7 b7
+ end.
+
+Fixpoint eqb_string (s1 s2 : string) : bool :=
+  match s1, s2 with
+  | EmptyString, EmptyString => true
+  | String a1 s1, String a2 s2 => andb (eqb_ascii a1 a2) (eqb_string s1 s2)
+  | _, _ => false
+  end.
+
 Fixpoint flatten_seqs (l : loc_micheline) {struct l} :=
   match l with
     | Mk_loc_micheline (_, _, (SEQ ls)) =>
@@ -181,10 +196,21 @@ Fixpoint flatten_seqs (l : loc_micheline) {struct l} :=
          | nil => nil
          | hd::tl => (List.app (flatten_seqs hd) (collect_seqs tl))
          end) ls
-    | Mk_loc_micheline (l1, l2, (PRIM s ls)) =>
-      Mk_loc_micheline (l1, l2, (PRIM s (map (fun s => let ls := flatten_seqs s in
+    | Mk_loc_micheline (l1, l2, (PRIM (l3, l4, p) ls)) =>
+      Mk_loc_micheline (l1, l2, (PRIM (l3, l4, p) (map (fun s => let ls := flatten_seqs s in
                                                   match ls with
-                                                  | hd::nil => hd
+                                                  | hd::nil => if (eqb_string p "DIP")
+                                                                 || (eqb_string p "IF")
+                                                                 || (eqb_string p "IF_NONE")
+                                                                 || (eqb_string p "IF_LEFT")
+                                                                 || (eqb_string p "IF_RIGHT")
+                                                                 || (eqb_string p "IF_CONS")
+                                                                 || (eqb_string p "LOOP")
+                                                                 || (eqb_string p "LOOP_LEFT")
+                                                                 || (eqb_string p "ITER")
+                                                                 || (eqb_string p "MAP")
+                                                              then Mk_loc_micheline (dummy_loc, dummy_loc, (SEQ (hd::nil)))
+                                                              else hd
                                                   | _ => Mk_loc_micheline (dummy_loc, dummy_loc, (SEQ ls))
                                                   end) ls)))::nil
     | s => s::nil
