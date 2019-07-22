@@ -15,16 +15,16 @@ Fixpoint make_string (a:ascii) (n:nat) :=
 Definition lf := (String "010" EmptyString).
 
 Open Scope string_scope.
-Fixpoint micheline_pp (mich:loc_micheline) (indent:nat) (in_seq:bool) :=
+Fixpoint micheline_pp (mich:loc_micheline) (indent:nat) (in_seq:bool) (seq_lf:bool) :=
   match mich with
   | Mk_loc_micheline (_, _, NUMBER z) => (string_of_Z z)
   | Mk_loc_micheline (_, _, STR s) => """"++s++""""
   | Mk_loc_micheline (_, _, BYTES s) => "0x"++s
   | Mk_loc_micheline (_, _, SEQ es) => "{ "
                                         ++(String.concat
-                                             ((String ";" lf)++(make_string " " (indent+2)))
-                                             (map (fun m => micheline_pp m (indent+2) true) es))
-                                        ++lf++(make_string " " indent)++"}"
+                                             ((if seq_lf then (String ";" lf)++(make_string " " (indent+2)) else ";"))
+                                             (map (fun m => micheline_pp m (indent+2) true seq_lf) es))
+                                        ++(if seq_lf then lf else "")++(make_string " " indent)++"}"
   | Mk_loc_micheline (_, _, PRIM (_, _, s) nil) => s
   | Mk_loc_micheline (_, _, PRIM (_, _, s) es) =>
     let newIndent := indent+String.length (s++" ") in
@@ -34,6 +34,6 @@ Fixpoint micheline_pp (mich:loc_micheline) (indent:nat) (in_seq:bool) :=
                         || (eqb_string s "IF_RIGHT")
                         || (eqb_string s "IF_CONS")
                      then lf++(make_string " " newIndent) else " " in
-    let res := s++" "++(String.concat separator (map (fun m => micheline_pp m newIndent false) es)) in
+    let res := s++" "++(String.concat separator (map (fun m => micheline_pp m newIndent false (negb (eqb_string s "PUSH"))) es)) in
     if (in_seq) then res else "("++res++")"
   end.
