@@ -142,6 +142,14 @@ Module Untyper(ST: SelfType)(C:ContractContext).
     apply Bool.bool_dec.
   Qed.
 
+  Lemma lt_proof_irrelevant : forall (n1 n2 : Datatypes.nat) (p q : (n1 ?= n2) = Lt), p = q.
+  Proof.
+    intros n1 n2 p q.
+    apply Eqdep_dec.UIP_dec.
+    destruct x; destruct y; auto;
+      try (right; intro contra; discriminate contra).
+  Qed.
+
   Fixpoint tail_fail_induction A B (i : syntax.instruction true A B)
         (P : forall A B, syntax.instruction true A B -> Type)
         (HFAILWITH : forall a A B, P (a ::: A) B syntax.FAILWITH)
@@ -446,6 +454,21 @@ Module Untyper(ST: SelfType)(C:ContractContext).
 
   Ltac trans_refl t := transitivity t; [reflexivity|].
 
+  Lemma app_length_inv {A} : forall (l1 l1' l2 l2' : Datatypes.list A),
+      List.length l1 = List.length l1' ->
+      l1 ++ l2 = l1' ++ l2' ->
+      l1 = l1' /\ l2 = l2'.
+  Proof.
+    induction l1; intros l1' l2 l2' Hlen Happ.
+    - destruct l1'; simpl in *.
+      + auto.
+      + inversion Hlen.
+    - destruct l1'; simpl in *.
+      + inversion Hlen.
+      + injection Happ. intros Happ2 Ha. subst. 
+        specialize (IHl1 l1' l2 l2' (eq_add_S _ _ Hlen) Happ2) as [Hl1 Hl2]. subst. auto.
+  Qed.
+
   Fixpoint untype_type_data a (d : syntax.concrete_data a) :
     typer.type_data (untype_data d) a = Return _ d
   with
@@ -453,7 +476,6 @@ Module Untyper(ST: SelfType)(C:ContractContext).
     untype_type_spec _ _ _ i.
   Proof.
     - destruct d; try reflexivity.
-      + admit.
       + simpl.
         unfold typer.type_data.
         destruct (mtype_dec (C.get_contract_type cst) (Return _ a)).
@@ -567,7 +589,6 @@ Module Untyper(ST: SelfType)(C:ContractContext).
                 (cons a nil)
                 (cons b nil))).
         rewrite untype_type_check_instruction; auto.
-      + admit.
     - destruct i; try reflexivity; simpl.
       + trans_refl
           (bind (fun '(existT _ B i1) =>
@@ -610,7 +631,30 @@ Module Untyper(ST: SelfType)(C:ContractContext).
         simpl.
         rewrite instruction_cast_domain_same.
         reflexivity.
-      + admit.
+      + pose (A := a :: lambda (pair a b) c :: D).
+        trans_refl
+          ((if is_packable a as b return is_packable a = b -> _
+            then fun i =>
+                   bind (fun i => Return _ (Inferred_type _ _ i))
+                        (instruction_cast_domain A A _ (@syntax.APPLY _ _ _ _ (IT_eq_rev _ i)))
+            else fun _ => Failed _ Typing) eq_refl).
+        assert (forall (b : Datatypes.bool) i0,
+                   (if b return is_packable a = b -> _
+                    then fun i =>
+                           bind (fun i => Return _ (Inferred_type _ _ i))
+                                (instruction_cast_domain A A _ (@syntax.APPLY _ _ _ _ (IT_eq_rev _ i)))
+                    else fun _ => Failed _ Typing) i0
+                   = Return _ (Inferred_type A _ (@syntax.APPLY _ _ _ _ i))).
+        * intros b0 i0.
+          destruct b0.
+          -- rewrite instruction_cast_domain_same.
+             simpl.
+             repeat f_equal.
+             apply Is_true_UIP.
+          -- exfalso.
+             rewrite i0 in i.
+             exact i.
+        * apply H.
       + trans_refl
           (bind (fun d => Return _ (@typer.Inferred_type A _ (syntax.PUSH a d)))
                 (typer.type_data (untype_data x) a)).
@@ -627,13 +671,21 @@ Module Untyper(ST: SelfType)(C:ContractContext).
       + destruct s as [v]; destruct v; reflexivity.
       + destruct s as [a v]; destruct v; reflexivity.
       + destruct s as [v]; destruct v; reflexivity.
-      + admit.
-      + admit.
       + destruct s as [c v]; destruct v; reflexivity.
       + destruct s as [c v]; destruct v; reflexivity.
       + destruct s as [c v]; destruct v; reflexivity.
       + destruct s as [c d v]; destruct v; reflexivity.
-      + admit.
+      + trans_refl (type_instruction (untype_instruction (syntax.COMPARE (a := a) (S := S))) (a ::: a ::: S)).
+        destruct a.
+        * simpl.
+          rewrite instruction_cast_domain_same.
+          reflexivity.
+        * simpl.
+          repeat rewrite as_comparable_comparable.
+          simpl.
+          rewrite instruction_cast_domain_same.
+          simpl.
+          reflexivity.
       + destruct i as [v]; destruct v; reflexivity.
       + destruct i as [v]; destruct v; reflexivity.
       + destruct i as [v]; destruct v; reflexivity.
@@ -802,8 +854,35 @@ Module Untyper(ST: SelfType)(C:ContractContext).
         simpl.
         rewrite instruction_cast_domain_same.
         reflexivity.
-      + admit.
-      + admit.
-  Admitted.
+      + unfold untype_type_spec.
+        simpl. unfold type_check_dig.
+        simpl.
+        rewrite (take_n_length n S1 (t ::: S2) e).
+        simpl.
+        rewrite instruction_cast_domain_same.
+        reflexivity.
+      + unfold untype_type_spec.
+        simpl. unfold type_check_dug.
+        simpl.
+        rewrite (take_n_length n S1 S2 e).
+        simpl.
+        rewrite instruction_cast_domain_same.
+        reflexivity.
+      + unfold untype_type_spec.
+        simpl.
+        rewrite (take_n_length n A B e).
+        simpl.
+        rewrite untype_type_instruction_no_tail_fail.
+        * simpl.
+          rewrite instruction_cast_domain_same.
+          reflexivity.
+        * apply untype_type_instruction.
+      + unfold untype_type_spec.
+        simpl.
+        rewrite (take_n_length n A B e).
+        simpl.
+        rewrite instruction_cast_domain_same.
+        reflexivity.
+  Qed.
 
 End Untyper.

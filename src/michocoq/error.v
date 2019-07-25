@@ -73,6 +73,14 @@ Definition success {A} (m : M A) :=
 
 Definition Is_true := Bool.Is_true.
 
+Lemma Is_true_UIP b : forall x y : Is_true b, x = y.
+Proof.
+  destruct b.
+  - intros [] [].
+    reflexivity.
+  - contradiction.
+Defined.
+
 Coercion is_true := Is_true.
 
 Lemma IT_eq (b : bool) : b -> b = true.

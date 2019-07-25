@@ -121,8 +121,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         assert (stack t = S) by (rewrite (IHt S); assumption); subst; reflexivity.
   Qed.
 
-  Lemma nltz : forall n: Datatypes.nat, n < 0 -> False.
-  Proof. intros; omega. Qed.
+  (* Dig stuff *)
 
   Definition stack_app {l1} {l2} (S1 : stack l1) (S2 : stack l2) : stack (l1+++l2).
   Proof.

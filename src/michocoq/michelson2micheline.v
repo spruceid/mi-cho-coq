@@ -9,7 +9,7 @@ Definition dummy_mich (m:micheline) : loc_micheline :=
 Definition dummy_prim (p:string) (l:list loc_micheline) :=
   dummy_mich (PRIM (dummy_loc, dummy_loc, p) l).
 
-Definition michelson2micheline_ctype (ct: syntax.comparable_type) : loc_micheline :=
+Definition michelson2micheline_sctype (ct: syntax.simple_comparable_type) : loc_micheline :=
   match ct with
   | syntax.string => dummy_prim "string" nil
   | syntax.nat => dummy_prim "nat" nil
@@ -22,9 +22,16 @@ Definition michelson2micheline_ctype (ct: syntax.comparable_type) : loc_michelin
   | syntax.address => dummy_prim "address" nil
   end.
 
+Fixpoint michelson2micheline_ctype (ct: syntax.comparable_type) : loc_micheline :=
+  match ct with
+  | syntax.Comparable_type_simple sct => michelson2micheline_sctype sct
+  | syntax.Cpair sct ct =>
+    dummy_prim "pair" (michelson2micheline_sctype sct :: michelson2micheline_ctype ct :: nil)
+  end.
+
 Fixpoint michelson2micheline_type (t : syntax.type) : loc_micheline :=
   match t with
-  | syntax.Comparable_type ct => michelson2micheline_ctype ct
+  | syntax.Comparable_type ct => michelson2micheline_sctype ct
   | syntax.key => dummy_prim "key" nil
   | syntax.unit => dummy_prim "unit" nil
   | syntax.signature => dummy_prim "signature" nil
@@ -43,6 +50,7 @@ Fixpoint michelson2micheline_type (t : syntax.type) : loc_micheline :=
     dummy_prim "map" ((michelson2micheline_ctype ct1)::(michelson2micheline_type t2)::nil)
   | syntax.big_map ct1 t2 =>
     dummy_prim "big_map" ((michelson2micheline_ctype ct1)::(michelson2micheline_type t2)::nil)
+  | syntax.chain_id => dummy_prim "chain_id" nil
   end.
 
 Fixpoint michelson2micheline_data (d : concrete_data) : loc_micheline :=
@@ -57,6 +65,7 @@ Fixpoint michelson2micheline_data (d : concrete_data) : loc_micheline :=
   | Key_constant k => dummy_mich (STR k)
   | Key_hash_constant h => dummy_mich (STR h)
   | Contract_constant (syntax.Mk_contract c) => dummy_mich (STR c)
+  | Address_constant (syntax.Mk_address c) => dummy_mich (STR c)
   | Unit => dummy_prim "Unit" nil
   | True_ => dummy_prim "True" nil
   | False_ => dummy_prim "False" nil
@@ -70,6 +79,7 @@ Fixpoint michelson2micheline_data (d : concrete_data) : loc_micheline :=
     dummy_prim "Elt" ((michelson2micheline_data a)::(michelson2micheline_data b)::nil)
   | Concrete_seq s => dummy_mich (SEQ (map michelson2micheline_data s))
   | Instruction _ => dummy_prim "NOOP" nil (* Should never occur *)
+  | Chain_id_constant (syntax.Mk_chain_id c) => dummy_mich (STR c)
   end.
 
 Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
@@ -78,7 +88,7 @@ Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
   | untyped_syntax.SEQ i1 i2 => dummy_mich (SEQ ((michelson2micheline_ins i1)::(michelson2micheline_ins i2)::nil))
   | FAILWITH => dummy_prim "FAILWITH" nil
   | EXEC => dummy_prim "EXEC" nil
-  | DROP => dummy_prim "DROP" nil
+  | APPLY => dummy_prim "APPLY" nil
   | DUP => dummy_prim "DUP" nil
   | SWAP => dummy_prim "SWAP" nil
   | UNIT => dummy_prim "UNIT" nil
@@ -94,6 +104,8 @@ Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
   | NOT => dummy_prim "NOT" nil
   | NEG => dummy_prim "NEG" nil
   | ABS => dummy_prim "ABS" nil
+  | INT => dummy_prim "INT" nil
+  | ISNAT => dummy_prim "ISNAT" nil
   | ADD => dummy_prim "ADD" nil
   | SUB => dummy_prim "SUB" nil
   | MUL => dummy_prim "MUL" nil
@@ -119,12 +131,10 @@ Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
                                                ::(michelson2micheline_type t)::nil)
   | MEM => dummy_prim "MEM" nil
   | UPDATE => dummy_prim "UPDATE" nil
-  | CREATE_CONTRACT => dummy_prim "CREATE_CONTRACT" nil
-  | CREATE_CONTRACT_literal t1 t2 i => dummy_prim "CREATE_CONTRACT_literal"
-                                                 ((michelson2micheline_type t1)
-                                                    ::(michelson2micheline_type t2)
-                                                    ::(michelson2micheline_ins i)::nil)
-  | CREATE_ACCOUNT => dummy_prim "CREATE_ACCOUNT" nil
+  | CREATE_CONTRACT t1 t2 i => dummy_prim "CREATE_CONTRACT"
+                                          ((michelson2micheline_type t1)
+                                             ::(michelson2micheline_type t2)
+                                             ::(michelson2micheline_ins i)::nil)
   | TRANSFER_TOKENS => dummy_prim "TRANSFER_TOKENS" nil
   | SET_DELEGATE => dummy_prim "SET_DELEGATE" nil
   | BALANCE => dummy_prim "BALANCE" nil
@@ -135,7 +145,6 @@ Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
   | SELF => dummy_prim "SELF" nil
   | AMOUNT => dummy_prim "AMOUNT" nil
   | IMPLICIT_ACCOUNT => dummy_prim "IMPLICIT_ACCOUNT" nil
-  | STEPS_TO_QUOTA => dummy_prim "STEPS_TO_QUOTA" nil
   | NOW => dummy_prim "NOW" nil
   | PACK => dummy_prim "PACK" nil
   | UNPACK t => dummy_prim "UNPACK" ((michelson2micheline_type t)::nil)
@@ -156,7 +165,6 @@ Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
                                           ::(michelson2micheline_ins i2)::nil)
   | LOOP i => dummy_prim "LOOP" ((michelson2micheline_ins i)::nil)
   | LOOP_LEFT i => dummy_prim "LOOP_LEFT" ((michelson2micheline_ins i)::nil)
-  | DIP i => dummy_prim "DIP" ((michelson2micheline_ins i)::nil)
   | ITER i => dummy_prim "ITER" ((michelson2micheline_ins i)::nil)
   | MAP i => dummy_prim "MAP" ((michelson2micheline_ins i)::nil)
   | PUSH t d =>
@@ -171,6 +179,9 @@ Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
                            ::(michelson2micheline_ins i)::nil)
   | DIG n => dummy_prim "DIG" ((dummy_mich (NUMBER (BinInt.Z.of_nat n)))::nil)
   | DUG n => dummy_prim "DUG" ((dummy_mich (NUMBER (BinInt.Z.of_nat n)))::nil)
+  | DROP n => dummy_prim "DROP" ((dummy_mich (NUMBER (BinInt.Z.of_nat n)))::nil)
+  | DIP n i => dummy_prim "DIP" ((dummy_mich (NUMBER (BinInt.Z.of_nat n))) :: (michelson2micheline_ins i)::nil)
+  | CHAIN_ID => dummy_prim "CHAIN_ID" nil
   end.
 
 Definition eqb_ascii (a b : ascii) : bool :=

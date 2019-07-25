@@ -562,4 +562,156 @@ Notation "n ~Mutez" := (exist _ (int64.of_Z n) eq_refl) (at level 100).
 
 Notation "n ~mutez" := (Mutez_constant (Mk_mutez (n ~Mutez))) (at level 100).
 
+(* Dig stuff *)
+
+Lemma nltz : forall n: Datatypes.nat, (n ?= 0) = Lt -> False.
+Proof. intros. rewrite Nat.compare_lt_iff in H. omega. Qed.
+
+Lemma lt_S_n : forall n m, (S n ?= S m) = Lt -> (n ?= m) = Lt.
+Proof. intros. rewrite Nat.compare_lt_iff in *. omega. Qed.
+
+Fixpoint stacktype_split_dig (l : stack_type) (n : Datatypes.nat) : (n ?= List.length l) = Lt -> (stack_type * type * stack_type) :=
+    match l, n with
+    | List.nil, _ => (fun pf => match nltz n pf with end)
+    | List.cons x tl, 0 => (fun _ => (nil, x, tl))
+    | List.cons x xs', S n' => (fun pf => let '(l1, a, l2) := stacktype_split_dig xs' n' (lt_S_n n' (Datatypes.length xs') pf) in (List.cons x l1, a, l2))
+    end.
+
+Lemma stacktype_split_dig_size : forall l n H,
+    let stack := stacktype_split_dig l n H in
+    (l = (List.app (fst (fst stack)) (List.cons (snd (fst stack)) (snd stack))) /\ List.length (fst (fst stack)) = n).
+Proof.
+  induction l; intros n H; simpl in *.
+  - destruct nltz.
+  - destruct n.
+    + simpl. auto.
+    + specialize (IHl _ (lt_S_n _ _ H)).
+      destruct (stacktype_split_dig l n (lt_S_n n (length l) H)) as [[l1 t] l2]. simpl in *.
+      destruct IHl as [IHl1 IHlen]. subst. auto.
+Qed.
+
+Lemma length_app_cons_dig : forall n l1 l2 t,
+    n = Datatypes.length l1 ->
+    n ?= Datatypes.length (l1 +++ t ::: l2) = Lt.
+Proof.
+  intros n l1 l2 t Hlen.
+  rewrite List.app_length. rewrite <- Hlen.
+  simpl. rewrite Nat.compare_lt_iff in *. omega.
+Qed.
+
+Lemma stacktype_dig_proof_irrelevant : forall l n Hlen1 Hlen2,
+    stacktype_split_dig l n Hlen1 = stacktype_split_dig l n Hlen2.
+Proof.
+  induction l; intros n Hlen1 Hlen2.
+  - simpl. specialize (nltz _ Hlen1) as Hfalse. inversion Hfalse.
+  - simpl. destruct n. reflexivity.
+    erewrite IHl. erewrite IHl at 2. eauto.
+Qed.
+
+Lemma stacktype_split_dig_exact : forall l1 l2 t n (Hlen : n = Datatypes.length l1),
+    stacktype_split_dig (l1+++t:::l2) n (length_app_cons_dig _ l1 l2 t Hlen) = (l1, t, l2).
+Proof.
+  induction l1; intros l2 t n Hlen; simpl.
+  - destruct n. reflexivity.
+    inversion Hlen.
+  - destruct n. inversion Hlen.
+    simpl in Hlen; inversion Hlen.
+    specialize (IHl1 l2 t n H0).
+    specialize (stacktype_dig_proof_irrelevant (l1+++t:::l2) n (length_app_cons_dig n l1 l2 t H0)
+                                               (lt_S_n n (Datatypes.length (l1 +++ t ::: l2))
+                                                       (length_app_cons_dig (S n) (a ::: l1) l2 t Hlen))) as Hpi.
+    rewrite <- Hpi. rewrite IHl1. reflexivity.
+Qed.
+
+(* Dug stuff *)
+
+Lemma Snltz {A} : forall n',
+    S n' ?= S (@Datatypes.length A nil) = Lt -> False.
+Proof.
+  intros n' Hlen; simpl in *. rewrite Nat.compare_lt_iff in *. omega.
+Qed.
+
+Fixpoint stacktype_split_dug_aux (l : stack_type) (n : Datatypes.nat) : n ?= (S (List.length l)) = Lt -> (stack_type * stack_type) :=
+  match l, n with
+  | _, 0 => (fun _ => (nil, l))
+  | List.nil, S n' => (fun pf => match (Snltz n' pf) with end)
+  | List.cons x xs', S n' => (fun pf => let '(l1, l2) := stacktype_split_dug_aux xs' n' (lt_S_n n' (Datatypes.length (x::xs')) pf) in (List.cons x l1, l2))
+  end.
+
+Definition stacktype_split_dug (l : stack_type) (n : Datatypes.nat) : n ?= (List.length l) = Lt -> (type * stack_type * stack_type) :=
+  match l with
+  | nil => (fun pf => match (nltz n pf) with end)
+  | List.cons x xs' => (fun pf => let '(l1, l2) := stacktype_split_dug_aux xs' n (lt_S_n n (Datatypes.length (x::xs')) pf) in (x, l1, l2)) 
+  end.
+
+Lemma stacktype_split_dug_aux_size : forall l n H,
+    let stack := stacktype_split_dug_aux l n H in
+    (l = (List.app (fst stack) (snd stack)) /\ List.length (fst stack) = n).
+Proof.
+  induction l; intros n H; simpl in *.
+  - destruct n; simpl in *; auto. destruct Snltz.
+  - destruct n.
+    + simpl. auto.
+    + specialize (IHl _ (lt_S_n _ _ H)).
+      destruct (stacktype_split_dug_aux l n (lt_S_n n (S (length l)) H)) as [l1 l2]. simpl in *.
+      destruct IHl as [IHl1 IHlen]. subst. auto.
+Qed.
+
+Lemma stacktype_dug_aux_proof_irrelevant : forall l n Hlen1 Hlen2,
+    stacktype_split_dug_aux l n Hlen1 = stacktype_split_dug_aux l n Hlen2.
+Proof.
+  induction l; intros n Hlen1 Hlen2.
+  - simpl. destruct n.
+    reflexivity.
+    simpl in Hlen1. destruct Snltz.
+  - simpl. destruct n. reflexivity.
+    erewrite IHl. erewrite IHl at 2. eauto.
+Qed.
+
+Lemma stacktype_dug_proof_irrelevant : forall l n Hlen1 Hlen2,
+    stacktype_split_dug l n Hlen1 = stacktype_split_dug l n Hlen2.
+Proof.
+  intros l n Hlen1 Hlen2.
+  destruct l; simpl.
+  - destruct nltz.
+  - rewrite (stacktype_dug_aux_proof_irrelevant l n (lt_S_n n (S (length l)) Hlen1) (lt_S_n n (S (length l)) Hlen2)).
+    reflexivity.
+Qed.
+
+Lemma stacktype_split_dug_size : forall l n H,
+    let stack := stacktype_split_dug l n H in
+    (l = (List.cons (fst (fst stack)) (List.app (snd (fst stack)) (snd stack))) /\ List.length (snd (fst stack)) = n).
+Proof.
+  destruct l; intros n H; simpl in *.
+  - destruct nltz.
+  - specialize (stacktype_split_dug_aux_size l n H) as Hsize.
+    assert (stacktype_split_dug_aux l n H = stacktype_split_dug_aux l n (lt_S_n n (S (length l)) H)) as Hpi by apply stacktype_dug_aux_proof_irrelevant.
+    rewrite <- Hpi. destruct (stacktype_split_dug_aux l n H); simpl in *.
+    destruct Hsize. split; f_equal; auto.
+Qed.
+
+Lemma length_app_cons_dug : forall n l1 l2,
+    n = Datatypes.length l1 ->
+    n ?= S (Datatypes.length (l1 +++ l2)) = Lt.
+Proof.
+  intros n l1 l2 Hlen.
+  simpl. rewrite List.app_length. rewrite <- Hlen.
+  rewrite Nat.compare_lt_iff.
+  omega.
+Qed.
+
+Lemma stacktype_split_dug_aux_exact : forall l1 l2 n (Hlen : n = Datatypes.length l1),
+    stacktype_split_dug_aux (l1+++l2) n (length_app_cons_dug _ l1 l2 Hlen) = (l1, l2).
+Proof.
+  induction l1; intros l2 n Hlen; simpl.
+  - destruct n. induction l2; reflexivity. 
+    inversion Hlen.
+  - destruct n. inversion Hlen.
+    simpl in Hlen; inversion Hlen.
+    specialize (IHl1 l2 n H0).
+    inversion Hlen.
+    specialize (stacktype_dug_aux_proof_irrelevant (l1+++l2) n (length_app_cons_dug n l1 l2 H0)) as Hpi.
+    rewrite <- Hpi. rewrite IHl1. reflexivity.
+Qed.
+
 End Syntax.

@@ -70,3 +70,6 @@ Proof.
   - apply to_int64_inj.
   - apply f_equal.
 Qed.
+
+
+Eval compute in (of_int64 (int64.of_Z (-1)%Z)).

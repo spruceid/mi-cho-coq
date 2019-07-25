@@ -1,4 +1,4 @@
-Require Import ZArith List.
+Require Import ZArith List Nat.
 Require Import syntax semantics.
 Require Import untyped_syntax error.
 
@@ -112,6 +112,78 @@ Module Typer(ST: SelfType)(C:ContractContext).
                  (type_instruction i2 A2))
          (type_instruction i1 A1).
 
+  Definition take_one (S : stack_type) : M (type * stack_type) :=
+    match S with
+    | nil => Failed _ Typing
+    | cons a l => Return _ (a, l)
+    end.
+
+  Fixpoint take_n (A : stack_type) n : M ({B | length B = n} * stack_type) :=
+    match n as n return M ({B | length B = n} * stack_type) with
+    | 0 => Return ({B | length B = 0} * stack_type) (exist (fun B => length B = 0) nil eq_refl, A)
+    | S n =>
+      bind (fun '(a, A) =>
+              bind (fun '(exist _ B H, C) =>
+                      Return _ (exist _ (cons a B) (f_equal S H), C))
+                   (take_n A n))
+           (take_one A)
+    end.
+
+  Lemma take_n_length n S1 S2 H1 : take_n (S1 ++ S2) n = Return _ (exist _ S1 H1, S2).
+  Proof.
+    generalize dependent S1.
+    induction n; destruct S1; simpl; intro H1.
+    - repeat f_equal.
+      apply Eqdep_dec.UIP_dec.
+      repeat decide equality.
+    - discriminate.
+    - discriminate.
+    - assert (length S1 = n) as H2.
+      + apply (f_equal pred) in H1.
+        exact H1.
+      + rewrite (IHn S1 H2).
+        simpl.
+        repeat f_equal.
+        apply Eqdep_dec.UIP_dec.
+        repeat decide equality.
+  Qed.
+
+  Definition type_check_dig n (S:stack_type) : M (typer_result S) :=
+    bind (fun '((exist _ S1 H1), tS2) =>
+            bind (fun '(t, S2) =>
+                    bind (fun i => Return _ (Inferred_type S (t ::: S1 +++ S2) i))
+                         (instruction_cast_domain (S1 +++ t ::: S2) S _ (syntax.DIG n H1)))
+                 (take_one tS2))
+         (take_n S n).
+
+  Definition type_check_dug n (S:stack_type) : M (typer_result S) :=
+    bind (fun '(t, S12) =>
+            bind (fun '((exist _ S1 H1), S2) =>
+                    bind (fun i => Return _ (Inferred_type S (S1 +++ t ::: S2) i))
+                         (instruction_cast_domain (t ::: S1 +++ S2) S _ (syntax.DUG n H1)))
+                 (take_n S12 n))
+         (take_one S).
+
+  Fixpoint as_comparable (a : type) : M comparable_type :=
+    match a with
+    | Comparable_type a => Return _ (Comparable_type_simple a)
+    | pair (Comparable_type a) b =>
+      bind (fun b =>
+              Return _ (Cpair a b))
+           (as_comparable b)
+    | _ => Failed _ Typing
+    end.
+
+  Lemma as_comparable_comparable (a : comparable_type) :
+    as_comparable a = Return _ a.
+  Proof.
+    induction a.
+    - reflexivity.
+    - simpl.
+      rewrite IHa.
+      reflexivity.
+  Qed.
+
   Fixpoint type_data (d : concrete_data) {struct d}
     : forall ty, M (syntax.concrete_data ty) :=
     match d with
@@ -178,6 +250,13 @@ Module Typer(ST: SelfType)(C:ContractContext).
           | left H => Return _ (syntax.Contract_constant c H)
           | _ => Failed _ Typing
           end
+        | _ => Failed _ Typing
+        end
+    | Address_constant c =>
+      fun ty =>
+        match ty with
+        | Comparable_type address =>
+          Return _ (syntax.Address_constant c)
         | _ => Failed _ Typing
         end
     | Unit =>
@@ -295,6 +374,13 @@ Module Typer(ST: SelfType)(C:ContractContext).
             (type_check_instruction type_instruction i (cons a nil) (cons b nil))
         | _ => Failed _ Typing
         end
+    | Chain_id_constant c =>
+      fun ty =>
+        match ty with
+        | chain_id =>
+          Return _ (syntax.Chain_id_constant c)
+        | _ => Failed _ Typing
+        end
     | _ => fun _ => Failed _ Typing
     end
 
@@ -337,6 +423,14 @@ Module Typer(ST: SelfType)(C:ContractContext).
       let A' := a :: lambda a b :: B in
       bind (fun i => Return _ (Inferred_type _ _ i))
            (instruction_cast_domain A' A _ syntax.EXEC)
+    | APPLY, a :: lambda (pair a' b) c :: B =>
+      let A := a :: lambda (pair a' b) c :: B in
+      let A' := a :: lambda (pair a b) c :: B in
+      (if is_packable a as b return is_packable a = b -> _
+       then fun i =>
+              bind (fun i => Return _ (Inferred_type _ _ i))
+                   (instruction_cast_domain A' A _ (@syntax.APPLY _ _ _ _ (IT_eq_rev _ i)))
+       else fun _ => Failed _ Typing) eq_refl
     | DUP, a :: A =>
       Return _ (Inferred_type _ _ syntax.DUP)
     | SWAP, a :: b :: A =>
@@ -386,6 +480,10 @@ Module Typer(ST: SelfType)(C:ContractContext).
       Return _ (Inferred_type _ _ (@syntax.NEG _ syntax.neg_int _))
     | ABS, Comparable_type int :: A =>
       Return _ (Inferred_type _ _ syntax.ABS)
+    | INT, Comparable_type nat :: A =>
+      Return _ (Inferred_type _ _ syntax.INT)
+    | ISNAT, Comparable_type int :: A =>
+      Return _ (Inferred_type _ _ syntax.ISNAT)
     | ADD, Comparable_type nat :: Comparable_type nat :: A =>
       Return _ (Inferred_type _ _ (@syntax.ADD _ _ syntax.add_nat_nat _))
     | ADD, Comparable_type nat :: Comparable_type int :: A =>
@@ -442,12 +540,16 @@ Module Typer(ST: SelfType)(C:ContractContext).
       Return _ (Inferred_type _ _ syntax.LSL)
     | LSR, Comparable_type nat :: Comparable_type nat :: A =>
       Return _ (Inferred_type _ _ syntax.LSR)
-    | COMPARE, Comparable_type a :: Comparable_type a' :: B =>
+    | COMPARE, a :: a' :: B =>
       let A := a ::: a' ::: B in
-      let A' := a ::: a ::: B in
-      bind (fun i => Return _ (Inferred_type _ _ i))
-           (instruction_cast_domain
-              A' A (int ::: B) syntax.COMPARE)
+      bind (fun a : comparable_type =>
+              bind (fun a' : comparable_type =>
+                      let A' := a ::: a ::: B in
+                      bind (fun i => Return _ (Inferred_type _ _ i))
+                           (instruction_cast_domain
+                              A' A (int ::: B) (syntax.COMPARE (a := a))))
+                   (as_comparable a'))
+           (as_comparable a)
     | CONCAT, Comparable_type string :: Comparable_type string :: B =>
       Return _ (Inferred_type _ _ (@syntax.CONCAT _ stringlike_string _))
     | CONCAT, Comparable_type bytes :: Comparable_type bytes :: B =>
@@ -610,7 +712,22 @@ Module Typer(ST: SelfType)(C:ContractContext).
       Return _ (Inferred_type _ _ syntax.SHA512)
     | CHECK_SIGNATURE, key :: signature :: Comparable_type bytes :: A =>
       Return _ (Inferred_type _ _ syntax.CHECK_SIGNATURE)
-    (* TODO Dig and Dug *)
+    | DIG n, A => type_check_dig n _
+    | DUG n, A => type_check_dug n _
+    | DIP n i, S12 =>
+      bind (fun '((exist _ S1 H1), S2) =>
+              bind (fun '(existT _ B i) =>
+                      bind (fun i => Return _ (Inferred_type S12 (S1 +++ B) i))
+                           (instruction_cast_domain (S1 +++ S2) S12 _ (syntax.DIP n H1 i)))
+                   (type_instruction_no_tail_fail type_instruction i S2))
+           (take_n S12 n)
+    | DROP n, S12 =>
+      bind (fun '((exist _ S1 H1), S2) =>
+                      bind (fun i => Return _ (Inferred_type S12 S2 i))
+                           (instruction_cast_domain (S1 +++ S2) S12 _ (syntax.DROP n H1)))
+           (take_n S12 n)
+    | CHAIN_ID, _ =>
+      Return _ (Inferred_type _ _ syntax.CHAIN_ID)
     | _, _ => Failed _ Typing
     end.
 End Typer.
