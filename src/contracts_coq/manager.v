@@ -122,8 +122,8 @@ Proof.
 Qed.
 
 Lemma fold_eval_precond fuel :
-  eval_precond_body env (@semantics.eval_precond _ _ env fuel) =
-  @semantics.eval_precond _ _ env (S fuel).
+  eval_precond_body (@semantics.eval_precond fuel) =
+  @semantics.eval_precond (S fuel).
 Proof.
   reflexivity.
 Qed.
@@ -149,7 +149,6 @@ Proof.
   intro Hfuel.
   remember (13 + fuel) as fuel2.
   assert (30 <= fuel2) by lia.
-  unfold eval.
   rewrite return_precond.
   rewrite eval_precond_correct.
   unfold manager_spec.
@@ -173,7 +172,6 @@ Proof.
     unfold precond_ex.
     split.
     ++ intros ((ops, []), (Hops, Hs)).
-       unfold eval.
        injection Hs; intros; subst.
        auto.
     ++ intros ([], Hlam).
