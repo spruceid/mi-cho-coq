@@ -417,6 +417,8 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       | @NEG _ s _ =>
         fun '(x, SA) => Return _ (neg _ (neg_variant_field _ s) x, SA)
       | ABS => fun '(x, SA) => Return _ (Z.abs_N x, SA)
+      | ISNAT => fun '(x, SA) => Return _ (if (x >=? 0)%Z then (Some (Z.to_N x), SA) else (None, SA))
+      | INT => fun '(x, SA) => Return _ (Z.of_N x, SA)
       | @ADD _ _ s _ =>
         fun '(x, (y, SA)) =>
           bind (fun r => Return _ (r, SA))
@@ -724,6 +726,8 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | @NEG _ s _ =>
       fun psi '(x, SA) => psi (neg _ (neg_variant_field _ s) x, SA)
     | ABS => fun psi '(x, SA) => psi (Z.abs_N x, SA)
+    | ISNAT => fun psi '(x, SA) => psi (if (x >=? 0)%Z then (Some (Z.to_N x), SA) else (None, SA))
+    | INT => fun psi '(x, SA) => psi (Z.of_N x, SA)
     | @ADD _ _ s _ =>
       fun psi '(x, (y, SA)) =>
         precond (add _ _ _ (add_variant_field _ _ s) x y) (fun z => psi (z, SA))
@@ -916,6 +920,8 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     - destruct st as (x, (y, st)); reflexivity.
     - destruct st as (x, (y, st)); reflexivity.
     - destruct st as (x, (y, st)); reflexivity.
+    - destruct st; reflexivity.
+    - destruct st; reflexivity.
     - destruct st; reflexivity.
     - destruct st; reflexivity.
     - destruct st; reflexivity.

@@ -359,6 +359,8 @@ this constructor "IF" but we can make a notation for it. *)
 | NOT {b} {s : not_struct b} {S} : instruction (b ::: S) (not_ret_type _ s ::: S)
 | NEG {n} {s : neg_struct n} {S} : instruction (n ::: S) (int ::: S)
 | ABS {S} : instruction (int ::: S) (nat ::: S)
+| ISNAT {S} : instruction (int ::: S) (option nat ::: S)
+| INT {S} : instruction (nat ::: S) (int ::: S)
 | ADD {a b} {s : add_struct a b} {S} :
     instruction (a ::: b ::: S) (add_ret_type _ _ s ::: S)
 | SUB {a b} {s : sub_struct a b} {S} :
