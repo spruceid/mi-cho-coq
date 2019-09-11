@@ -1,7 +1,7 @@
 embed {{ coq
-Require String.
-Open Scope string_scope.
+Require Import String.
 Require Import ZArith.
+Open Scope string_scope.
 
 Module Mutez.
   Inductive mutez :=.
@@ -152,7 +152,7 @@ type, ty, vty :: ty_ ::=
 
 %% Operations
 
-comparison :: '' ::=
+comparison :: 'i_' ::=
   | EQ :: :: EQ
   | NEQ :: :: NEQ
   | LT :: :: LT
@@ -160,12 +160,12 @@ comparison :: '' ::=
   | LE :: :: LE
   | GE :: :: GE
 
-binary_bitwise :: '' ::=
+binary_bitwise :: 'i_' ::=
   | OR :: :: OR
   | AND :: :: AND
   | XOR :: :: XOR
 
-hash_function :: '' ::=
+hash_function :: 'i_' ::=
   | HASH_KEY :: :: HASH_KEY
   | BLAKE2B :: :: BLAKE2B
   | SHA256 :: :: SHA256
@@ -173,7 +173,8 @@ hash_function :: '' ::=
 
 %% Instructions
 
-nullary :: 'i_' ::=
+
+function :: 'i_' ::=
   | PUSH ty1 x :: :: PUSH
   | UNIT :: :: UNIT
   | LAMBDA ty1 ty2 code :: :: LAMBDA
@@ -189,7 +190,6 @@ nullary :: 'i_' ::=
   | STEPS_TO_QUOTA :: :: STEPS_TO_QUOTA
   | NOW :: :: NOW
 
-unary :: 'i_' ::=
   | comparison :: :: unary_comparison
   | hash_function :: :: unary_hash
   | NOT :: :: NOT
@@ -208,7 +208,6 @@ unary :: 'i_' ::=
   | PACK :: :: PACK
   | UNPACK ty1 :: :: UNPACK
 
-binary :: 'i_' ::=
   | binary_bitwise :: :: b_bitwise
   | EXEC :: :: EXEC
   | LSL :: :: LSL
@@ -220,25 +219,16 @@ binary :: 'i_' ::=
   | GET :: :: GET
   | CONS :: :: CONS
 
-non_failing_function :: 'i_' ::=
-  | nullary :: :: nff_nullary
-  | unary :: :: nff_unary
-  | binary :: :: nff_binary
-
   | DROP :: :: DROP
   | DUP :: :: DUP
   | SWAP :: :: SWAP
 
   | SLICE :: :: SLICE
   | UPDATE :: :: UPDATE
-  | CREATE_CONTRACT :: :: CREATE_CONTRACT
-  | CREATE_CONTRACT code :: :: CREATE_CONSTRACT_litteral
   | CREATE_ACCOUNT :: :: CREATE_ACCOUNT
   | TRANSFER_TOKENS :: :: TRANSFER_TOKENS
   | CHECK_SIGNATURE :: :: CHECK_SIGNATURE
 
-function :: 'i_' ::=
-  | non_failing_function :: :: Non_failing
   | ADD :: :: ADD
   | SUB :: :: SUB
   | MUL :: :: MUL
@@ -251,7 +241,7 @@ code, i, body :: 'i_' ::=
   | FAILWITH :: :: FAILWITH
   | {} :: :: NOOP
   | code1 ; code2 :: :: SEQ
-  | IF code1 code2 :: :: IF_
+  | IF code1 code2 :: :: IF
   | LOOP code :: :: LOOP
   | LOOP_LEFT code :: :: LOOP_LEFT
   | DIP code :: :: DIP
@@ -261,6 +251,7 @@ code, i, body :: 'i_' ::=
   | IF_LEFT code1 code2 :: :: IF_LEFT
   | IF_RIGHT code1 code2 :: :: IF_RIGHT
   | IF_CONS code1 code2 :: :: IF_CONS
+  | CREATE_CONTRACT code :: :: CREATE_CONTRACT
 
 %% Stack
 
@@ -285,12 +276,12 @@ formula :: formula_ ::=
   | formula1 .. formulaN :: :: dots
   | get_contract_type contract_litteral ty :: M :: get_contract_rel
     {{ coq get_contract_rel [[contract_litteral]] [[ty]] }}
-  | x = y :: M :: eq {{coq (compare [[x]] EQ [[y]])}}
-  | x <> y :: M :: neq {{coq (compare [[x]] NEQ [[y]])}}
-  | x < y :: M :: lt {{coq (compare [[x]] LT [[y]])}}
-  | x > y :: M :: gt {{coq (compare [[x]] GT [[y]])}}
-  | x <= y :: M :: le {{coq (compare [[x]] LE [[y]])}}
-  | x >= y :: M :: ge {{coq (compare [[x]] GE [[y]])}}
+  | x = y :: M :: eq {{coq (compare [[x]] i_EQ [[y]])}}
+  | x <> y :: M :: neq {{coq (compare [[x]] i_NEQ [[y]])}}
+  | x < y :: M :: lt {{coq (compare [[x]] i_LT [[y]])}}
+  | x > y :: M :: gt {{coq (compare [[x]] i_GT [[y]])}}
+  | x <= y :: M :: le {{coq (compare [[x]] i_LE [[y]])}}
+  | x >= y :: M :: ge {{coq (compare [[x]] i_GE [[y]])}}
 
 embed {{coq
 Section syntax.
@@ -400,228 +391,206 @@ Typing :: 't_' ::=
        ------------------ :: map_elt
        Elt k v :: kty, vty
 
+
   defn
-  nullary '::' -> ty1 :: :: null_has_type :: 'fun0_' by
+  function '::' A -> B :: :: fun_has_type :: 'instr_' by
 
        x :: ty1
-       --------------- :: PUSH
-       PUSH ty1 x :: -> ty1
+       ---------------------------- :: PUSH
+       PUSH ty1 x :: [] -> ty1 : []
 
-       -------------- :: UNIT
-       UNIT :: -> unit
+       ----------------------- :: UNIT
+       UNIT :: [] -> unit : []
 
        code :: ty1 : [] => ty2 : []
-       ------------------------------- :: LAMBDA
-       LAMBDA ty1 ty2 code :: -> lambda ty1 ty2
+       ------------------------------------------------ :: LAMBDA
+       LAMBDA ty1 ty2 code :: [] -> lambda ty1 ty2 : []
 
-       ---------------------- :: EMPTY_SET
-       EMPTY_SET cty :: -> set cty
+       ----------------------------------- :: EMPTY_SET
+       EMPTY_SET cty :: [] -> set cty : []
 
-       ---------------------------------- :: EMPTY_MAP
-       EMPTY_MAP kty vty :: -> map kty vty
+       ------------------------------------------- :: EMPTY_MAP
+       EMPTY_MAP kty vty :: [] -> map kty vty : []
 
-       -------------------- :: NONE
-       NONE ty1 :: -> option ty1
+       --------------------------------- :: NONE
+       NONE ty1 :: [] -> option ty1 : []
 
-       ----------------- :: NIL
-       NIL ty1 :: -> list ty1
+       ------------------------------ :: NIL
+       NIL ty1 :: [] -> list ty1 : []
 
-       ------------------ :: BALANCE
-       BALANCE :: -> mutez
+       --------------------------- :: BALANCE
+       BALANCE :: [] -> mutez : []
 
-       ------------------- :: SOURCE
-       SOURCE :: -> address
+       ---------------------------- :: SOURCE
+       SOURCE :: [] -> address : []
 
-       ------------------- :: SENDER
-       SENDER :: -> address
+       ---------------------------- :: SENDER
+       SENDER :: [] -> address : []
 
-       ----------------- :: SELF
-       SELF :: -> self_ty
+       -------------------------- :: SELF
+       SELF :: [] -> self_ty : []
 
-       ----------------- :: AMOUNT
-       AMOUNT :: -> mutez
+       -------------------------- :: AMOUNT
+       AMOUNT :: [] -> mutez : []
 
-       ----------------------- :: STEPS_TO_QUOTA
-       STEPS_TO_QUOTA :: -> nat
+       -------------------------------- :: STEPS_TO_QUOTA
+       STEPS_TO_QUOTA :: [] -> nat : []
 
-       ------------------ :: NOW
-       NOW :: -> timestamp
+       --------------------------- :: NOW
+       NOW :: [] -> timestamp : []
 
-  defn
-  unary '::' ty1 -> ty2 :: :: unary_has_type :: 'fun1_' by
+       ----------------------------------- :: comparison
+       comparison :: int : [] -> bool : []
 
-       ------------------------ :: comparison
-       comparison :: int -> bool
+       ----------------------------- :: NOT__bool
+       NOT :: bool : [] -> bool : []
 
-       ------------------ :: NOT_bool
-       NOT :: bool -> bool
+       --------------------------- :: NOT__nat
+       NOT :: nat : [] -> int : []
 
-       ---------------- :: NOT_nat
-       NOT :: nat -> int
+       --------------------------- :: NOT__int
+       NOT :: int : [] -> int : []
 
-       ---------------- :: NOT_int
-       NOT :: int -> int
+       --------------------------- :: NEG__nat
+       NEG :: nat : [] -> int : []
 
-       ---------------- :: NEG_nat
-       NEG :: nat -> int
+       --------------------------- :: NEG__int
+       NEG :: int : [] -> int : []
 
-       ---------------- :: NEG_int
-       NEG :: int -> int
+       --------------------------- :: ABS
+       ABS :: int : [] -> nat : []
 
-       ---------------- :: ABS
-       ABS :: int -> nat
+       -------------------------------- :: SIZE__set
+       SIZE :: set cty : [] -> nat : []
 
-       ------------------- :: SIZE_set
-       SIZE :: set cty -> nat
+       ------------------------------------ :: SIZE__map
+       SIZE :: map kty vty : [] -> nat : []
 
-       ------------------------- :: SIZE_map
-       SIZE :: map kty vty -> nat
+       ------------------------------- :: SIZE__list
+       SIZE :: list ty1 : [] -> nat : []
 
-       -------------------- :: SIZE_list
-       SIZE :: list ty1 -> nat
+       ------------------------------- :: SIZE__string
+       SIZE :: string : [] -> nat : []
 
-       -------------------- :: SIZE_string
-       SIZE :: string -> nat
+       ------------------------------ :: SIZE__bytes
+       SIZE :: bytes : [] -> nat : []
 
-       ------------------- :: SIZE_bytes
-       SIZE :: bytes -> nat
+       ------------------------------ :: CAR
+       CAR :: pair ty1 ty2 : [] -> ty1 : []
 
-       ------------------- :: CAR
-       CAR :: pair ty1 ty2 -> ty1
+       ------------------------------ :: CDR
+       CDR :: pair ty1 ty2 : [] -> ty2 : []
 
-       ------------------- :: CDR
-       CDR :: pair ty1 ty2 -> ty2
+       ------------------------------- :: SOME
+       SOME :: ty1 : [] -> option ty1 : []
 
-       -------------------- :: SOME
-       SOME :: ty1 -> option ty1
+       ------------------------------- :: LEFT
+       LEFT ty2 :: ty1 : [] -> or ty1 ty2 : []
 
-       -------------------- :: LEFT
-       LEFT ty2 :: ty1 -> or ty1 ty2
+       -------------------------------- :: RIGHT
+       RIGHT ty1 :: ty2 : [] -> or ty1 ty2 : []
 
-       --------------------- :: RIGHT
-       RIGHT ty1 :: ty2 -> or ty1 ty2
+       ------------------------------------------ :: ADDRESS
+       ADDRESS :: contract ty1 : [] -> address : []
 
-       ------------------------------- :: ADDRESS
-       ADDRESS :: contract ty1 -> address
+       --------------------------------------------- :: CONTRACT
+       CONTRACT ty1 :: address : [] -> contract ty1 : []
 
-       ---------------------------------- :: CONTRACT
-       CONTRACT ty1 :: address -> contract ty1
+       ------------------------------------------------------ :: SET_DELEGATE
+       SET_DELEGATE :: option key_hash : [] -> operation : []
 
-       ------------------------------------------- :: SET_DELEGATE
-       SET_DELEGATE :: option key_hash -> operation
+       ------------------------------------------------------- :: IMPLICIT_ACCOUNT
+       IMPLICIT_ACCOUNT :: key_hash : [] -> contract unit : []
 
-       -------------------------------------------- :: IMPLICIT_ACCOUNT
-       IMPLICIT_ACCOUNT :: key_hash -> contract unit
+       ---------------------------- :: PACK
+       PACK :: ty1 : [] -> bytes : []
 
-       ----------------- :: PACK
-       PACK :: ty1 -> bytes
+       -------------------------------- :: UNPACK
+       UNPACK ty1 :: bytes : [] -> ty1 : []
 
-       --------------------- :: UNPACK
-       UNPACK ty1 :: bytes -> ty1
+       ------------------------------------- :: HASH_KEY
+       HASH_KEY :: key : [] -> key_hash : []
 
-       -------------------------- :: HASH_KEY
-       HASH_KEY :: key -> key_hash
+       ----------------------------------------- :: HASH
+       hash_function :: bytes : [] -> bytes : []
 
-       ------------------------------ :: HASH
-       hash_function :: bytes -> bytes
+       ----------------------------------------------- :: bitwise_bool
+       binary_bitwise :: bool : bool : [] -> bool : []
 
-  defn
-  binary '::' ty1 -> ty2 -> ty3 :: :: bin_has_type :: 'fun2_' by
+       -------------------------------------------- :: bitwise_nat
+       binary_bitwise :: nat : nat : [] -> nat : []
 
-       ------------------------------------- :: bitwise_bool
-       binary_bitwise :: bool -> bool -> bool
+       --------------------------------------------- :: EXEC
+       EXEC :: ty1 : lambda ty1 ty2 : [] -> ty2 : []
 
-       ---------------------------------- :: bitwise_nat
-       binary_bitwise :: nat -> nat -> nat
+       --------------------------------- :: LSL
+       LSL :: nat : nat : [] -> nat : []
 
-       --------------------------- :: EXEC
-       EXEC :: ty1 -> lambda ty1 ty2 -> ty2
+       --------------------------------- :: LSR
+       LSR :: nat : nat : [] -> nat : []
 
-       ----------------------- :: LSL
-       LSL :: nat -> nat -> nat
+       --------------------------------- :: COMPARE
+       COMPARE :: cty : cty : [] -> int : []
 
-       ----------------------- :: LSR
-       LSR :: nat -> nat -> nat
+       --------------------------------------------- :: CONCAT__string_list
+       CONCAT :: list string : [] -> string : []
 
-       ----------------------- :: COMPARE
-       COMPARE :: cty -> cty -> int
+       --------------------------------------------- :: CONCAT__string
+       CONCAT :: string : string : [] -> string : []
 
-       ----------------------------------- :: CONCAT_string
-       CONCAT :: string -> string -> string
+       ------------------------------------------ :: CONCAT__bytes_list
+       CONCAT :: bytes : bytes : [] -> bytes : []
 
-       -------------------------------- :: CONCAT_bytes
-       CONCAT :: bytes -> bytes -> bytes
+       ------------------------------------------ :: CONCAT__bytes
+       CONCAT :: list bytes : [] -> bytes : []
 
-       ------------------------- :: PAIR
-       PAIR :: ty1 -> ty2 -> pair ty1 ty2
+       ----------------------------------- :: PAIR
+       PAIR :: ty1 : ty2 : [] -> pair ty1 ty2 : []
 
-       ------------------------ :: MEM_set
-       MEM :: cty -> set cty -> bool
+       ---------------------------------- :: MEM__set
+       MEM :: cty : set cty : [] -> bool : []
 
-       -------------------------------- :: MEM_map
-       MEM :: kty -> map kty vty -> bool
+       ------------------------------------------ :: MEM__map
+       MEM :: kty : map kty vty : [] -> bool : []
 
-       ------------------------------------ :: MEM_big_map
-       MEM :: kty -> big_map kty vty -> bool
+       ---------------------------------------------- :: MEM__big_map
+       MEM :: kty : big_map kty vty : [] -> bool : []
 
-       -------------------------------------- :: GET_map
-       GET :: kty -> map kty vty -> option vty
+       ------------------------------------------------ :: GET__map
+       GET :: kty : map kty vty : [] -> option vty : []
 
-       ------------------------------------------ :: GET_big_map
-       GET :: kty -> big_map kty vty -> option vty
+       ---------------------------------------------------- :: GET__big_map
+       GET :: kty : big_map kty vty : [] -> option vty : []
 
-       ---------------------------- :: CONS
-       CONS :: ty1 -> list ty1 -> list ty1
+       -------------------------------------------- :: CONS
+       CONS :: ty1 : list ty1 : [] -> list ty1 : []
 
-  defn
-  function '::' A -> B :: :: fun_has_type :: 'fun_' by
-
-       nullary :: ty1
-       ----------------------- :: nullary
-       nullary :: [] -> ty1 : []
-
-       unary :: ty1 -> ty2
-       -------------------------- :: unary
-       unary :: ty1 : [] -> ty2 : []
-
-       binary :: ty1 -> ty2 -> ty3
-       ---------------------------------- :: binary
-       binary :: ty1 : ty2 : [] -> ty3 : []
-
-       -------------------- :: DROP
+       ---------------------- :: DROP
        DROP :: ty1 : [] -> []
 
-       ----------------------------- :: DUP
+       --------------------------------- :: DUP
        DUP :: ty1 : [] -> ty1 : ty1 : []
 
-       ----------------------------------- :: SWAP
+       ---------------------------------------- :: SWAP
        SWAP :: ty1 : ty2 : [] -> ty2 : ty1 : []
 
-       --------------------------------------------------------- :: SLICE_string
+       ------------------------------------------------------ :: SLICE__string
        SLICE :: nat : nat : string : [] -> option string : []
 
-       ------------------------------------------------------- :: SLICE_bytes
+       ---------------------------------------------------- :: SLICE__bytes
        SLICE :: nat : nat : bytes : [] -> option bytes : []
 
-       ------------------------------------------------ :: UPDATE_set
+       --------------------------------------------------- :: UPDATE__set
        UPDATE :: cty : bool : set cty : [] -> set cty : []
 
-       ------------------------------------------------------------- :: UPDATE_map
+       ---------------------------------------------------------- :: UPDATE__map
        UPDATE :: kty : vty : map kty vty : [] -> map kty vty : []
 
-       --------------------------------------------------------------------- :: UPDATE_big_map
+       ------------------------------------------------------------------ :: UPDATE__big_map
        UPDATE :: kty : vty : big_map kty vty : [] -> big_map kty vty : []
 
 
-       -------------------------------------------------------------------------------------------------------------------------------------------------------------- :: CREATE_CONTRACT
-       CREATE_CONTRACT :: key_hash : option key_hash : bool : bool : mutez : lambda (pair ty1 ty2) (pair (list operation) ty2) : ty2 : [] -> operation : address : []
-
-       code :: pair ty1 ty2 : [] => pair (list operation) ty2 : []
-       -------------------------------------------------------------------------------------------------------------------- :: CREATE_CONTRACT_l
-       CREATE_CONTRACT code :: key_hash : option key_hash : bool : bool : mutez : ty2 : [] -> operation : address : []
-
-
-       ------------------------------------------------------------------------------------------------------- :: CREATE_ACCOUNT
+------------------------------------------------------------------------------------------------------- :: CREATE_ACCOUNT
        CREATE_ACCOUNT :: key_hash : option key_hash : bool : mutez : [] -> operation : contract unit : []
 
 
@@ -633,86 +602,86 @@ Typing :: 't_' ::=
        CHECK_SIGNATURE :: key : signature : bytes : [] -> bool : []
 
 
-       ----------------------------------- :: ADD_nat_nat
+       ----------------------------------- :: ADD__nat_nat
        ADD :: nat : nat : [] -> nat : []
 
-       ----------------------------------- :: ADD_nat_int
+       ----------------------------------- :: ADD__nat_int
        ADD :: nat : int : [] -> int : []
 
-       ----------------------------------- :: ADD_int_nat
+       ----------------------------------- :: ADD__int_nat
        ADD :: int : nat : [] -> int : []
 
-       ----------------------------------- :: ADD_int_int
+       ----------------------------------- :: ADD__int_int
        ADD :: int : int : [] -> int : []
 
-       ----------------------------------------------- :: ADD_timestamp_int
+       ----------------------------------------------- :: ADD__timestamp_int
        ADD :: timestamp : int : [] -> timestamp : []
 
-       ----------------------------------------------- :: ADD_int_timestamp
+       ----------------------------------------------- :: ADD__int_timestamp
        ADD :: int : timestamp : [] -> timestamp : []
 
-       ----------------------------------------- :: ADD_mutez_mutez_mutez
+       ----------------------------------------- :: ADD__mutez_mutez_mutez
        ADD :: mutez : mutez : [] -> mutez : []
 
-       ----------------------------------- :: SUB_nat_nat
+       ----------------------------------- :: SUB__nat_nat
        SUB :: nat : nat : [] -> int : []
 
-       ----------------------------------- :: SUB_nat_int
+       ----------------------------------- :: SUB__nat_int
        SUB :: nat : int : [] -> int : []
 
-       ----------------------------------- :: SUB_int_nat
+       ----------------------------------- :: SUB__int_nat
        SUB :: int : nat : [] -> int : []
 
-       ----------------------------------- :: SUB_int_int
+       ----------------------------------- :: SUB__int_int
        SUB :: int : int : [] -> int : []
 
-       ----------------------------------------------- :: SUB_timestamp_int
+       ----------------------------------------------- :: SUB__timestamp_int
        SUB :: timestamp : int : [] -> timestamp : []
 
-       ----------------------------------------------- :: SUB_timestamp_timestamp
+       ----------------------------------------------- :: SUB__timestamp_timestamp
        SUB :: timestamp : timestamp : [] -> int : []
 
-       ----------------------------------------- :: SUB_mutez_mutez
+       ----------------------------------------- :: SUB__mutez_mutez
        SUB :: mutez : mutez : [] -> mutez : []
 
-       ----------------------------------- :: MUL_nat_nat
+       ----------------------------------- :: MUL__nat_nat
        MUL :: nat : nat : [] -> nat : []
 
-       ----------------------------------- :: MUL_nat_int
+       ----------------------------------- :: MUL__nat_int
        MUL :: nat : int : [] -> int : []
 
-       ----------------------------------- :: MUL_int_nat
+       ----------------------------------- :: MUL__int_nat
        MUL :: int : nat : [] -> int : []
 
-       ----------------------------------- :: MUL_int_int
+       ----------------------------------- :: MUL__int_int
        MUL :: int : int : [] -> int : []
 
-       --------------------------------------- :: MUL_mutez_nat
+       --------------------------------------- :: MUL__mutez_nat
        MUL :: mutez : nat : [] -> mutez : []
 
-       --------------------------------------- :: MUL_nat_mutez
+       --------------------------------------- :: MUL__nat_mutez
        MUL :: nat : mutez : [] -> mutez : []
 
-       ------------------------------------------- :: EDIV_nat_nat
+       ------------------------------------------- :: EDIV__nat_nat
        EDIV :: nat : nat : [] -> nat : nat : []
 
-       ------------------------------------------- :: EDIV_nat_int
+       ------------------------------------------- :: EDIV__nat_int
        EDIV :: nat : int : [] -> int : nat : []
 
-       ------------------------------------------- :: EDIV_int_nat
+       ------------------------------------------- :: EDIV__int_nat
        EDIV :: int : nat : [] -> int : nat : []
 
-       ------------------------------------------- :: EDIV_int_int
+       ------------------------------------------- :: EDIV__int_int
        EDIV :: int : int : [] -> int : nat : []
 
-       ------------------------------------------------- :: EDIV_mutez_nat
+       ------------------------------------------------- :: EDIV__mutez_nat
        EDIV :: mutez : nat : [] -> mutez : mutez : []
 
-       ------------------------------------------------- :: EDIV_mutez_mutez
+       ------------------------------------------------- :: EDIV__mutez_mutez
        EDIV :: mutez : mutez : [] -> nat : mutez : []
 
   defn
-  code '::' A => B :: :: code_has_type :: 'code_' by
+  code '::' A => B :: :: code_has_type :: 'instr_' by
 
        function :: A -> B
        ------------------------- :: function
@@ -747,23 +716,23 @@ Typing :: 't_' ::=
        DIP code :: ty1 : A => ty1 : B
 
        code :: ty1 : A => A
-       ---------------------------- :: ITER_list
+       ---------------------------- :: ITER__list
        ITER code :: list ty1 : A => A
 
        code :: cty : A => A
-       ---------------------------- :: ITER_set
+       ---------------------------- :: ITER__set
        ITER code :: set cty : A => A
 
        code :: (pair kty vty) : A => A
-       --------------------------------- :: ITER_map
+       --------------------------------- :: ITER__map
        ITER code :: map kty vty : A => A
 
        code :: ty1 : A => ty2 : A
-       ------------------------------------- :: MAP_list
+       ------------------------------------- :: MAP__list
        MAP code :: list ty1 : A => list ty2 : A
 
        code :: (pair kty ty1) : A => ty2 : A
-       ------------------------------------------- :: MAP_map
+       ------------------------------------------- :: MAP__map
        MAP code :: map kty ty1 : A => map kty ty2 : A
 
        code1 :: A => B
@@ -785,6 +754,9 @@ Typing :: 't_' ::=
        code2 :: A => B
        -------------------------------------- :: IF_CONS
        IF_CONS code1 code2 :: list ty1 : A => B
+
+-------------------------------------------------------------------------------------------------------------------- :: CREATE_CONTRACT
+       CREATE_CONTRACT code :: key_hash : option key_hash : bool : bool : mutez : ty2 : A => operation : address : A
 
 defns
 BigStep :: '' ::=
@@ -817,7 +789,7 @@ by
 %% My comments are prefixed AJ:.
 %%
 
------- :: failwith
+------ :: FAILWITH
 FAILWITH / d : stack => [FAILED]
 
 ------ :: failed
@@ -825,37 +797,37 @@ i / [FAILED] => [FAILED]
 
 i1 / S => SE''
 i2 / SE'' => SE'
------- :: sequence
+------ :: SEQ
 i1; i2 / S => SE'
 
 ------ :: NOOP
 {} / S => S
 
 i1 / S => S'
------- :: if_tt
+------ :: IF__tt
 IF i1 i2 / True : S => S'
 
 i2 / S => S'
------- :: if_ff
+------ :: IF__ff
 IF i1 i2 / False : S => S'
 
 i1; LOOP i1 / S => S'
------- :: loop_tt
+------ :: LOOP__tt
 LOOP i1 / True : S => S'
 
------- :: loop_ff
+------ :: LOOP__ff
 LOOP i1 / False : S => S
 
 i1 ; LOOP_LEFT i1 / d : S => S'
------- :: loop_left_tt
+------ :: LOOP_LEFT__tt
 LOOP_LEFT i1 / Left d : S => S'
 
 i1 / S => S'
------- :: dip
+------ :: DIP
 DIP i1 / d : S => d : S'
 
 i / d2 : []  =>  d3 : []
------- :: exec
+------ :: EXEC
 EXEC / i : d2 : S  =>  d3 : S
 
 
@@ -866,21 +838,21 @@ EXEC / i : d2 : S  =>  d3 : S
 
 % :: _ : 'A   ->   'A
 
------ :: drop
+----- :: DROP
 DROP / d : S  =>  S
 
 %     DUP: Duplicate the top of the stack.
 
 % :: 'ty1 : 'A   ->   'ty1 : 'ty1 : 'A
 
------ :: dup
+----- :: DUP
 DUP / d : S  =>  d : d : S
 
 %     SWAP: Exchange the top two elements of the stack.
 
 % :: 'ty1 : 'ty2 : 'A   ->   'ty2 : 'ty1 : 'A
 
------ :: swap
+----- :: SWAP
 SWAP / d1 : d2 : S  =>  d2 : d1 : S
 
 %     PUSH 'ty1 x: Push a constant value of a given type onto the stack.
@@ -888,21 +860,21 @@ SWAP / d1 : d2 : S  =>  d2 : d1 : S
 % :: 'A   ->   'ty1 : 'A
 %    iff   x :: 'ty1
 
------ :: push
+----- :: PUSH
 PUSH ty d / S  =>  d : S
 
 %     UNIT: Push a unit value onto the stack.
 
 % :: 'A   ->   unit : 'A
 
------ :: unit
+----- :: UNIT
 UNIT / S  =>  Unit : S
 
 %     LAMBDA 'ty1 'ty2 code: Push a lambda with given parameter and return types onto the stack.
 
 % :: 'A ->  (lambda 'ty1 'ty2) : 'A
 
------ :: lambda
+----- :: LAMBDA
 LAMBDA ty ty' i / S  =>  i : S
 
 
@@ -914,22 +886,22 @@ LAMBDA ty ty' i / S  =>  i : S
 
 % :: int : 'S   ->   bool : 'S
 
-------------------------------------- :: eq_tt
+------------------------------------- :: EQ__tt
 EQ / :z_IntZero: 0 : S  =>  True : S
 
 z <> :z_IntZero: 0
--------------------------- :: eq_ff
+-------------------------- :: EQ__ff
 EQ / z : S  =>  False : S
 
 %     NEQ: Checks that the top of the stack does Not EQual zero.
 
 % :: int : 'S   ->   bool : 'S
 
--------------------------------------- :: neq_ff
+-------------------------------------- :: NEQ__ff
 NEQ / :z_IntZero: 0 : S  =>  False : S
 
 z <> :z_IntZero: 0
-------------------------- :: neq_tt
+------------------------- :: NEQ__tt
 NEQ / z : S  =>  True : S
 
 %     LT: Checks that the top of the stack is Less Than zero.
@@ -937,11 +909,11 @@ NEQ / z : S  =>  True : S
 % :: int : 'S   ->   bool : 'S
 
 z < :z_IntZero: 0
------------------ :: lt_tt
+----------------- :: LT__tt
 LT / z : S  =>  True : S
 
 z >= :z_IntZero: 0
------ :: lt_ff
+----- :: LT__ff
 LT / z : S  =>  False : S
 
 %     GT: Checks that the top of the stack is Greater Than zero.
@@ -950,11 +922,11 @@ LT / z : S  =>  False : S
 
 
 z > :z_IntZero: 0
------------------ :: gt_tt
+----------------- :: GT__tt
 GT / z : S  =>  True : S
 
 z <= :z_IntZero: 0
------------------- :: gt_ff
+------------------ :: GT__ff
 GT / z : S  =>  False : S
 
 %     LE: Checks that the top of the stack is Less Than of Equal to zero.
@@ -962,11 +934,11 @@ GT / z : S  =>  False : S
 % :: int : 'S   ->   bool : 'S
 
 z <= :z_IntZero: 0
------------------- :: le_tt
+------------------ :: LE__tt
 LE / z : S  =>  True : S
 
 z > :z_IntZero: 0
------------------ :: le_ff
+----------------- :: LE__ff
 LE / z : S  =>  False : S
 
 %     GE: Checks that the top of the stack is Greater Than of Equal to zero.
@@ -975,11 +947,11 @@ LE / z : S  =>  False : S
 
 
 z >= :z_IntZero: 0
------------------- :: ge
+------------------ :: GE__tt
 GE / z : S  =>  True : S
 
 z < :z_IntZero: 0
------------------ :: lt
+----------------- :: GE__ff
 GE / z : S  =>  False : S
 
 
@@ -990,13 +962,13 @@ GE / z : S  =>  False : S
 
 % :: bool : bool : 'S   ->   bool : 'S
 
------ :: or1
+----- :: OR__1
 OR / True : x : S  =>  True : S
 
------ :: or2
+----- :: OR__2
 OR / x : True : S  =>  True : S
 
------ :: or3
+----- :: OR__3
 OR / False : False : S  =>  False : S
 
 %     AND
@@ -1004,39 +976,39 @@ OR / False : False : S  =>  False : S
 % :: bool : bool : 'S   ->   bool : 'S
 
 
------ :: and1
+----- :: AND__1
 AND / True : True : S  =>  True : S
 
------ :: and2
+----- :: AND__2
 AND / False : x : S  =>  False : S
 
------ :: and3
+----- :: AND__3
 AND / x : False : S  =>  False : S
 
 %     XOR
 
 % :: bool : bool : 'S   ->   bool : 'S
 
------ :: xor1
+----- :: XOR__1
 XOR / True : True : S  =>  False : S
 
------ :: xor2
+----- :: XOR__2
 XOR / False : True : S  =>  True : S
 
------ :: xor3
+----- :: XOR__3
 XOR / True : False : S  =>  True : S
 
------ :: xor4
+----- :: XOR__4
 XOR / False : False : S  =>  False : S
 
 %     NOT
 
 % :: bool : 'S   ->   bool : 'S
 
------ :: not1
+----- :: NOT__1
 NOT / True : S  =>  False : S
 
------ :: not2
+----- :: NOT__2
 NOT / False : S  =>  True : S
 
 % Operations on integers and natural numbers
@@ -1048,14 +1020,14 @@ NOT / False : S  =>  True : S
 % :: int : 'S   ->   int : 'S
 % :: nat : 'S   ->   int : 'S
 
------ :: neg
+----- :: NEG
 NEG / n : S  =>  - n : S
 
 %     ABS
 
 % :: int : 'S   ->   nat : 'S
 
------ :: abs
+----- :: ABS
 ABS / z : S  =>  abs z : S
 
 %     ADD
@@ -1065,7 +1037,7 @@ ABS / z : S  =>  abs z : S
 % :: nat : int : 'S   ->   int : 'S
 % :: nat : nat : 'S   ->   nat : 'S
 
------ :: add
+----- :: ADD
 ADD / nz1 : nz2 : S  =>  (nz1 + nz2) : S
 
 %     SUB
@@ -1075,7 +1047,7 @@ ADD / nz1 : nz2 : S  =>  (nz1 + nz2) : S
 % :: nat : int : 'S   ->   int : 'S
 % :: nat : nat : 'S   ->   int : 'S
 
------ :: sub
+----- :: SUB
 SUB / nz1 : nz2 : S  =>  ( nz1 - nz2 ) : S
 
 %     MUL
@@ -1085,7 +1057,7 @@ SUB / nz1 : nz2 : S  =>  ( nz1 - nz2 ) : S
 % :: nat : int : 'S   ->   int : 'S
 % :: nat : nat : 'S   ->   nat : 'S
 
------ :: mul
+----- :: MUL
 MUL / nz1 : nz2 : S  =>  ( nz1 * nz2 ) : S
 
 %     EDIV Perform Euclidian division
@@ -1095,11 +1067,11 @@ MUL / nz1 : nz2 : S  =>  ( nz1 * nz2 ) : S
 % :: nat : int : 'S   ->   option (pair int nat) : 'S
 % :: nat : nat : 'S   ->   option (pair nat nat) : 'S
 
------ :: ediv_0
+----- :: EDIV__0
 EDIV / n : :n_NatZero: 0 : S  =>  None : S
 
 nz2 <> :n_NatZero: 0
------ :: ediv
+----- :: EDIV
 EDIV / nz1 : nz2 : S  =>  Some ( Pair ( nz1 / nz2 ) ( nz1 % nz2 )) : S
 
 % Bitwise logical operators are also available on unsigned integers.
@@ -1108,7 +1080,7 @@ EDIV / nz1 : nz2 : S  =>  Some ( Pair ( nz1 / nz2 ) ( nz1 % nz2 )) : S
 
 % :: nat : nat : 'S   ->   nat : 'S
 
------ :: bit_or
+----- :: OR__bit
 OR / nz1 : nz2 : S  =>  ( nz1 | nz2 ) : S
 
 %     AND (also available when the top operand is signed)
@@ -1116,14 +1088,17 @@ OR / nz1 : nz2 : S  =>  ( nz1 | nz2 ) : S
 % :: nat : nat : 'S   ->   nat : 'S
 % :: int : nat : 'S   ->   nat : 'S
 
------ :: bit_and
-AND / nz1 : nz2 : S  =>  ( nz1 & nz2 ) : S
+----- :: AND__bit_nat
+AND / n1 : n2 : S  =>  ( n1 & n2 ) : S
+
+----- :: AND__bit_int_nat
+AND / z1 : n2 : S  =>  ( z1 & n2 ) : S
 
 %     XOR
 
 % :: nat : nat : 'S   ->   nat : 'S
 
------ :: bit_xor
+----- :: XOR__bit
 XOR / nz1 : nz2 : S  =>  ( nz1 ^ nz2 ) : S
 
 %     Michelson Documentation: NOT The return type of NOT is an int and not a nat. This is because the sign is also negated. The resulting integer is computed using two’s complement. For instance, the boolean negation of 0 is -1. To get a natural back, a possibility is to use AND with an unsigned mask afterwards.
@@ -1131,7 +1106,7 @@ XOR / nz1 : nz2 : S  =>  ( nz1 ^ nz2 ) : S
 % :: nat : 'S   ->   int : 'S
 % :: int : 'S   ->   int : 'S
 
------ :: bit_not
+----- :: NOT__bit
 NOT / n : S  =>  ~ n : S
 
 %     LSL
@@ -1139,18 +1114,18 @@ NOT / n : S  =>  ~ n : S
 % :: nat : nat : 'S   ->   nat : 'S
 
 nz2 <= 256
------ :: lsl
+----- :: LSL
 LSL / nz1 : nz2 : S  =>  ( nz1 << nz2 ) : S
 
 nz2 > 256
------ :: lsl_fail
+----- :: LSL__fail
 LSL / nz1 : nz2 : S  =>  [FAILED]
 
 %     LSR
 
 % :: Nat : nat : 'S   ->   nat : 'S
 
------ :: lsr
+----- :: LSR
 LSR / nz1 : nz2 : S  =>  ( nz1 >> nz2 ) : S
 
 %     COMPARE: Integer/natural comparison
@@ -1159,15 +1134,15 @@ LSR / nz1 : nz2 : S  =>  ( nz1 >> nz2 ) : S
 % :: nat : nat : 'S   ->   int : 'S
 
 nz1 < nz2
------ :: compare_num_lt
+----- :: COMPARE__num_lt
 COMPARE / nz1 : nz2 : S  =>  - :z_IntOne: 1 : S
 
 nz1 = nz2
------ :: compare_num_eq
+----- :: COMPARE__num_eq
 COMPARE / nz1 : nz2 : S  => :z_IntZero: 0 : S
 
 nz1 > nz2
------ :: compare_num_gt
+----- :: COMPARE__num_gt
 COMPARE / nz1 : nz2 : S  => :z_IntOne: 1 : S
 
 % Operations on strings
@@ -1178,23 +1153,36 @@ COMPARE / nz1 : nz2 : S  => :z_IntOne: 1 : S
 
 % :: string : string : 'S   -> string : 'S
 
------ :: concat_string
+----- :: CONCAT__string
 CONCAT / s : t : S  =>  ( s ^ t ) : S
 
 % :: string list : 'S   -> string : 'S
 
------ :: concat_list_nil
+----- :: CONCAT__string_list_nil
 CONCAT / :setlist_Nil: {} : S  =>  "" : S
 
 CONCAT / tl : S  =>  t : S
------ :: concat_list_cons
+----- :: CONCAT__string_list_cons
 CONCAT / { s ; < tl > } : S  =>  ( s ^ t ) : S
+
+% :: bytes list : 'S   -> bytes : 'S
+
+% TODO: add semantics for the concatenation of byte sequences,
+% requires adding a literal for bytes sequences
+
+% ----- :: CONCAT_bytes_list_nil
+% CONCAT / :setlist_Nil: {} : S  =>  "" : S
+
+% CONCAT / tl : S  =>  t : S
+% ----- :: CONCAT_bytes_list_cons
+% CONCAT / { s ; < tl > } : S  =>  ( s ^ t ) : S
+
 
 %     SIZE: number of characters in a string.
 
 % :: string : 'S   ->   nat : 'S
 
------ :: size_string
+----- :: SIZE__string
 SIZE / s : S  =>  ( length s ) : S
 
 %     SLICE: String access.
@@ -1207,7 +1195,7 @@ SIZE / s : S  =>  ( length s ) : S
 % n: length
 % n': offset
 n1 + n2 < length s
------ :: slice_some
+----- :: SLICE__some
 SLICE / n1 : n2 : s : S => Some ( slice s n1 n2 ) : S
 
 %             where ss is the substring of s at the given offset and of the given length
@@ -1217,7 +1205,7 @@ SLICE / n1 : n2 : s : S => Some ( slice s n1 n2 ) : S
 % n: length
 % n': offset
 nz1 + nz2 >= length s
------ :: slice
+----- :: SLICE
 SLICE / nz1 : nz2 : s : S => None : S
 
 %             iff offset or (offset + length) are out of bounds
@@ -1227,15 +1215,15 @@ SLICE / nz1 : nz2 : s : S => None : S
 % :: string : string : 'S   ->   int : 'S
 
 s < t
------ :: compare_string_lt
+----- :: COMPARE__string_lt
 COMPARE / s : t : S  => - :z_IntOne: 1 : S
 
 s = t
------ :: compare_string_eq
+----- :: COMPARE__string_eq
 COMPARE / s : t : S  => :z_IntZero: 0 : S
 
 s > t
------ :: compare_string_gt
+----- :: COMPARE__string_gt
 COMPARE / s : t : S  => :z_IntOne: 1 : S
 
 % Operations on pairs
@@ -1244,21 +1232,21 @@ COMPARE / s : t : S  => :z_IntOne: 1 : S
 
 % :: 'ty1 : 'ty2 : 'S   ->   pair 'ty1 'ty2 : 'S
 
------ :: pair
+----- :: PAIR
 PAIR / d : d' : S  =>  ( Pair d d' ) : S
 
 %     CAR: Access the left part of a pair.
 
 % :: pair 'ty1 _ : 'S   ->   'ty1 : 'S
 
------ :: car
+----- :: CAR
 CAR / ( Pair d d' ) : S  =>  d : S
 
 %     CDR: Access the right part of a pair.
 
 % :: pair _ 'ty2 : 'S   ->   'ty2 : 'S
 
------ :: cdr
+----- :: CDR
 CDR / ( Pair d d' ) : S  =>  d' : S
 
 % Operations on sets
@@ -1269,58 +1257,58 @@ CDR / ( Pair d d' ) : S  =>  d' : S
 
 % :: 'S   ->   set 'elt : 'S
 
------ :: set_empty
+----- :: EMPTY_SET
 EMPTY_SET cty / S  => :setlist_Nil: {} : S
 
 %     MEM: Check for the presence of an element in a set.
 
 % :: 'elt : set 'elt : 'S   ->  bool : 'S
 
------ :: set_mem_empty
+----- :: MEM__set_empty
 MEM / x : :setlist_Nil: {} : S  =>  False : S
 
 COMPARE / x : y : []  => :z_IntOne: 1 : []
 MEM / x : tl : S   =>  b : S
------ :: set_mem_later
+----- :: MEM__set_later
 MEM / x : { y ; <tl> } : S  =>  b : S
 
 COMPARE / x : y : []  => :z_IntZero: 0 : []
------ :: set_mem_found
+----- :: MEM__set_found
 MEM / x : { y ; <tl> } : S  =>  True : S
 
 COMPARE / x : y : []  =>  - :z_IntOne: 1 : []
------ :: set_mem_nexists
+----- :: MEM__set_nexists
 MEM / x : { y ; <tl> } : S  =>  False : S
 
 %     UPDATE: Inserts or removes an element in a set, replacing a previous value.
 
 % :: 'elt : bool : set 'elt : 'S   ->   set 'elt : 'S
 
------ :: set_update_false
+----- :: UPDATE__set_false
 UPDATE / x : False : :setlist_Nil: {} : S  => :setlist_Nil: {} : S
 
------ :: set_update_add_nexists
+----- :: UPDATE__set_add_nexists
 UPDATE / x : True : :setlist_Nil: {} : S  =>  { x } : S
 
 COMPARE / x : d : []  => :z_IntOne: 1 : []
 UPDATE / x : b : tl : S  => tl' : S
------ :: set_update_cont
+----- :: UPDATE__set_cont
 UPDATE / x : b : { y ; <tl> } : S  =>  { y ; <tl'> } : S
 
 COMPARE / x : y : []  => :z_IntZero: 0 : []
------ :: set_update_remove
+----- :: UPDATE__set_remove
 UPDATE / x : False : { y ; < tl > } : S  => tl : S
 
 COMPARE / x : y : []  => :z_IntZero: 0 : []
------ :: set_update_exists
+----- :: UPDATE__set_exists
 UPDATE / x : True : { y ; < tl > } : S  =>  { y ; < tl > } : S
 
 COMPARE / x : y : []  =>  - :z_IntOne: 1 : []
------ :: set_update_remove_nexists
+----- :: UPDATE__set_remove_nexists
 UPDATE / x : False : { y ; < tl > } : S  =>  { y ; < tl > } : S
 
 COMPARE / x : y : []  =>  - :z_IntOne: 1 : []
------ :: set_update_add
+----- :: UPDATE__set_add
 %% AJ: not sure how to get around the ugliness of the conclusion here
 UPDATE / x : True : { y ; < tl > } : S  =>  { x ; { y ; < tl > } } : S
 
@@ -1329,22 +1317,22 @@ UPDATE / x : True : { y ; < tl > } : S  =>  { x ; { y ; < tl > } } : S
 % :: (set 'elt) : 'A   ->  'A
 %    iff body :: [ 'elt : 'A -> 'A ]
 
------ :: set_iter_nil
+----- :: ITER__set_nil
 ITER body / :setlist_Nil: {} : S  =>  S
 
 body ; ITER body / x : < tl > : S => S'
------ :: set_iter_cons
+----- :: ITER__set_cons
 ITER body / { x ; < tl > } : S  => S'
 
 %     SIZE: Get the cardinality of the set.
 
 % :: set 'elt : 'S -> nat : 'S
 
------ :: set_size_nil
+----- :: SIZE__set_nil
 SIZE / :setlist_Nil: {} : S  => :n_NatZero: 0 : S
 
 SIZE / tl : S  =>  n : S
------ :: set_size_cons
+----- :: SIZE__set_cons
 SIZE / { d ; < tl > } : S  => :n_NatOne: 1 + n : S
 
 % Operations on maps
@@ -1355,78 +1343,78 @@ SIZE / { d ; < tl > } : S  => :n_NatOne: 1 + n : S
 
 % :: 'S -> map 'key 'val : 'S
 
------ :: map_empty
+----- :: EMPTY_MAP
 EMPTY_MAP cty ty / S  => :map_Nil: {} : S
 
 %     GET: Access an element in a map, returns an optional value to be checked with IF_SOME.
 
 % :: 'key : map 'key 'val : 'S   ->   option 'val : 'S
 
------ :: get_empty
+----- :: GET__empty
 GET / x : :map_Nil: {} : S  =>  None : S
 
 COMPARE / x : k : []  => :z_IntOne: 1 : []
 GET / x : m : S  =>  opt_y : S
------ :: get_later
+----- :: GET__later
 GET / x : { Elt k v ; < m > } : S  => opt_y : S
 
 COMPARE / x : k : []  => :z_IntZero: 0 : []
------ :: get_now
+----- :: GET__now
 GET / x : { Elt k v ; < m > } : S  =>  Some v : S
 
 COMPARE / x : k : []  =>  - :z_IntOne: 1 : []
------ :: get_nexists
+----- :: GET__nexists
 GET / x : { Elt k v ; < m > } : S  =>  None : S
 
 %     MEM: Check for the presence of a binding for a key in a map.
 
 % :: 'key : map 'key 'val : 'S   ->  bool : 'S
 
------ :: map_mem_empty
+----- :: MEM__map_empty
 MEM / x : :map_Nil: {} : S  =>  False : S
 
 COMPARE / x : k : []  => :z_IntOne: 1 : []
 MEM / x : m : S  =>  b : S
------ :: map_mem_later
+----- :: MEM__map_later
 MEM / x : { Elt k v ; < m > } : S  =>  b : S
 
 COMPARE / x : k : []  => :z_IntZero: 0 : []
------ :: map_mem_now
+----- :: MEM__map_now
 MEM / x : { Elt k v ; < m > } : S  =>  True : S
 
 COMPARE / x : k : []  =>  - :z_IntOne: 1 : []
------ :: map_mem_nexists
+----- :: MEM__map_nexists
 MEM / x : { Elt k v ; < m > } : S  =>  False : S
 
 %     UPDATE: Assign or remove an element in a map.
 
 % :: 'key : option 'val : map 'key 'val : 'S   ->   map 'key 'val : 'S
 
------ :: map_update_false
+----- :: UPDATE__map_false
 UPDATE / x : None : :map_Nil: {} : S  => :map_Nil: {} : S
 
------ :: map_update_add_nexists
+----- :: UPDATE__map_add_nexists
 UPDATE / x : Some y : :map_Nil: {} : S  =>  { Elt x y } : S
 
 COMPARE / x : k : []  => :z_IntOne: 1 : []
 UPDATE / x : opt_y : m : S  =>  m' : S
------ :: map_update_cont
+----- :: UPDATE__map_cont
 UPDATE / x : opt_y : { Elt k v ; < m > } : S  =>  { Elt k v ; < m' > } : S
 
 COMPARE / x : k : []  => :z_IntZero: 0 : []
------ :: map_update_remove
+----- :: UPDATE__map_remove
 UPDATE / x : None : { Elt k v ; < m > } : S  =>  < m > : S
 
 COMPARE / x : k : []  => :z_IntZero: 0 : []
------ :: map_update_exists
+----- :: UPDATE__map_exists
 UPDATE / x : Some y : { Elt k v ; < m > } : S  =>  { Elt k y ; < m > } : S
 
 COMPARE / x : k : []  =>  - :z_IntOne: 1 : []
------ :: map_update_remove_nexists
+----- :: UPDATE__map_remove_nexists
 UPDATE / x : None : { Elt k v ; < m > } : S  =>  { Elt k v ; < m > } : S
 
 COMPARE / x : k : []  =>  - :z_IntOne: 1 : []
------ :: map_update_add
+----- :: UPDATE__map_add
 UPDATE / x : Some y : { Elt k v ; < m > } : S  =>  { Elt x y ; { Elt k v ; < m > }  } : S
 
 %     MAP body: Apply the body expression to each element of a map. The body sequence has access to the stack.
@@ -1434,7 +1422,7 @@ UPDATE / x : Some y : { Elt k v ; < m > } : S  =>  { Elt x y ; { Elt k v ; < m >
 % :: (map 'key 'val) : 'A   ->  (map 'key 'ty2) : 'A
 %    iff   body :: [ (pair 'key 'val) : 'A -> 'ty2 : 'A ]
 
------ :: map_map_nil
+----- :: MAP__map_nil
 MAP body / :map_Nil: {} : S  => :map_Nil: {} : S
 
 %% AJ: I'm unsure how to read the conclusion of the original version
@@ -1442,7 +1430,7 @@ MAP body / :map_Nil: {} : S  => :map_Nil: {} : S
 %% This is how I interpret it.
 body / k : v : S => v' : S
 MAP body / m : S  => m'  : S
------ :: map_map_cons
+----- :: MAP__map_cons
 MAP body / { Elt k v ; < m > } : S  =>  { Elt k v' ; < m' > } : S
 
 %     ITER body: Apply the body expression to each element of a map. The body sequence has access to the stack.
@@ -1450,22 +1438,22 @@ MAP body / { Elt k v ; < m > } : S  =>  { Elt k v' ; < m' > } : S
 % :: (map 'elt 'val) : 'A   ->  'A
 %    iff   body :: [ (pair 'elt 'val) : 'A -> 'A ]
 
------ :: map_iter_nil
+----- :: ITER__map_nil
 ITER body / :map_Nil: {} : S  =>  S
 
 body ; ITER body / (Pair k v) : m : S => S'
------ :: map_iter_cons
+----- :: ITER__map_cons
 ITER body / { Elt k v ; < m > } : S  => S'
 
 %     SIZE: Get the cardinality of the map.
 
 % :: map 'key 'val : 'S -> nat : 'S
 
------ :: map_size_nil
+----- :: SIZE__map_nil
 SIZE / :map_Nil: {} : S  => :n_NatZero: 0 : S
 
 SIZE / m : S  =>  n : S
------ :: map_size_cons
+----- :: SIZE__map_cons
 SIZE / { Elt d d' ; < m > } : S  =>  :n_NatOne: 1 + n : S
 
 % Operations on big_maps
@@ -1494,14 +1482,14 @@ SIZE / { Elt d d' ; < m > } : S  =>  :n_NatOne: 1 + n : S
 
 % :: 'ty1 : 'S   ->   option 'ty1 : 'S
 
------ :: some
+----- :: SOME
 SOME / v : S  =>  (Some v) : S
 
 %     NONE 'ty1: The absent optional value.
 
 % :: 'S   ->   option 'ty1 : 'S
 
------ :: none
+----- :: NONE
 NONE ty / v : S  =>  None : S
 
 %     IF_NONE body1 body2: Inspect an optional value.
@@ -1511,11 +1499,11 @@ NONE ty / v : S  =>  None : S
 %          body2 :: [ 'ty1 : 'S -> 'ty2 : 'S]
 
 body1 / S => S'
------ :: if_none
+----- :: IF_NONE__none
 IF_NONE body1 body2 / None : S => S'
 
 body2 / d : S => S'
------ :: if_some
+----- :: IF_NONE__some
 IF_NONE body1 body2 / (Some d) : S =>  S'
 
 % Operations on unions
@@ -1524,14 +1512,14 @@ IF_NONE body1 body2 / (Some d) : S =>  S'
 
 % :: 'ty1 : 'S   ->   or 'ty1 'ty2 : 'S
 
------ :: pack_left
+----- :: LEFT
 LEFT ty / v : S  =>  (Left v) : S
 
 %     RIGHT 'ty1: Pack a value in a union (right case).
 
 % :: 'ty2 : 'S   ->   or 'ty1 'ty2 : 'S
 
------ :: pack_right
+----- :: RIGHT
 RIGHT ty / v : S  =>  (Right v) : S
 
 %     IF_LEFT body1 body2: Inspect a value of a variant type.
@@ -1541,26 +1529,12 @@ RIGHT ty / v : S  =>  (Right v) : S
 %          body2 :: [ 'ty2 : 'S -> 'cty : 'S]
 
 body1 / d : S => S'
------ :: if_left_left
+----- :: IF_LEFT__left
 IF_LEFT body1 body2 / (Left d) : S  =>  S'
 
 body2 / d : S => S'
------ :: if_left_right
+----- :: IF_LEFT__right
 IF_LEFT body1 body2 / (Right d) : S  => S'
-
-%     IF_RIGHT body1 body2: Inspect a value of a variant type.
-
-% :: or 'ty1 'ty2 : 'S   ->   'cty : 'S
-%    iff   body1 :: [ 'ty2 : 'S -> 'cty : 'S]
-%          body2 :: [ 'ty1 : 'S -> 'cty : 'S]
-
-body1 / d : S => S'
------ :: if_right_right
-IF_RIGHT body1 body2 / (Right d) : S  => S'
-
-body2 / d : S => S'
------ :: if_right_left
-IF_RIGHT body1 body2 / (Left d) : S  =>  S'
 
 % Operations on lists
 
@@ -1568,14 +1542,14 @@ IF_RIGHT body1 body2 / (Left d) : S  =>  S'
 
 % :: 'ty1 : list 'ty1 : 'S   ->   list 'ty1 : 'S
 
------ :: cons
+----- :: CONS
 CONS / d : tl : S  =>  { d ; < tl > } : S
 
 %     NIL 'ty1: The empty list.
 
 % :: 'S   ->   list 'ty1 : 'S
 
------ :: nil
+----- :: NIL
 NIL ty / S  => :setlist_Nil: {} : S
 
 %     IF_CONS body1 body2: Inspect an optional value.
@@ -1585,11 +1559,11 @@ NIL ty / S  => :setlist_Nil: {} : S
 %          body2 :: [ 'S -> 'ty2 : 'S]
 
 body2 / S => S'
------ :: if_cons_nil
+----- :: IF_CONS__nil
 IF_CONS body1 body2 / :setlist_Nil: {} : S  =>  S'
 
 body1 / d : tl : S => S'
------ :: if_cons_cons
+----- :: IF_CONS__cons
 IF_CONS body1 body2 / { d ; < tl > }  : S  => S'
 
 %     MAP body: Apply the body expression to each element of the list. The body sequence has access to the stack.
@@ -1599,21 +1573,21 @@ IF_CONS body1 body2 / { d ; < tl > }  : S  => S'
 
 body / d : S => d' : S
 MAP body / tl : S  => tl' : S
------ :: list_map_cons
+----- :: MAP__list_cons
 MAP body / { d ; < tl > }  : S  =>  { d' ; < tl' > } : S
 
------ :: list_map_nil
+----- :: MAP__list_nil
 MAP body / :setlist_Nil: {} : S  => :setlist_Nil: {} : S
 
 %     SIZE: Get the number of elements in the list.
 
 % :: list 'elt : 'S -> nat : 'S
 
------ :: list_size_nil
+----- :: SIZE__list_nil
 SIZE / :setlist_Nil: {} : S  => :n_NatZero: 0 : S
 
 SIZE / tl  : S  =>  n : S
------ :: list_size_cons
+----- :: SIZE__list_cons
 SIZE / { d ; <tl> } : S  =>  :n_NatOne: 1 + n : S
 
 %     ITER body: Apply the body expression to each element of a list. The body sequence has access to the stack.
@@ -1622,10 +1596,10 @@ SIZE / { d ; <tl> } : S  =>  :n_NatOne: 1 + n : S
 %      iff body :: [ 'elt : 'A -> 'A ]
 
 body ; ITER body / d : tl : S => S'
------ :: list_iter_cons
+----- :: ITER__list_cons
 ITER body / { d ; <tl> } : S  =>  S'
 
------ :: list_iter_nil
+----- :: ITER__list_nil
 ITER body / :setlist_Nil: {} : S  =>  S
 
 embed {{coq

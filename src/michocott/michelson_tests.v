@@ -10,17 +10,17 @@ Hint Constructors BigStep.
 Notation "x ;; y" :=  (i_SEQ x y) (at level 100)  : list_scope .
 
 (* Shortcuts for instructions *)
-Definition PUSH t x := (i_Fun (i_Non_failing (i_nff_nullary (i_PUSH t x)))).
+Definition PUSH t x := (i_Fun (i_PUSH t x)).
 Definition ADD := (i_Fun i_ADD).
 Definition SUB := (i_Fun i_SUB).
-Definition DUP := (i_Fun (i_Non_failing (i_DUP))).
+Definition DUP := (i_Fun (i_DUP)).
 Definition DIP c := i_DIP c.
-Definition SWAP := (i_Fun (i_Non_failing (i_SWAP))).
-Definition NEQ := (i_Fun (i_Non_failing (i_nff_unary (i_unary_comparison NEQ)))).
+Definition SWAP := (i_Fun (i_SWAP)).
+Definition NEQ := (i_Fun (i_unary_comparison i_NEQ)).
 Definition LOOP body := (i_LOOP body).
-Definition DROP := (i_Fun (i_Non_failing i_DROP)).
-Definition NIL ty := (i_Fun (i_Non_failing (i_nff_nullary (i_NIL ty)))). 
-Definition CONS := (i_Fun (i_Non_failing (i_nff_binary i_CONS))).
+Definition DROP := (i_Fun i_DROP).
+Definition NIL ty := (i_Fun (i_NIL ty)).
+Definition CONS := (i_Fun i_CONS).
 
 Fact can_push94 :
   (BigStep (PUSH (ty_Comparable_type cty_nat) (d_Num (num_NatConstant 4)) ;;

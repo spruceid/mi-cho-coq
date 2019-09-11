@@ -25,7 +25,7 @@ Notation "x ;; y" :=  (i_SEQ x y) (at level 100)  : list_scope .
 
 Fixpoint AExp_compile (e : AExp) : code :=
   match e with
-  | AEConst n => i_Fun (i_Non_failing (i_nff_nullary (i_PUSH (ty_Comparable_type cty_nat) (d_Num (num_NatConstant n)))))
+  | AEConst n => i_Fun (i_PUSH (ty_Comparable_type cty_nat) (d_Num (num_NatConstant n)))
   | AEAdd e1 e2 => AExp_compile e2 ;;
                    AExp_compile e1 ;;
                    i_Fun i_ADD

@@ -118,21 +118,21 @@ Definition compare x comp y :=
     match x, y with
     | d_Num (num_NatConstant x), d_Num (num_NatConstant y) =>
          match comp with
-         | EQ => x = y
-         | NEQ => x <> y
-         | LT => x < y
-         | GT => x > y
-         | LE => x <= y
-         | GE => x >= y
+         | i_EQ => x = y
+         | i_NEQ => x <> y
+         | i_LT => x < y
+         | i_GT => x > y
+         | i_LE => x <= y
+         | i_GE => x >= y
          end
     | d_Num (num_IntConstant x), d_Num (num_IntConstant y) =>
          match comp with
-         | EQ => Z.eq x y
-         | NEQ => x <> y
-         | LT => Z.lt x y
-         | GT => Z.gt x y
-         | LE => Z.le x y
-         | GE => Z.ge x y
+         | i_EQ => Z.eq x y
+         | i_NEQ => x <> y
+         | i_LT => Z.lt x y
+         | i_GT => Z.gt x y
+         | i_LE => Z.le x y
+         | i_GE => Z.ge x y
          end
     | _,_ => False (* TODO *)
     end.
