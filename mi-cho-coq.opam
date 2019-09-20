@@ -8,11 +8,26 @@ dev-repo: "git+https://gitlab.com/nomadic-labs/mi-cho-coq/"
 bug-reports: "https://gitlab.com/nomadic-labs/mi-cho-coq/issues"
 license: "MIT"
 
-build: [ [ "./configure" ] [ make ] ]
-install: [ make "install" ]
-remove: [
-  [ "./configure" ]
-  [ make "-C" "src/michocoq" "uninstall" ]
-  [ make "-C" "src/michocott" "uninstall" ]
+build: [
+  ["./configure"]
+  [make "-j%{jobs}%"]
 ]
-depends: [ "coq" {>= "8.8"} "coq-ott" "ott" ]
+install: [
+  make "install"
+]
+depends: [
+  "coq" {>= "8.8"}
+  "coq-ott"
+  "ott"
+]
+
+tags: [
+  "category:Programming Languages/Formal Definitions and Theory"
+  "keyword:cryptocurrency"
+  "keyword:michelson"
+  "keyword:semantics"
+  "keyword:smart-contract"
+  "keyword:tezos"
+  "logpath:Michocoq"
+  "logpath:Michocott"
+]
