@@ -95,6 +95,9 @@ Definition ASSERT_LEFT {a b S} : instruction (or a b ::: S) (a ::: S) :=
 Definition ASSERT_RIGHT {a b S} : instruction (or a b ::: S) (b ::: S) :=
   IF_LEFT FAIL NOOP.
 
+Definition DROP1 {a SA} : instruction (a ::: SA) SA :=
+  DROP (A := a ::: nil) 1 eq_refl.
+
 Definition DIP1 {a SA SB} code : instruction (a ::: SA) (a ::: SB) :=
   DIP (A := (a ::: nil)) 1 eq_refl code.
 Definition DIIP {a b SA SB} code : instruction (a ::: b ::: SA) (a ::: b ::: SB) :=

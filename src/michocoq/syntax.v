@@ -352,7 +352,6 @@ this constructor "IF" but we can make a notation for it. *)
 | EXEC {a b C} : instruction (a ::: lambda a b ::: C) (b :: C)
 | APPLY {a b c D} {_ : Is_true (is_packable a)} :
     instruction (a ::: lambda (pair a b) c ::: D) (lambda b c ::: D)
-| DROP {a A} : instruction (a :: A) A
 | DUP {a A} : instruction (a ::: A) (a ::: a ::: A)
 | SWAP {a b A} : instruction (a ::: b ::: A) (b ::: a ::: A)
 | PUSH (a : type) (x : concrete_data a) {A} : instruction A (a :: A)
@@ -472,6 +471,9 @@ this constructor "IF" but we can make a notation for it. *)
     length A = n ->
     instruction B C ->
     instruction (A +++ B) (A +++ C)
+| DROP (n : Datatypes.nat) {A B} :
+    length A = n ->
+    instruction (A +++ B) B
 
 with
 concrete_data : type -> Set :=

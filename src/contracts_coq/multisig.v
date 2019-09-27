@@ -80,7 +80,7 @@ Definition multisig : full_contract storage_ty :=
                         SWAP ;; DIIP ( DIP1 DUP ;; SWAP ) ;;
                         CHECK_SIGNATURE ;; ASSERT ;;
                         PUSH nat (nat_constant 1%N) ;; ADD_nat))
-                  ( SWAP ;; DROP )
+                  ( SWAP ;; DROP1 )
               )
               (
                 FAIL
@@ -89,7 +89,7 @@ Definition multisig : full_contract storage_ty :=
           )
       ) ;;
     ASSERT_CMPLE ;;
-    DROP ;; DROP ;;
+    DROP1 ;; DROP1 ;;
 
     DIP1 ( UNPAIR ;; PUSH nat (nat_constant 1%N) ;; ADD ;; PAIR ) ;;
 
@@ -277,7 +277,7 @@ Definition multisig_iter_body :
                     SWAP ;; DIIP ( DIP1 DUP ;; SWAP ) ;;
                          CHECK_SIGNATURE ;; ASSERT ;;
                          PUSH nat (nat_constant 1%N) ;; ADD_nat))
-           ( SWAP ;; DROP )
+           ( SWAP ;; DROP1 )
        )
        (
          FAIL
@@ -447,7 +447,7 @@ Definition multisig_tail :
          storage_ty ::: nil)
     (pair (list operation) storage_ty ::: nil) :=
       ASSERT_CMPLE ;;
-    DROP ;; DROP ;;
+    DROP1 ;; DROP1 ;;
 
     DIP1 ( UNPAIR ;; PUSH nat (nat_constant 1%N) ;; ADD_nat ;; PAIR ) ;;
 

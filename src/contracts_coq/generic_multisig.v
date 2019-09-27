@@ -54,7 +54,7 @@ Definition multisig : full_contract storage_ty :=
   (
     UNPAIR ;;
     IF_LEFT
-      ( DROP ;; NIL operation ;; PAIR )
+    ( DROP1 ;; NIL operation ;; PAIR )
       ( PUSH mutez (0 ~mutez) ;; AMOUNT ;; ASSERT_CMPEQ ;;
         SWAP ;; DUP ;; DIP1 ( SWAP ) ;;
         DIP1
@@ -82,9 +82,9 @@ Definition multisig : full_contract storage_ty :=
                         DIP1
                           (
                             SWAP ;; DIIP ( DUUP ) ;;
-                            ( DUUUP;; DIP1 (CHECK_SIGNATURE);; SWAP;; IF (DROP) (FAILWITH) );;
+                            ( DUUUP;; DIP1 (CHECK_SIGNATURE);; SWAP;; IF (DROP1) (FAILWITH) );;
                             PUSH nat (nat_constant 1) ;; ADD_nat ) )
-                      ( SWAP ;; DROP )
+                      ( SWAP ;; DROP1 )
                   )
                   (
                     FAIL
@@ -94,7 +94,7 @@ Definition multisig : full_contract storage_ty :=
           ) ;;
         ASSERT_CMPLE ;;
         IF_CONS (FAIL) NOOP ;;
-        DROP ;;
+        DROP1 ;;
 
         DIP1 ( UNPAIR ;; PUSH nat (nat_constant 1) ;; ADD ;; PAIR) ;;
 
@@ -278,9 +278,9 @@ Definition multisig_iter_body :
                     DIP1
                     (
                       SWAP ;; DIIP ( DUUP ) ;;
-                           ( DUUUP;; DIP1 (CHECK_SIGNATURE);; SWAP;; IF (DROP) (FAILWITH) );;
+                           ( DUUUP;; DIP1 (CHECK_SIGNATURE);; SWAP;; IF (DROP1) (FAILWITH) );;
                            PUSH nat (nat_constant 1) ;; ADD_nat ) )
-             ( SWAP ;; DROP )
+             ( SWAP ;; DROP1 )
          )
          (
            FAIL
@@ -446,7 +446,7 @@ Definition multisig_tail :
 
         ASSERT_CMPLE ;;
         IF_CONS (FAIL) NOOP ;;
-        DROP ;;
+        DROP1 ;;
 
         DIP1 ( UNPAIR ;; PUSH nat (nat_constant 1) ;; ADD ;; PAIR) ;;
 
@@ -462,7 +462,7 @@ Lemma multisig_split :
   (
     UNPAIR ;;
     IF_LEFT
-      ( DROP ;; NIL operation ;; PAIR )
+      ( DROP1 ;; NIL operation ;; PAIR )
       ( multisig_head (DIP1 (PUSH nat (nat_constant 0%N);; SWAP;; multisig_iter);; multisig_tail))).
 Proof.
   reflexivity.

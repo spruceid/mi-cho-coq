@@ -507,7 +507,6 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       | @APPLY a b c D i =>
         fun '(x, (f, SA)) =>
           Return _ ((PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f), SA)
-      | DROP => fun '(_, SA) => Return _ SA
       | DUP => fun '(x, SA) => Return _ (x, (x, SA))
       | SWAP => fun '(x, (y, SA)) => Return _ (y, (x, SA))
       | PUSH a x => fun SA => Return _ (concrete_data_to_data _ x, SA)
@@ -672,6 +671,9 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
           bind (fun S3 =>
                   Return _ (stack_app S1 S3))
                (eval i n S2)
+      | DROP n Hlen =>
+        fun SA =>
+          let (S1, S2) := stack_split SA in Return _ S2
       end
     end.
 
@@ -825,7 +827,6 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | @APPLY a b c D i =>
       fun psi '(x, (f, SA)) =>
         psi ((PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f), SA)
-    | DROP => fun psi '(_, SA) => psi SA
     | DUP => fun psi '(x, SA) => psi (x, (x, SA))
     | SWAP => fun psi '(x, (y, SA)) => psi (y, (x, SA))
     | PUSH a x => fun psi SA => psi (concrete_data_to_data _ x, SA)
@@ -993,6 +994,9 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       fun psi SA =>
         let (S1, S2) := stack_split SA in
         eval_precond_n i (fun SB => psi (stack_app S1 SB)) S2
+    | DROP n Hlen =>
+      fun psi SA =>
+        let (S1, S2) := stack_split SA in psi S2
     end.
 
   Fixpoint eval_precond (fuel : Datatypes.nat) :
@@ -1033,7 +1037,6 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       simpl.
       reflexivity.
     - destruct st as (x, (y, st)); reflexivity.
-    - destruct st; reflexivity.
     - destruct st; reflexivity.
     - destruct st as (x, (y, st)); reflexivity.
     - reflexivity.
@@ -1149,6 +1152,8 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     - destruct (stack_split st).
       rewrite precond_bind.
       apply IHn.
+    - destruct (stack_split st).
+      reflexivity.
   Qed.
 
 Ltac simplify_instruction :=

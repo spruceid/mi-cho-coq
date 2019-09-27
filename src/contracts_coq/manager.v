@@ -63,7 +63,7 @@ Definition manager : full_contract storage_ty :=
      PAIR
    )
    ( (* 'default' entrypoint *)
-     DROP ;;
+     DROP1 ;;
      NIL operation ;;
      PAIR
    )
