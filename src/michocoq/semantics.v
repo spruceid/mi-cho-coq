@@ -278,11 +278,13 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | Int_constant x => x
     | Nat_constant x => x
     | String_constant x => x
+    | Bytes_constant x => x
     | Timestamp_constant x => x
     | Signature_constant x => Mk_sig x
     | Key_constant x => Mk_key x
     | Key_hash_constant x => Mk_key_hash x
     | Mutez_constant (Mk_mutez x) => x
+    | Address_constant x => x
     | @Contract_constant a x H => exist _ x H
     | Unit => tt
     | True_ => true
@@ -325,6 +327,56 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
              (concrete_data_map_to_data l)
          end) l
     | Instruction i => i
+    end.
+
+  Definition comparable_data_to_concrete_data (a : comparable_type) (x : comparable_data a) : concrete_data a :=
+    match a, x with
+    | int, x => Int_constant x
+    | nat, x => Nat_constant x
+    | string, x => String_constant x
+    | timestamp, x => Timestamp_constant x
+    | key_hash, Mk_key_hash y => Key_hash_constant y
+    | mutez, x => Mutez_constant (Mk_mutez x)
+    | bytes, x => Bytes_constant x
+    | address, x => Address_constant x
+    | bool, true => True_
+    | bool, false => False_
+    end.
+
+  Fixpoint data_to_concrete_data (a : type) (H : Is_true (is_packable a)) (x : data a) :
+    concrete_data a :=
+    match a, H, x with
+    | Comparable_type b, _, x => comparable_data_to_concrete_data b x
+    | unit, _, tt => Unit
+    | signature, _ , Mk_sig y => Signature_constant y
+    | key, _, Mk_key y => Key_constant y
+    | option _, _, None => None_
+    | option a, H, Some y => Some_ (data_to_concrete_data a H y)
+    | list a, H, l =>
+      Concrete_list (List.map (data_to_concrete_data a H) l)
+    | set a, H, exist _ l _ =>
+      Concrete_set (List.map (comparable_data_to_concrete_data a) l)
+    | map a b, H, exist _ l _ =>
+      Concrete_map (List.map (fun '(k, v) =>
+                                Elt _
+                                    _
+                                    (comparable_data_to_concrete_data _ k)
+                                    (data_to_concrete_data b H v))
+                             l)
+    | contract _, H, exist _ x Hx =>
+      Contract_constant x Hx
+    | operation, H, _ =>
+      match H in Is_true false with end
+    | big_map _ _, H, _ =>
+      match H in Is_true false with end
+    | pair a b, H, (x, y) =>
+      Pair (data_to_concrete_data a (Is_true_and_left _ _ H) x)
+           (data_to_concrete_data b (Is_true_and_right _ _ H) y)
+    | or a b, H, inl x =>
+      Left (data_to_concrete_data a (Is_true_and_left _ _ H) x)
+    | or a b, H, inr x =>
+      Right (data_to_concrete_data b (Is_true_and_right _ _ H) x)
+    | lambda a b, _, f => Instruction f
     end.
 
   Definition or_fun a (v : bitwise_variant a) : data a -> data a -> data a :=

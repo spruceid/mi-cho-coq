@@ -58,6 +58,21 @@ Proof.
   discriminate.
 Qed.
 
+Lemma Is_true_and_left b1 b2 : (b1 && b2)%bool -> b1.
+Proof.
+  destruct b1; simpl.
+  - intro; constructor.
+  - auto.
+Qed.
+
+Lemma Is_true_and_right b1 b2 : (b1 && b2)%bool -> b2.
+Proof.
+  destruct b1; simpl.
+  - auto.
+  - intro H.
+    destruct (not_false H).
+Qed.
+
 Lemma success_bind {A B : Set} (f : A -> M B) m :
   success (bind f m) ->
   exists x, m = Return _ x /\ success (f x).

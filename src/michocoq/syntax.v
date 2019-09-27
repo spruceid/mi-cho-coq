@@ -58,6 +58,16 @@ Inductive type : Set :=
 | map : comparable_type -> type -> type
 | big_map : comparable_type -> type -> type.
 
+Fixpoint is_packable (a : type) : Datatypes.bool :=
+  match a with
+  | operation | big_map _ _ | contract _ => false
+  | Comparable_type _ | unit | signature | key | lambda _ _ | set _ => true
+  | option ty
+  | list ty
+  | map _ ty => is_packable ty
+  | pair a b | or a b => is_packable a && is_packable b
+  end.
+
 Coercion Comparable_type : comparable_type >-> type.
 
 Infix ":::" := (@cons type) (at level 60, right associativity).
@@ -463,11 +473,13 @@ concrete_data : type -> Set :=
 | Int_constant : Z -> concrete_data int
 | Nat_constant : N -> concrete_data nat
 | String_constant : String.string -> concrete_data string
+| Bytes_constant : String.string -> concrete_data bytes
 | Timestamp_constant : Z -> concrete_data timestamp
 | Signature_constant : String.string -> concrete_data signature
 | Key_constant : String.string -> concrete_data key
 | Key_hash_constant : String.string -> concrete_data key_hash
 | Mutez_constant : mutez_constant -> concrete_data mutez
+| Address_constant : address_constant -> concrete_data address
 | Contract_constant {a} : forall cst : contract_constant,
     C.get_contract_type cst = Return _ a -> concrete_data (contract a)
 | Unit : concrete_data unit
