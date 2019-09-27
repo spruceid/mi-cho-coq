@@ -48,7 +48,7 @@ Module semantics := Semantics ST C E. Import semantics.
 
 Definition ADD_nat {S} : instruction (nat ::: nat ::: S) (nat ::: S) := ADD.
 
-Definition pack_ty := pair address (pair nat action_ty).
+Definition pack_ty := pair (pair chain_id address) (pair nat action_ty).
 
 Definition multisig : full_contract storage_ty :=
   (
@@ -56,7 +56,7 @@ Definition multisig : full_contract storage_ty :=
     DIP1
       (
         UNPAIR ;;
-        DUP ;; SELF ;; ADDRESS ;; PAIR ;;
+        DUP ;; SELF ;; ADDRESS ;; CHAIN_ID ;; PAIR ;; PAIR ;;
         PACK ;;
         DIP1 ( UNPAIR ;; DIP1 SWAP ) ;; SWAP
       ) ;;
@@ -143,7 +143,7 @@ Definition multisig_spec
       (fun k sig =>
          check_signature
            env k sig
-           (pack env pack_ty (address_ env ST.self_type (self env),
+           (pack env pack_ty ((chain_id_ env, address_ env ST.self_type (self env)),
                              (counter, action)))) /\
     (count_signatures first_sigs >= threshold)%N /\
     new_stored_counter = (1 + stored_counter)%N /\
@@ -170,7 +170,7 @@ Definition multisig_head (then_ : instruction (nat ::: list key ::: list (option
     DIP1
       (
         UNPAIR ;;
-        DUP ;; SELF ;; ADDRESS ;; PAIR ;;
+        DUP ;; SELF ;; ADDRESS ;; CHAIN_ID ;; PAIR ;; PAIR ;;
         PACK ;;
         DIP1 ( UNPAIR ;; DIP1 SWAP ) ;; SWAP
       ) ;;
@@ -205,7 +205,7 @@ Definition multisig_head_spec
         (keys,
          (sigs,
           (pack env pack_ty
-                (address_ env ST.self_type (self env), (counter, action)),
+                ((chain_id_ env, address_ env ST.self_type (self env)), (counter, action)),
            (action, (storage, tt))))))) psi.
 
 Lemma fold_eval_precond fuel :
@@ -230,7 +230,7 @@ Lemma multisig_head_correct
       (psi : stack (pair (list operation) storage_ty ::: nil) -> Prop) :
   let params : data parameter_ty := ((counter, action), sigs) in
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
-  forall fuel, 9 <= fuel ->
+  forall fuel, 11 <= fuel ->
     (precond (eval (multisig_head then_) (10 + fuel) ((params, storage), tt)) psi)
         <->
     multisig_head_spec counter action sigs stored_counter threshold keys
@@ -240,13 +240,13 @@ Proof.
   rewrite eval_precond_correct.
   unfold multisig_head.
   unfold "+", params, storage, multisig_head_spec.
-  do 9 (more_fuel; simplify_instruction).
+  repeat (more_fuel; simplify_instruction).
   case_eq (BinInt.Z.eqb (comparison_to_int (stored_counter ?= counter)%N) Z0).
   - intro Heq.
     apply (eqb_eq nat) in Heq.
     symmetry in Heq.
     apply (and_right Heq).
-    do 9 rewrite fold_eval_precond.
+    repeat rewrite fold_eval_precond.
     rewrite <- eval_precond_correct.
     reflexivity.
   - intro Hneq.
@@ -299,7 +299,7 @@ Lemma multisig_iter_body_correct k n sigs packed
 Proof.
   intro Hfuel.
   rewrite eval_precond_correct.
-  do 14 more_fuel.
+  repeat more_fuel.
   simplify_instruction.
   destruct sigs as [|[sig|] sigs].
   - reflexivity.
@@ -436,7 +436,7 @@ Proof.
     + transitivity (13 + (length keys * 14 + 1)).
       * destruct (length keys).
         -- simpl. constructor.
-        -- simpl. do 14 (apply Le.le_n_S).
+        -- simpl. repeat (apply Le.le_n_S).
            apply le_0_n.
       * assumption.
 Qed.
@@ -490,16 +490,11 @@ Proof.
     rewrite N.compare_lt_iff in Hle.
     rewrite <- N.le_lteq in Hle.
     apply (and_right Hle).
-    do 6 more_fuel.
+    repeat more_fuel.
     simplify_instruction.
-    destruct action as [(amount, contract)|[delegate_key_hash|(new_threshold, new_keys)]].
-    + do 3 more_fuel.
-      reflexivity.
-    + more_fuel.
-      reflexivity.
-    + do 3 more_fuel.
-      reflexivity.
-  - do 3 more_fuel.
+    destruct action as [(amount, contract)|[delegate_key_hash|(new_threshold, new_keys)]];
+      repeat more_fuel; reflexivity.
+  - repeat more_fuel.
     simplify_instruction.
     intro Hle.
     apply (leb_gt nat) in Hle.
@@ -608,18 +603,18 @@ Proof.
       * intros (Hcounter, (Hthreshold, (Hkeys, Hoper))).
         subst new_stored_counter; subst new_keys; subst new_threshold; subst returned_operations.
         reflexivity.
-    + do 4 apply Le.le_n_S.
+    + repeat apply Le.le_n_S.
       refine (NPeano.Nat.le_trans _ _ _ _ Hfuel).
-      do 9 apply Le.le_n_S.
+      repeat apply Le.le_n_S.
       apply le_0_n.
     + rewrite PeanoNat.Nat.add_comm.
       apply Le.le_n_S.
       refine (NPeano.Nat.le_trans _ _ _ _ Hfuel).
-      do 22 constructor.
+      repeat constructor.
       rewrite PeanoNat.Nat.mul_comm.
       constructor.
   - refine (NPeano.Nat.le_trans _ _ _ _ Hfuel).
-    do 9 apply Le.le_n_S.
+    repeat apply Le.le_n_S.
     apply le_0_n.
 Qed.
 
