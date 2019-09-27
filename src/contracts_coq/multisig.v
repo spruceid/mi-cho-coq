@@ -52,32 +52,32 @@ Definition pack_ty := pair address (pair nat action_ty).
 
 Definition multisig : full_contract storage_ty :=
   (
-    UNPAIR ;; SWAP ;; DUP ;; DIP SWAP ;;
-    DIP
+    UNPAIR ;; SWAP ;; DUP ;; DIP1 SWAP ;;
+    DIP1
       (
         UNPAIR ;;
         DUP ;; SELF ;; ADDRESS ;; PAIR ;;
         PACK ;;
-        DIP ( UNPAIR ;; DIP SWAP ) ;; SWAP
+        DIP1 ( UNPAIR ;; DIP1 SWAP ) ;; SWAP
       ) ;;
 
-    UNPAIR ;; DIP SWAP ;;
+    UNPAIR ;; DIP1 SWAP ;;
     ASSERT_CMPEQ ;;
 
-    DIP SWAP ;; UNPAIR ;;
-    DIP
+    DIP1 SWAP ;; UNPAIR ;;
+    DIP1
       (
         PUSH nat (nat_constant 0%N) ;; SWAP ;;
         ITER
           (
-            DIP SWAP ;; SWAP ;;
+            DIP1 SWAP ;; SWAP ;;
             IF_CONS
               (
                 IF_SOME
                   ( SWAP ;;
-                    DIP
+                    DIP1
                       (
-                        SWAP ;; DIIP ( DIP DUP ;; SWAP ) ;;
+                        SWAP ;; DIIP ( DIP1 DUP ;; SWAP ) ;;
                         CHECK_SIGNATURE ;; ASSERT ;;
                         PUSH nat (nat_constant 1%N) ;; ADD_nat))
                   ( SWAP ;; DROP )
@@ -91,13 +91,13 @@ Definition multisig : full_contract storage_ty :=
     ASSERT_CMPLE ;;
     DROP ;; DROP ;;
 
-    DIP ( UNPAIR ;; PUSH nat (nat_constant 1%N) ;; ADD ;; PAIR ) ;;
+    DIP1 ( UNPAIR ;; PUSH nat (nat_constant 1%N) ;; ADD ;; PAIR ) ;;
 
     NIL operation ;; SWAP ;;
     IF_LEFT
       ( UNPAIR ;; UNIT ;; TRANSFER_TOKENS ;; CONS )
       ( IF_LEFT (SET_DELEGATE ;; CONS )
-                ( DIP ( SWAP ;; CAR ) ;; SWAP ;; PAIR ;; SWAP )) ;;
+                ( DIP1 ( SWAP ;; CAR ) ;; SWAP ;; PAIR ;; SWAP )) ;;
     PAIR ).
 
 Fixpoint check_all_signatures (sigs : Datatypes.list (Datatypes.option (data signature)))
@@ -166,19 +166,19 @@ Definition multisig_head (then_ : instruction (nat ::: list key ::: list (option
   instruction (pair parameter_ty storage_ty ::: nil)
               (pair (list operation) storage_ty ::: nil)
 :=
-    UNPAIR ;; SWAP ;; DUP ;; DIP SWAP ;;
-    DIP
+    UNPAIR ;; SWAP ;; DUP ;; DIP1 SWAP ;;
+    DIP1
       (
         UNPAIR ;;
         DUP ;; SELF ;; ADDRESS ;; PAIR ;;
         PACK ;;
-        DIP ( UNPAIR ;; DIP SWAP ) ;; SWAP
+        DIP1 ( UNPAIR ;; DIP1 SWAP ) ;; SWAP
       ) ;;
 
-    UNPAIR ;; DIP SWAP ;;
+    UNPAIR ;; DIP1 SWAP ;;
     ASSERT_CMPEQ ;;
 
-    DIP SWAP ;; UNPAIR ;; then_.
+    DIP1 SWAP ;; UNPAIR ;; then_.
 
 Definition multisig_head_spec
            (counter : N)
@@ -267,14 +267,14 @@ Definition multisig_iter_body :
     (nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
   :=
-  (DIP SWAP ;; SWAP ;;
+  (DIP1 SWAP ;; SWAP ;;
        IF_CONS
        (
          IF_SOME
            ( SWAP ;;
-                  DIP
+                  DIP1
                   (
-                    SWAP ;; DIIP ( DIP DUP ;; SWAP ) ;;
+                    SWAP ;; DIIP ( DIP1 DUP ;; SWAP ) ;;
                          CHECK_SIGNATURE ;; ASSERT ;;
                          PUSH nat (nat_constant 1%N) ;; ADD_nat))
            ( SWAP ;; DROP )
@@ -449,16 +449,16 @@ Definition multisig_tail :
       ASSERT_CMPLE ;;
     DROP ;; DROP ;;
 
-    DIP ( UNPAIR ;; PUSH nat (nat_constant 1%N) ;; ADD_nat ;; PAIR ) ;;
+    DIP1 ( UNPAIR ;; PUSH nat (nat_constant 1%N) ;; ADD_nat ;; PAIR ) ;;
 
     NIL operation ;; SWAP ;;
     IF_LEFT
       ( UNPAIR ;; UNIT ;; TRANSFER_TOKENS ;; CONS )
       ( IF_LEFT (SET_DELEGATE ;; CONS )
-                ( DIP ( SWAP ;; CAR ) ;; SWAP ;; PAIR ;; SWAP )) ;;
+                ( DIP1 ( SWAP ;; CAR ) ;; SWAP ;; PAIR ;; SWAP )) ;;
     PAIR.
 
-Lemma multisig_split : multisig = multisig_head (DIP (PUSH nat (nat_constant 0%N);; SWAP;; multisig_iter);; multisig_tail).
+Lemma multisig_split : multisig = multisig_head (DIP1 (PUSH nat (nat_constant 0%N);; SWAP;; multisig_iter);; multisig_tail).
 Proof.
   reflexivity.
 Qed.

@@ -349,7 +349,6 @@ this constructor "IF" but we can make a notation for it. *)
 | LOOP {A} : instruction A (bool ::: A) -> instruction (bool ::: A) A
 | LOOP_LEFT {a b A} : instruction (a :: A) (or a b :: A) ->
                       instruction (or a b :: A) (b :: A)
-| DIP {b A C} : instruction A C -> instruction (b :: A) (b :: C)
 | EXEC {a b C} : instruction (a ::: lambda a b ::: C) (b :: C)
 | APPLY {a b c D} {_ : Is_true (is_packable a)} :
     instruction (a ::: lambda (pair a b) c ::: D) (lambda b c ::: D)
@@ -469,6 +468,10 @@ this constructor "IF" but we can make a notation for it. *)
 | DUG (n : Datatypes.nat) {S1 S2 t} :
     length S1 = n ->
     instruction (t ::: S1 +++ S2) (S1 +++ (t ::: S2))
+| DIP (n : Datatypes.nat) {A B C} :
+    length A = n ->
+    instruction B C ->
+    instruction (A +++ B) (A +++ C)
 
 with
 concrete_data : type -> Set :=

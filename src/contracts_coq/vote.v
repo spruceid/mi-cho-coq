@@ -45,8 +45,8 @@ Definition vote : full_contract storage_ty :=
     PUSH mutez (5000000 ~mutez);;
     COMPARE;; GT;;
     IF ( FAIL ) ( NOOP );;
-    DUP;; DIP ( CDR;; DUP );; CAR;; DUP;;
-    DIP (
+    DUP;; DIP1 ( CDR;; DUP );; CAR;; DUP;;
+    DIP1 (
       GET (i := get_map string int);; ASSERT_SOME;;
       PUSH int (Int_constant 1%Z);; ADD (s := add_int_int);; SOME
     );;

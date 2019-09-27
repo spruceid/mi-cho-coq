@@ -56,33 +56,33 @@ Definition multisig : full_contract storage_ty :=
     IF_LEFT
       ( DROP ;; NIL operation ;; PAIR )
       ( PUSH mutez (0 ~mutez) ;; AMOUNT ;; ASSERT_CMPEQ ;;
-        SWAP ;; DUP ;; DIP ( SWAP ) ;;
-        DIP
+        SWAP ;; DUP ;; DIP1 ( SWAP ) ;;
+        DIP1
           (
             UNPAIR ;;
             DUP ;; SELF ;; ADDRESS ;; PAIR ;;
             PACK ;;
-            DIP ( UNPAIR ;; DIP SWAP ) ;; SWAP
+            DIP1 ( UNPAIR ;; DIP1 SWAP ) ;; SWAP
           ) ;;
 
-        UNPAIR ;; DIP SWAP ;;
+        UNPAIR ;; DIP1 SWAP ;;
         ASSERT_CMPEQ ;;
 
-        DIP SWAP ;; UNPAIR ;;
-        DIP
+        DIP1 SWAP ;; UNPAIR ;;
+        DIP1
           (
             PUSH nat (nat_constant 0);; SWAP ;;
             ITER
               (
-                DIP SWAP ;; SWAP ;;
+                DIP1 SWAP ;; SWAP ;;
                 IF_CONS
                   (
                     IF_SOME
                       ( SWAP ;;
-                        DIP
+                        DIP1
                           (
                             SWAP ;; DIIP ( DUUP ) ;;
-                            ( DUUUP;; DIP (CHECK_SIGNATURE);; SWAP;; IF (DROP) (FAILWITH) );;
+                            ( DUUUP;; DIP1 (CHECK_SIGNATURE);; SWAP;; IF (DROP) (FAILWITH) );;
                             PUSH nat (nat_constant 1) ;; ADD_nat ) )
                       ( SWAP ;; DROP )
                   )
@@ -96,12 +96,12 @@ Definition multisig : full_contract storage_ty :=
         IF_CONS (FAIL) NOOP ;;
         DROP ;;
 
-        DIP ( UNPAIR ;; PUSH nat (nat_constant 1) ;; ADD ;; PAIR) ;;
+        DIP1 ( UNPAIR ;; PUSH nat (nat_constant 1) ;; ADD ;; PAIR) ;;
 
         IF_LEFT
           ( UNIT ;; EXEC )
           (
-            DIP ( CAR ) ;; SWAP ;; PAIR ;; NIL operation
+            DIP1 ( CAR ) ;; SWAP ;; PAIR ;; NIL operation
           );;
         PAIR )
   ).
@@ -179,19 +179,19 @@ Definition multisig_head {A} (then_ : instruction (nat ::: list key ::: list (op
   instruction (pair (pair nat action_ty) (list (option signature)) ::: pair nat (pair nat (list key)) ::: nil) A
 :=
     PUSH mutez (0 ~mutez);; AMOUNT;; ASSERT_CMPEQ;;
-    SWAP ;; DUP ;; DIP SWAP ;;
-    DIP
+    SWAP ;; DUP ;; DIP1 SWAP ;;
+    DIP1
       (
         UNPAIR ;;
         DUP ;; SELF ;; ADDRESS ;; PAIR ;;
         PACK ;;
-        DIP ( UNPAIR ;; DIP SWAP ) ;; SWAP
+        DIP1 ( UNPAIR ;; DIP1 SWAP ) ;; SWAP
       ) ;;
 
-    UNPAIR ;; DIP SWAP ;;
+    UNPAIR ;; DIP1 SWAP ;;
     ASSERT_CMPEQ ;;
 
-    DIP SWAP ;; UNPAIR ;; then_.
+    DIP1 SWAP ;; UNPAIR ;; then_.
 
 Definition multisig_head_spec
            A
@@ -270,15 +270,15 @@ Definition multisig_iter_body :
     (nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
   :=
-    (DIP SWAP ;; SWAP ;;
+    (DIP1 SWAP ;; SWAP ;;
          IF_CONS
          (
            IF_SOME
              ( SWAP ;;
-                    DIP
+                    DIP1
                     (
                       SWAP ;; DIIP ( DUUP ) ;;
-                           ( DUUUP;; DIP (CHECK_SIGNATURE);; SWAP;; IF (DROP) (FAILWITH) );;
+                           ( DUUUP;; DIP1 (CHECK_SIGNATURE);; SWAP;; IF (DROP) (FAILWITH) );;
                            PUSH nat (nat_constant 1) ;; ADD_nat ) )
              ( SWAP ;; DROP )
          )
@@ -302,12 +302,11 @@ Lemma multisig_iter_body_correct k n sigs packed
     end.
 Proof.
   intro Hfuel.
-  do 14 more_fuel.
+  repeat more_fuel.
   simplify_instruction.
   destruct sigs as [|[sig|] sigs].
   - reflexivity.
-  - do 2 (more_fuel ; simplify_instruction).
-    case (check_signature env k sig packed).
+  - case (check_signature env k sig packed).
     + tauto.
     + split.
       * intro H; inversion H.
@@ -449,12 +448,12 @@ Definition multisig_tail :
         IF_CONS (FAIL) NOOP ;;
         DROP ;;
 
-        DIP ( UNPAIR ;; PUSH nat (nat_constant 1) ;; ADD ;; PAIR) ;;
+        DIP1 ( UNPAIR ;; PUSH nat (nat_constant 1) ;; ADD ;; PAIR) ;;
 
         IF_LEFT
           ( UNIT ;; EXEC )
           (
-            DIP ( CAR ) ;; SWAP ;; PAIR ;; NIL operation
+            DIP1 ( CAR ) ;; SWAP ;; PAIR ;; NIL operation
           );;
         PAIR.
 
@@ -464,7 +463,7 @@ Lemma multisig_split :
     UNPAIR ;;
     IF_LEFT
       ( DROP ;; NIL operation ;; PAIR )
-      ( multisig_head (DIP (PUSH nat (nat_constant 0%N);; SWAP;; multisig_iter);; multisig_tail))).
+      ( multisig_head (DIP1 (PUSH nat (nat_constant 0%N);; SWAP;; multisig_iter);; multisig_tail))).
 Proof.
   reflexivity.
 Qed.

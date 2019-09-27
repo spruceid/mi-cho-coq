@@ -95,27 +95,33 @@ Definition ASSERT_LEFT {a b S} : instruction (or a b ::: S) (a ::: S) :=
 Definition ASSERT_RIGHT {a b S} : instruction (or a b ::: S) (b ::: S) :=
   IF_LEFT FAIL NOOP.
 
-
+Definition DIP1 {a SA SB} code : instruction (a ::: SA) (a ::: SB) :=
+  DIP (A := (a ::: nil)) 1 eq_refl code.
 Definition DIIP {a b SA SB} code : instruction (a ::: b ::: SA) (a ::: b ::: SB) :=
-  DIP (DIP code).
+  DIP (A := (a ::: b ::: nil)) 2 eq_refl code.
 Definition DIIIP {a b c SA SB} code :
   instruction (a ::: b ::: c ::: SA) (a ::: b ::: c ::: SB) :=
-  DIP (DIIP code).
+  DIP (A := (a ::: b ::: c ::: nil)) 3 eq_refl code.
 Definition DIIIIP {a b c d SA SB} code :
   instruction (a ::: b ::: c ::: d ::: SA) (a ::: b ::: c ::: d ::: SB) :=
-  DIP (DIIIP code).
+  DIP (A := (a ::: b ::: c ::: d ::: nil)) 4 eq_refl code.
 
 Definition DUUP {a b S} : instruction (a ::: b ::: S) (b ::: a ::: b ::: S) :=
-  DIP DUP ;; SWAP.
+  DIP1 DUP ;; SWAP.
+
+Definition DUPn {A b C} n (H : length A = n) : instruction (A +++ b ::: C) (b ::: A +++ b ::: C) :=
+  DIG n H ;; DUP ;; DIP1 (DUG n H).
+
 Definition DUUUP {a b c S} : instruction (a ::: b ::: c ::: S) (c ::: a ::: b ::: c ::: S) :=
-  DIP DUUP ;; SWAP.
+  DUPn (A := a ::: b ::: nil) 2 eq_refl.
+
 Definition DUUUUP {a b c d S} : instruction (a ::: b ::: c ::: d ::: S) (d ::: a ::: b ::: c ::: d ::: S) :=
-  DIP DUUUP ;; SWAP.
+  DUPn (A := a ::: b ::: c ::: nil) 3 eq_refl.
 
 (* Missing: PAPPAIIR and such *)
 
 Definition UNPAIR {a b S} : instruction (pair a b ::: S) (a ::: b ::: S) :=
-  DUP ;; CAR ;; DIP CDR.
+  DUP ;; CAR ;; DIP1 CDR.
 
 Definition CAAR {a b c S} : instruction (pair (pair a b) c ::: S) (a ::: S) :=
   CAR ;; CAR.
@@ -140,14 +146,14 @@ Definition SET_CDR {a b S} : instruction (pair a b ::: b ::: S) (pair a b ::: S)
 
 Definition MAP_CAR {a1 a2 b S} (code : instruction (a1 ::: S) (a2 ::: S)) :
   instruction (pair a1 b ::: S) (pair a2 b ::: S) :=
-  DUP ;; CDR ;; DIP (CAR ;; code) ;; SWAP ;; PAIR.
+  DUP ;; CDR ;; DIP1 (CAR ;; code) ;; SWAP ;; PAIR.
 
 Definition MAP_CDR {a b1 b2 S} (code : instruction (b1 ::: pair a b1 ::: S) (b2 ::: pair a b1 ::: S)) :
   instruction (pair a b1 ::: S) (pair a b2 ::: S) :=
   DUP ;; CDR ;; code ;; SWAP ;; CAR ;; PAIR.
 
 
-Definition UNPAPAIR {a b c S} : instruction (pair a (pair b c) :: S) (a ::: b ::: c ::: S) := UNPAIR ;; DIP UNPAIR.
-Definition PAPAIR {a b c S} : instruction (a ::: b ::: c ::: S) (pair a (pair b c) :: S) := DIP PAIR;; PAIR.
+Definition UNPAPAIR {a b c S} : instruction (pair a (pair b c) :: S) (a ::: b ::: c ::: S) := UNPAIR ;; DIP1 UNPAIR.
+Definition PAPAIR {a b c S} : instruction (a ::: b ::: c ::: S) (pair a (pair b c) :: S) := DIP1 PAIR;; PAIR.
 
 End Macros.
