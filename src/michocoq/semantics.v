@@ -610,6 +610,9 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       | EXEC =>
         fun '(x, (f, SA)) =>
           bind (fun '(y, tt) => Return _ (y, SA)) (eval f n (x, tt))
+      | @APPLY a b c D i =>
+        fun '(x, (f, SA)) =>
+          Return _ ((PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f), SA)
       | DROP => fun '(_, SA) => Return _ SA
       | DUP => fun '(x, SA) => Return _ (x, (x, SA))
       | SWAP => fun '(x, (y, SA)) => Return _ (y, (x, SA))
@@ -921,6 +924,9 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | EXEC =>
       fun psi '(x, (f, SA)) =>
         eval_precond_n f (fun '(y, tt) => psi (y, SA)) (x, tt)
+    | @APPLY a b c D i =>
+      fun psi '(x, (f, SA)) =>
+        psi ((PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f), SA)
     | DROP => fun psi '(_, SA) => psi SA
     | DUP => fun psi '(x, SA) => psi (x, (x, SA))
     | SWAP => fun psi '(x, (y, SA)) => psi (y, (x, SA))
@@ -1127,6 +1133,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       intros (y, []).
       simpl.
       reflexivity.
+    - destruct st as (x, (y, st)); reflexivity.
     - destruct st; reflexivity.
     - destruct st; reflexivity.
     - destruct st as (x, (y, st)); reflexivity.

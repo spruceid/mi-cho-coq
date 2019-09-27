@@ -351,6 +351,8 @@ this constructor "IF" but we can make a notation for it. *)
                       instruction (or a b :: A) (b :: A)
 | DIP {b A C} : instruction A C -> instruction (b :: A) (b :: C)
 | EXEC {a b C} : instruction (a ::: lambda a b ::: C) (b :: C)
+| APPLY {a b c D} {_ : Is_true (is_packable a)} :
+    instruction (a ::: lambda (pair a b) c ::: D) (lambda b c ::: D)
 | DROP {a A} : instruction (a :: A) A
 | DUP {a A} : instruction (a ::: A) (a ::: a ::: A)
 | SWAP {a b A} : instruction (a ::: b ::: A) (b ::: a ::: A)
