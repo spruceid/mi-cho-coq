@@ -486,7 +486,7 @@ Proof.
   case_eq (BinInt.Z.leb (comparison_to_int (threshold ?= n)%N) Z0).
   - intro Hle.
     rewrite (leb_le nat) in Hle.
-    unfold lt, compare in Hle.
+    unfold lt, lt_comp, compare in Hle.
     rewrite N.compare_lt_iff in Hle.
     rewrite <- N.le_lteq in Hle.
     apply (and_right Hle).
@@ -499,7 +499,7 @@ Proof.
     intro Hle.
     apply (leb_gt nat) in Hle.
     rename Hle into Hgt.
-    unfold gt, compare in Hgt.
+    unfold gt, gt_comp, compare in Hgt.
     rewrite N.compare_gt_iff in Hgt.
     split.
     + intro H; inversion H.

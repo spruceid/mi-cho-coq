@@ -29,7 +29,7 @@ Require tez.
 Require Relations_1.
 Require Import syntax.
 
-Definition comparable_data (a : comparable_type) : Set :=
+Definition simple_comparable_data (a : simple_comparable_type) : Set :=
   match a with
   | int => Z
   | nat => N
@@ -40,6 +40,12 @@ Definition comparable_data (a : comparable_type) : Set :=
   | bool => Datatypes.bool
   | address => address_constant
   | key_hash => key_hash_constant
+  end.
+
+Fixpoint comparable_data (a : comparable_type) : Set :=
+  match a with
+  | Comparable_type_simple a => simple_comparable_data a
+  | Cpair a b => simple_comparable_data a * comparable_data b
   end.
 
 Definition comparison_to_int (c : comparison) :=
@@ -273,7 +279,10 @@ Definition key_hash_compare (h1 h2 : key_hash_constant) : comparison :=
   | Mk_key_hash s1, Mk_key_hash s2 => string_compare s1 s2
   end.
 
-Definition compare (a : comparable_type) : comparable_data a -> comparable_data a -> comparison :=
+Definition comprel (A : Set) := A -> A -> comparison.
+
+Definition simple_compare (a : simple_comparable_type) :
+  comprel (simple_comparable_data a) :=
   match a with
   | nat => N.compare
   | int => Z.compare
@@ -286,51 +295,42 @@ Definition compare (a : comparable_type) : comparable_data a -> comparable_data 
   | timestamp => Z.compare
   end.
 
-Definition lt (a : comparable_type) (x y : comparable_data a) : Prop :=
-  compare a x y = Lt.
+Definition lexicographic_comparison {A B : Set}
+           (cA : comprel A) (cB : comprel B) : comprel (A * B) :=
+  fun '(x1, y1) '(x2, y2) =>
+    match cA x1 x2 with
+    | Eq => cB y1 y2
+    | c => c
+    end.
 
-Lemma lt_trans (a : comparable_type) : Relations_1.Transitive (lt a).
+Fixpoint compare (a : comparable_type) :
+  comprel (comparable_data a) :=
+  match a with
+  | Comparable_type_simple a => simple_compare a
+  | Cpair a b => lexicographic_comparison (simple_compare a) (compare b)
+  end.
+
+Definition eq_compatible {A : Set} (cA : comprel A) : Prop :=
+  forall x y : A, cA x y = Eq <-> x = y.
+
+Lemma lexicographic_comparison_eq_iff {A B} (cA : comprel A) (cB : comprel B) :
+  eq_compatible cA -> eq_compatible cB ->
+  eq_compatible (lexicographic_comparison cA cB).
 Proof.
-  unfold lt.
-  destruct a; simpl; intros x y z.
-  - apply string_compare_Lt_trans.
-  - apply N.lt_trans.
-  - apply Z.lt_trans.
-  - apply string_compare_Lt_trans.
-  - destruct x; destruct y; destruct z; simpl; congruence.
-  - apply Z.lt_trans.
-  - destruct x as [x]; destruct y as [y]; destruct z as [z].
-    apply string_compare_Lt_trans.
-  - destruct x as [x]; destruct y as [y]; destruct z as [z].
-    apply string_compare_Lt_trans.
-  - apply Z.lt_trans.
+  intros HA HB (xA, xB) (yA, yB).
+  specialize (HA xA yA).
+  specialize (HB xB yB).
+  simpl.
+  split.
+  - destruct (cA xA yA); intuition congruence.
+  - intro H; injection H.
+    intros HBe HAe.
+    rewrite <- HA in HAe.
+    rewrite HAe.
+    intuition.
 Qed.
 
-Definition gt (a : comparable_type) (x y : comparable_data a) : Prop :=
-  compare a x y = Gt.
-
-Lemma gt_trans (a : comparable_type) : Relations_1.Transitive (gt a).
-Proof.
-  unfold gt.
-  destruct a; simpl; intros x y z.
-  - apply string_compare_Gt_trans.
-  - rewrite N.compare_gt_iff.
-    rewrite N.compare_gt_iff.
-    rewrite N.compare_gt_iff.
-    intros.
-    transitivity y; assumption.
-  - apply Zcompare_Gt_trans.
-  - apply string_compare_Gt_trans.
-  - destruct x; destruct y; destruct z; simpl; congruence.
-  - apply Zcompare_Gt_trans.
-  - destruct x as [x]; destruct y as [y]; destruct z as [z].
-    apply string_compare_Gt_trans.
-  - destruct x as [x]; destruct y as [y]; destruct z as [z].
-    apply string_compare_Gt_trans.
-  - apply Zcompare_Gt_trans.
-Qed.
-
-Lemma compare_eq_iff a c1 c2 : compare a c1 c2 = Eq <-> c1 = c2.
+Lemma simple_compare_eq_iff a c1 c2 : simple_compare a c1 c2 = Eq <-> c1 = c2.
 Proof.
   destruct a; simpl.
   - apply string_compare_Eq_correct.
@@ -346,6 +346,136 @@ Proof.
     rewrite string_compare_Eq_correct.
     split; congruence.
   - apply Z.compare_eq_iff.
+Qed.
+
+Lemma compare_eq_iff a : forall c1 c2, compare a c1 c2 = Eq <-> c1 = c2.
+Proof.
+  induction a as [a|a b]; simpl.
+  - apply simple_compare_eq_iff.
+  - apply lexicographic_comparison_eq_iff.
+    + exact (simple_compare_eq_iff _).
+    + exact IHb.
+Qed.
+
+Definition lt_comp {A : Set} (c : comprel A) (x y : A) : Prop := c x y = Lt.
+
+Definition lt a := lt_comp (compare a).
+
+Lemma lexicographic_comparison_lt_trans {A B} (cA : comprel A) (cB : comprel B) :
+  Relations_1.Transitive (lt_comp cA) ->
+  Relations_1.Transitive (lt_comp cB) ->
+  eq_compatible cA ->
+  Relations_1.Transitive (lt_comp (lexicographic_comparison cA cB)).
+Proof.
+  intros HA HB Hcomp (xA, xB) (yA, yB) (zA, zB) Hxy Hyz.
+  unfold lt_comp in *.
+  simpl in *.
+  case_eq (cA xA yA); intro H1; rewrite H1 in Hxy.
+  - rewrite (Hcomp xA yA) in H1.
+    rewrite H1.
+    destruct (cA yA zA).
+    + apply (HB _ yB); assumption.
+    + reflexivity.
+    + assumption.
+  - case_eq (cA yA zA); intro H2; rewrite H2 in Hyz.
+    + rewrite (Hcomp yA zA) in H2.
+      rewrite <- H2.
+      rewrite H1.
+      reflexivity.
+    + rewrite (HA xA yA zA); assumption.
+    + discriminate.
+  - discriminate.
+Qed.
+
+Lemma lt_trans_simple (a : simple_comparable_type) : Relations_1.Transitive (lt_comp (simple_compare a)).
+Proof.
+  unfold lt.
+  destruct a; simpl; intros x y z.
+  - apply string_compare_Lt_trans.
+  - apply N.lt_trans.
+  - apply Z.lt_trans.
+  - apply string_compare_Lt_trans.
+  - unfold lt_comp; destruct x; destruct y; destruct z; simpl; congruence.
+  - apply Z.lt_trans.
+  - destruct x as [x]; destruct y as [y]; destruct z as [z].
+    apply string_compare_Lt_trans.
+  - destruct x as [x]; destruct y as [y]; destruct z as [z].
+    apply string_compare_Lt_trans.
+  - apply Z.lt_trans.
+Qed.
+
+Lemma lt_trans (a : comparable_type) : Relations_1.Transitive (lt a).
+Proof.
+  unfold lt.
+  induction a as [a | a b].
+  - apply lt_trans_simple.
+  - apply lexicographic_comparison_lt_trans.
+    + apply lt_trans_simple.
+    + exact IHb.
+    + exact (simple_compare_eq_iff a).
+Qed.
+
+Definition gt_comp {A : Set} (c : comprel A) (x y : A) : Prop := c x y = Gt.
+Definition gt a := gt_comp (compare a).
+
+Lemma lexicographic_comparison_gt_trans {A B} (cA : comprel A) (cB : comprel B) :
+  Relations_1.Transitive (gt_comp cA) ->
+  Relations_1.Transitive (gt_comp cB) ->
+  eq_compatible cA ->
+  Relations_1.Transitive (gt_comp (lexicographic_comparison cA cB)).
+Proof.
+  intros HA HB Hcomp (xA, xB) (yA, yB) (zA, zB) Hxy Hyz.
+  unfold gt_comp in *.
+  simpl in *.
+  case_eq (cA xA yA); intro H1; rewrite H1 in Hxy.
+  - rewrite (Hcomp xA yA) in H1.
+    rewrite H1.
+    destruct (cA yA zA).
+    + apply (HB _ yB); assumption.
+    + assumption.
+    + reflexivity.
+  - discriminate.
+  - case_eq (cA yA zA); intro H2; rewrite H2 in Hyz.
+    + rewrite (Hcomp yA zA) in H2.
+      rewrite <- H2.
+      rewrite H1.
+      reflexivity.
+    + discriminate.
+    + rewrite (HA xA yA zA); assumption.
+Qed.
+
+Lemma gt_trans_simple (a : simple_comparable_type) : Relations_1.Transitive (gt_comp (simple_compare a)).
+Proof.
+  unfold gt.
+  destruct a; simpl; intros x y z.
+  - apply string_compare_Gt_trans.
+  - unfold gt_comp.
+    rewrite N.compare_gt_iff.
+    rewrite N.compare_gt_iff.
+    rewrite N.compare_gt_iff.
+    intros.
+    transitivity y; assumption.
+  - apply Zcompare_Gt_trans.
+  - apply string_compare_Gt_trans.
+  - unfold gt_comp.
+    destruct x; destruct y; destruct z; simpl; congruence.
+  - apply Zcompare_Gt_trans.
+  - destruct x as [x]; destruct y as [y]; destruct z as [z].
+    apply string_compare_Gt_trans.
+  - destruct x as [x]; destruct y as [y]; destruct z as [z].
+    apply string_compare_Gt_trans.
+  - apply Zcompare_Gt_trans.
+Qed.
+
+Lemma gt_trans (a : comparable_type) : Relations_1.Transitive (gt a).
+Proof.
+  unfold gt.
+  induction a as [a | a b].
+  - apply gt_trans_simple.
+  - apply lexicographic_comparison_gt_trans.
+    + apply gt_trans_simple.
+    + exact IHb.
+    + exact (simple_compare_eq_iff a).
 Qed.
 
 Lemma compare_diff:

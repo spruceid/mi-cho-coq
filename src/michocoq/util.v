@@ -148,7 +148,7 @@ Lemma leb_gt a c1 c2 :
   BinInt.Z.leb (comparison_to_int (compare a c1 c2)) Z0 = false <->
   (gt a c1 c2).
 Proof.
-  unfold gt.
+  unfold gt, gt_comp.
   case_eq (compare a c1 c2); intro Hleb.
   - simpl.
     rewrite BinInt.Z.leb_refl.

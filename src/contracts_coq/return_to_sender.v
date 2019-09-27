@@ -96,6 +96,7 @@ Proof.
   rewrite eval_precond_correct.
   unfold ">=" in Hfuel.
   do 8 (more_fuel ; simplify_instruction).
+  fold (simple_compare mutez).
   fold (compare mutez).
   case_eq ((comparison_to_int (compare mutez (0 ~Mutez) (amount env)) =? 0)%Z).
   - (* true *)

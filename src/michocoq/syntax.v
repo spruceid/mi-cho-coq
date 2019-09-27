@@ -31,7 +31,7 @@ Require tez.
 
 (* source: http://doc.tzalpha.net/whitedoc/michelson.html#xii-full-grammar *)
 
-Inductive comparable_type : Set :=
+Inductive simple_comparable_type : Set :=
 | string
 | nat
 | int
@@ -42,8 +42,12 @@ Inductive comparable_type : Set :=
 | key_hash
 | timestamp.
 
+Inductive comparable_type : Set :=
+| Comparable_type_simple : simple_comparable_type -> comparable_type
+| Cpair : simple_comparable_type -> comparable_type -> comparable_type.
+
 Inductive type : Set :=
-| Comparable_type : comparable_type -> type
+| Comparable_type : simple_comparable_type -> type
 | key : type
 | unit : type
 | signature : type
@@ -59,6 +63,17 @@ Inductive type : Set :=
 | big_map : comparable_type -> type -> type
 | chain_id : type.
 
+Fixpoint comparable_type_to_type (c : comparable_type) : type :=
+  match c with
+  | Comparable_type_simple a => Comparable_type a
+  | Cpair a b => pair (Comparable_type a) (comparable_type_to_type b)
+  end.
+
+
+Coercion comparable_type_to_type : comparable_type >-> type.
+Coercion Comparable_type_simple : simple_comparable_type >-> comparable_type.
+(* Coercion Comparable_type : simple_comparable_type >-> type. *)
+
 Fixpoint is_packable (a : type) : Datatypes.bool :=
   match a with
   | operation | big_map _ _ | contract _ => false
@@ -68,8 +83,6 @@ Fixpoint is_packable (a : type) : Datatypes.bool :=
   | map _ ty => is_packable ty
   | pair a b | or a b => is_packable a && is_packable b
   end.
-
-Coercion Comparable_type : comparable_type >-> type.
 
 Infix ":::" := (@cons type) (at level 60, right associativity).
 Infix "+++" := (@app type) (at level 60, right associativity).

@@ -163,6 +163,18 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     - exact (x, S2).
   Defined.
 
+  Fixpoint comparable_data_to_data (a : comparable_type) (x : comparable_data a) : data a :=
+    match a, x with
+    | Cpair a b, (x, y) => (x, comparable_data_to_data _ y)
+    | Comparable_type_simple _, x => x
+    end.
+
+  Fixpoint data_to_comparable_data (a : comparable_type) (x : data a) : comparable_data a :=
+    match a, x with
+    | Cpair a b, (x, y) => (x, data_to_comparable_data _ y)
+    | Comparable_type_simple _, x => x
+    end.
+
   Fixpoint concrete_data_to_data (a : type) (d : concrete_data a) : data a :=
     match d with
     | Int_constant x => x
@@ -191,12 +203,12 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
          | nil => set.empty _ _
          | cons x l =>
            set.insert
-             (data a)
+             (comparable_data a)
              (comparable.compare a)
              (comparable.compare_eq_iff a)
              (comparable.lt_trans a)
              (comparable.gt_trans a)
-             (concrete_data_to_data a x)
+             (data_to_comparable_data _ (concrete_data_to_data a x))
              (concrete_data_set_to_data l)
          end) l
     | @Concrete_map a b l =>
@@ -206,13 +218,13 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
          | nil => map.empty _ _ _
          | cons (Elt _ _ x y) l =>
            map.update
-             (data a)
+             (comparable_data a)
              (data b)
              (comparable.compare a)
              (comparable.compare_eq_iff a)
              (comparable.lt_trans a)
              (comparable.gt_trans a)
-             (concrete_data_to_data _ x)
+             (data_to_comparable_data _ (concrete_data_to_data _ x))
              (Some (concrete_data_to_data _ y))
              (concrete_data_map_to_data l)
          end) l
@@ -220,7 +232,8 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | Chain_id_constant x => x
     end.
 
-  Definition comparable_data_to_concrete_data (a : comparable_type) (x : comparable_data a) : concrete_data a :=
+
+  Definition simple_comparable_data_to_concrete_data (a : simple_comparable_type) (x : comparable_data a) : concrete_data a :=
     match a, x with
     | int, x => Int_constant x
     | nat, x => Nat_constant x
@@ -232,6 +245,12 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | address, x => Address_constant x
     | bool, true => True_
     | bool, false => False_
+    end.
+
+  Fixpoint comparable_data_to_concrete_data (a : comparable_type) (x : comparable_data a) : concrete_data a :=
+    match a, x with
+    | Cpair a b, (x, y) => Pair (simple_comparable_data_to_concrete_data a x) (comparable_data_to_concrete_data b y)
+    | Comparable_type_simple a, x => simple_comparable_data_to_concrete_data a x
     end.
 
   Fixpoint data_to_concrete_data (a : type) (H : Is_true (is_packable a)) (x : data a) :
@@ -389,16 +408,16 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         else None
     end.
 
-  Definition mem a b (v : mem_variant a b) : data a -> data b -> data bool :=
+  Definition mem a b (v : mem_variant a b) : comparable_data a -> data b -> data bool :=
     match v with
     | Mem_variant_set a =>
-      fun (x : data a) (y : data (set a)) => set.mem _ _ x y
+      fun (x : comparable_data a) (y : data (set a)) => set.mem _ _ x y
     | Mem_variant_map _ _ => map.mem _ _ _
     | Mem_variant_bigmap _ _ => map.mem _ _ _
     end.
 
   Definition update a b c (v : update_variant a b c) :
-    data a -> data b -> data c -> data c :=
+    comparable_data a -> data b -> data c -> data c :=
     match v with
     | Update_variant_set a =>
       set.update _ _ (compare_eq_iff a) (lt_trans a) (gt_trans a)
@@ -411,8 +430,8 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
   Definition size a (v : size_variant a) : data a -> Datatypes.nat :=
     match v with
     | Size_variant_list a => fun l => List.length l
-    | Size_variant_set a => set.size (data a) (compare a)
-    | Size_variant_map k v => map.size (data k) (data v) (compare k)
+    | Size_variant_set a => set.size (comparable_data a) (compare a)
+    | Size_variant_map k v => map.size (comparable_data k) (data v) (compare k)
     | Size_variant_string => String.length
     | Size_variant_bytes => String.length
     end.
@@ -420,8 +439,20 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
   Definition iter_destruct a b (v : iter_variant a b)
     : data b -> data (option (pair a b)) :=
     match v with
-    | Iter_variant_set _ => set.destruct _ _
-    | Iter_variant_map _ _ => set.destruct _ _
+    | Iter_variant_set _ =>
+      fun x =>
+        match set.destruct _ _ x with
+        | None => None
+        | Some (elt, rst) =>
+          Some (comparable_data_to_data _ elt, rst)
+        end
+    | Iter_variant_map _ _ =>
+      fun x =>
+        match set.destruct _ _ x with
+        | None => None
+        | Some ((k, v), rst) =>
+          Some ((comparable_data_to_data _ k, v), rst)
+        end
     | Iter_variant_list _ =>
       fun l => match l with
                | nil => None
@@ -430,7 +461,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     end.
 
   Definition get k val c (v : get_variant k val c)
-    : data k -> data c -> data (option val) :=
+    : comparable_data k -> data c -> data (option val) :=
     match v with
     | Get_variant_map _ _ => map.get _ _ _
     | Get_variant_bigmap _ _ => map.get _ _ _
@@ -439,7 +470,13 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
   Definition map_destruct a b ca cb (v : map_variant a b ca cb)
     : data ca -> data (option (pair a ca)) :=
     match v with
-    | Map_variant_map _ _ _ => set.destruct _ _
+    | Map_variant_map _ _ _ =>
+      fun x =>
+        match set.destruct _ _ x with
+        | None => None
+        | Some ((k, v), rst) =>
+          Some ((comparable_data_to_data _ k, v), rst)
+        end
     | Map_variant_list _ _ =>
       fun l => match l with
                | nil => None
@@ -459,7 +496,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     match v with
     | Map_variant_map k_ty _ v_ty =>
       fun '(k, _) v (m : data (map k_ty v_ty)) =>
-        map.update _ _ _ (comparable.compare_eq_iff _) (comparable.lt_trans _) (comparable.gt_trans _) k (Some v) m
+        map.update _ _ _ (comparable.compare_eq_iff _) (comparable.lt_trans _) (comparable.gt_trans _) (data_to_comparable_data _ k) (Some v) m
     | Map_variant_list _ _ =>
       fun _ => cons
     end.
@@ -545,7 +582,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       | LSL => fun '(x, (y, SA)) => Return _ (N.shiftl x y, SA)
       | LSR => fun '(x, (y, SA)) => Return _ (N.shiftr x y, SA)
       | COMPARE =>
-        fun '(x, (y, SA)) => Return _ (comparison_to_int (compare _ x y), SA)
+        fun '(x, (y, SA)) => Return _ (comparison_to_int (compare _ (data_to_comparable_data _ x) (data_to_comparable_data _ y)), SA)
       | @CONCAT _ s _ =>
         fun '(x, (y, SA)) =>
           Return _ (concat _ (stringlike_variant_field _ s) x y, SA)
@@ -558,10 +595,10 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       | EMPTY_SET a => fun SA => Return _ (set.empty _ (compare a), SA)
       | @MEM _ _ s _ =>
         fun '(x, (y, SA)) =>
-          Return _ (mem _ _ (mem_variant_field _ _ s) x y, SA)
+          Return _ (mem _ _ (mem_variant_field _ _ s) (data_to_comparable_data _ x) y, SA)
       | @UPDATE _ _ _ s _ =>
         fun '(x, (y, (z, SA))) =>
-          Return _ (update _ _ _ (update_variant_field _ _ _ s) x y z, SA)
+          Return _ (update _ _ _ (update_variant_field _ _ _ s) (data_to_comparable_data _ x) y z, SA)
       | @ITER _ s _ body =>
         fun '(x, SA) =>
           match iter_destruct _ _ (iter_variant_field _ s) x with
@@ -577,7 +614,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         fun SA => Return _ (map.empty (comparable_data k) (data val) _, SA)
       | @GET _ _ s _ =>
         fun '(x, (y, SA)) =>
-          Return _ (get _ _ _ (get_variant_field _ _ s) x y, SA)
+          Return _ (get _ _ _ (get_variant_field _ _ s) (data_to_comparable_data _ x) y, SA)
       | @MAP _ _ s _ body =>
         let v := (map_variant_field _ _ s) in
         fun '(x, SA) =>
@@ -853,7 +890,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | LSL => fun psi '(x, (y, SA)) => psi (N.shiftl x y, SA)
     | LSR => fun psi '(x, (y, SA)) => psi (N.shiftr x y, SA)
     | COMPARE =>
-      fun psi '(x, (y, SA)) => psi (comparison_to_int (compare _ x y), SA)
+      fun psi '(x, (y, SA)) => psi (comparison_to_int (compare _ (data_to_comparable_data _ x) (data_to_comparable_data _ y)), SA)
     | @CONCAT _ s _ =>
       fun psi '(x, (y, SA)) =>
         psi (concat _ (stringlike_variant_field _ s) x y, SA)
@@ -866,10 +903,10 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | EMPTY_SET a => fun psi SA => psi (set.empty _ (compare a), SA)
     | @MEM _ _ s _ =>
       fun psi '(x, (y, SA)) =>
-        psi (mem _ _ (mem_variant_field _ _ s) x y, SA)
+        psi (mem _ _ (mem_variant_field _ _ s) (data_to_comparable_data _ x) y, SA)
     | @UPDATE _ _ _ s _ =>
       fun psi '(x, (y, (z, SA))) =>
-        psi (update _ _ _ (update_variant_field _ _ _ s) x y z, SA)
+        psi (update _ _ _ (update_variant_field _ _ _ s) (data_to_comparable_data _ x) y z, SA)
     | @ITER _ s _ body =>
       fun psi '(x, SA) =>
         match iter_destruct _ _ (iter_variant_field _ s) x with
@@ -884,7 +921,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | EMPTY_MAP k val =>
       fun psi SA => psi (map.empty (comparable_data k) (data val) _, SA)
     | @GET _ _ s _ =>
-      fun psi '(x, (y, SA)) => psi (get _ _ _ (get_variant_field _ _ s) x y, SA)
+      fun psi '(x, (y, SA)) => psi (get _ _ _ (get_variant_field _ _ s) (data_to_comparable_data _ x) y, SA)
     | @MAP _ _ s _ body =>
       let v := (map_variant_field _ _ s) in
       fun psi '(x, SA) =>
