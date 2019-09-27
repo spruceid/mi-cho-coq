@@ -49,6 +49,7 @@ Module EnvDef(ST : SelfType)(C:ContractContext).
     | lambda a b =>
       instruction (a ::: nil) (b ::: nil)
     | contract a => {s : contract_constant | C.get_contract_type s = Return _ a }
+    | chain_id => chain_id_constant
     end.
 
   Record proto_env : Set :=
@@ -88,7 +89,8 @@ Module EnvDef(ST : SelfType)(C:ContractContext).
         sha256 : data bytes -> data bytes;
         sha512 : data bytes -> data bytes;
         check_signature :
-          data key -> data signature -> data bytes -> data bool
+          data key -> data signature -> data bytes -> data bool;
+        chain_id_ : data chain_id
       }.
 End EnvDef.
 
@@ -223,6 +225,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
              (concrete_data_map_to_data l)
          end) l
     | Instruction i => i
+    | Chain_id_constant x => x
     end.
 
   Definition comparable_data_to_concrete_data (a : comparable_type) (x : comparable_data a) : concrete_data a :=
@@ -273,6 +276,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | or a b, H, inr x =>
       Right (data_to_concrete_data b (Is_true_and_right _ _ H) x)
     | lambda a b, _, f => Instruction f
+    | chain_id, _, x => Chain_id_constant x
     end.
 
   Definition or_fun a (v : bitwise_variant a) : data a -> data a -> data a :=
@@ -674,6 +678,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       | DROP n Hlen =>
         fun SA =>
           let (S1, S2) := stack_split SA in Return _ S2
+      | CHAIN_ID => fun SA => Return _ (chain_id_ env, SA)
       end
     end.
 
@@ -997,6 +1002,8 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | DROP n Hlen =>
       fun psi SA =>
         let (S1, S2) := stack_split SA in psi S2
+    | CHAIN_ID =>
+      fun psi SA => psi (chain_id_ env, SA)
     end.
 
   Fixpoint eval_precond (fuel : Datatypes.nat) :
@@ -1154,6 +1161,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       apply IHn.
     - destruct (stack_split st).
       reflexivity.
+    - reflexivity.
   Qed.
 
 Ltac simplify_instruction :=

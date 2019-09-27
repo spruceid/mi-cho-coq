@@ -56,12 +56,13 @@ Inductive type : Set :=
 | or : type -> type -> type
 | lambda : type -> type -> type
 | map : comparable_type -> type -> type
-| big_map : comparable_type -> type -> type.
+| big_map : comparable_type -> type -> type
+| chain_id : type.
 
 Fixpoint is_packable (a : type) : Datatypes.bool :=
   match a with
   | operation | big_map _ _ | contract _ => false
-  | Comparable_type _ | unit | signature | key | lambda _ _ | set _ => true
+  | Comparable_type _ | unit | signature | key | lambda _ _ | set _ | chain_id => true
   | option ty
   | list ty
   | map _ ty => is_packable ty
@@ -322,6 +323,7 @@ Inductive contract_constant : Set := Mk_contract : str -> contract_constant.
 Inductive address_constant : Set := Mk_address : str -> address_constant.
 Inductive operation_constant : Set := Mk_operation : str -> operation_constant.
 Inductive mutez_constant : Set := Mk_mutez : tez.mutez -> mutez_constant.
+Inductive chain_id_constant : Set := Mk_chain_id : str -> chain_id_constant.
 
 Module Type SelfType.
   Parameter self_type : type.
@@ -474,6 +476,7 @@ this constructor "IF" but we can make a notation for it. *)
 | DROP (n : Datatypes.nat) {A B} :
     length A = n ->
     instruction (A +++ B) B
+| CHAIN_ID {S} : instruction S (chain_id ::: S)
 
 with
 concrete_data : type -> Set :=
@@ -504,7 +507,8 @@ concrete_data : type -> Set :=
     Datatypes.list (elt_pair (concrete_data a) (concrete_data b)) ->
     concrete_data (map a b)
 | Instruction {a b} : instruction (a ::: nil) (b ::: nil) ->
-                      concrete_data (lambda a b).
+                      concrete_data (lambda a b)
+| Chain_id_constant : chain_id_constant -> concrete_data chain_id.
 (* TODO: add the no-ops CAST and RENAME *)
 
 Coercion int_constant := Int_constant.
