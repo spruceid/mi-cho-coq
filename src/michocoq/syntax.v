@@ -428,18 +428,10 @@ this constructor "IF" but we can make a notation for it. *)
     instruction (a ::: list a ::: A) B ->
     instruction A B ->
     instruction (list a :: A) B
-| CREATE_CONTRACT {p g S} :
-    instruction
-      (key_hash ::: option key_hash ::: bool ::: bool ::: mutez :::
-       lambda (pair p g) (pair (list operation) g) ::: g ::: S)
-      (operation ::: address ::: S)
-| CREATE_CONTRACT_literal {S} (g p : type) :
+| CREATE_CONTRACT {S} (g p : type) :
     instruction (pair p g :: nil) (pair (list operation) g :: nil) ->
-    instruction (key_hash ::: option key_hash ::: bool ::: bool ::: mutez ::: g ::: S)
+    instruction (option key_hash ::: mutez ::: g ::: S)
                 (operation ::: address ::: S)
-| CREATE_ACCOUNT {S} :
-    instruction (key_hash ::: option key_hash ::: bool ::: mutez ::: S)
-                (operation ::: contract unit ::: S)
 | TRANSFER_TOKENS {p S} :
     instruction (p ::: mutez ::: contract p ::: S) (operation ::: S)
 | SET_DELEGATE {S} :
@@ -454,7 +446,6 @@ this constructor "IF" but we can make a notation for it. *)
 (* p should be the current parameter type *)
 | AMOUNT {S} : instruction S (mutez ::: S)
 | IMPLICIT_ACCOUNT {S} : instruction (key_hash ::: S) (contract unit :: S)
-| STEPS_TO_QUOTA {S} : instruction S (nat ::: S)
 | NOW {S} : instruction S (timestamp ::: S)
 | PACK {a S} : instruction (a ::: S) (bytes ::: S)
 | UNPACK {a S} : instruction (bytes ::: S) (option a ::: S)

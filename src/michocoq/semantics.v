@@ -56,16 +56,9 @@ Module EnvDef(ST : SelfType)(C:ContractContext).
     mk_proto_env
       {
         create_contract : forall g p,
-          comparable_data key_hash ->
           Datatypes.option (comparable_data key_hash) ->
-          Datatypes.bool -> Datatypes.bool -> tez.mutez ->
-          data (lambda (pair p g) (pair (list operation) g)) ->
+          tez.mutez -> data (lambda (pair p g) (pair (list operation) g)) ->
           data g -> data (pair operation address);
-        create_account :
-          comparable_data key_hash ->
-          Datatypes.option (comparable_data key_hash) ->
-          Datatypes.bool -> tez.mutez ->
-          data (pair operation (contract unit));
         transfer_tokens : forall p,
             data p -> tez.mutez -> data (contract p) ->
             data operation;
@@ -80,7 +73,6 @@ Module EnvDef(ST : SelfType)(C:ContractContext).
         amount : tez.mutez;
         implicit_account :
           comparable_data key_hash -> data (contract unit);
-        steps_to_quota : N;
         now : comparable_data timestamp;
         hash_key : data key -> comparable_data key_hash;
         pack : forall a, data a -> data bytes;
@@ -629,18 +621,10 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
           | cons a b => eval bt n (a, (b, SA))
           | nil => eval bf n SA
           end
-      | CREATE_CONTRACT =>
-        fun '(a, (b, (c, (d, (e, (f, (g, SA))))))) =>
-          let (oper, addr) := create_contract env _ _ a b c d e f g in
+      | CREATE_CONTRACT _ _ f =>
+        fun '(a, (b, (c, SA))) =>
+          let (oper, addr) := create_contract env _ _ a b f c in
           Return _ (oper, (addr, SA))
-      | CREATE_CONTRACT_literal _ _ f =>
-        fun '(a, (b, (c, (d, (e, (g, SA)))))) =>
-          let (oper, addr) := create_contract env _ _ a b c d e f g in
-          Return _ (oper, (addr, SA))
-      | CREATE_ACCOUNT =>
-        fun '(a, (b, (c, (d, SA)))) =>
-          let (oper, contract) := create_account env a b c d in
-          Return _ (oper, (contract, SA))
       | TRANSFER_TOKENS =>
         fun '(a, (b, (c, SA))) => Return _ (transfer_tokens env _ a b c, SA)
       | SET_DELEGATE => fun '(x, SA) => Return _ (set_delegate env x, SA)
@@ -655,8 +639,6 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       | AMOUNT => fun SA => Return _ (amount env, SA)
       | IMPLICIT_ACCOUNT =>
         fun '(x, SA) => Return _ (implicit_account env x, SA)
-      | STEPS_TO_QUOTA =>
-        fun SA => Return _ (steps_to_quota env, SA)
       | NOW => fun SA => Return _ (now env, SA)
       | PACK => fun '(x, SA) => Return _ (pack env _ x, SA)
       | UNPACK => fun '(x, SA) => Return _ (unpack env _ x, SA)
@@ -946,18 +928,10 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         | cons a b => eval_precond_n bt psi (a, (b, SA))
         | nil => eval_precond_n bf psi SA
         end
-    | CREATE_CONTRACT =>
-      fun psi '(a, (b, (c, (d, (e, (f, (g, SA))))))) =>
-        let (oper, addr) := create_contract env _ _ a b c d e f g in
+    | CREATE_CONTRACT _ _ f =>
+      fun psi '(a, (b, (c, SA))) =>
+        let (oper, addr) := create_contract env _ _ a b f c in
         psi (oper, (addr, SA))
-    | CREATE_CONTRACT_literal _ _ f =>
-      fun psi '(a, (b, (c, (d, (e, (g, SA)))))) =>
-        let (oper, addr) := create_contract env _ _ a b c d e f g in
-        psi (oper, (addr, SA))
-    | CREATE_ACCOUNT =>
-      fun psi '(a, (b, (c, (d, SA)))) =>
-        let (oper, contr) := create_account env a b c d in
-        psi (oper, (contr, SA))
     | TRANSFER_TOKENS =>
       fun psi '(a, (b, (c, SA))) =>
         psi (transfer_tokens env _ a b c, SA)
@@ -976,8 +950,6 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | AMOUNT => fun psi SA => psi (amount env, SA)
     | IMPLICIT_ACCOUNT =>
       fun psi '(x, SA) => psi (implicit_account env x, SA)
-    | STEPS_TO_QUOTA =>
-      fun psi SA => psi (steps_to_quota env, SA)
     | NOW => fun psi SA => psi (now env, SA)
     | PACK => fun psi '(x, SA) => psi (pack env _ x, SA)
     | UNPACK =>
@@ -1114,14 +1086,8 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     - destruct st as (x, (y, st)); reflexivity.
     - reflexivity.
     - destruct st as ([|], st); apply IHn.
-    - destruct st as (a, (b, (c, (d, (e, (f, (g0, SA))))))).
-      destruct (create_contract env g p a b c d e f g0).
-      reflexivity.
-    - destruct st as (a, (b, (c, (d, (e, (g0, SA)))))).
-      destruct (create_contract env g p a b c d e i g0).
-      reflexivity.
-    - destruct st as (a, (b, (c, (d, SA)))).
-      destruct (create_account env a b c).
+    - destruct st as (a, (b, (c, SA))).
+      destruct (create_contract env g p a b i c).
       reflexivity.
     - destruct st as (a, (b, (c, SA))).
       reflexivity.
@@ -1138,7 +1104,6 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     - reflexivity.
     - destruct st as (a, SA).
       reflexivity.
-    - reflexivity.
     - reflexivity.
     - destruct st as (x, SA).
       reflexivity.
