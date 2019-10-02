@@ -23,40 +23,45 @@
 (* The error monad *)
 Require Bool String.
 Require Import location.
+Require Import syntax_type.
 
-Inductive exception : Set :=
+Inductive exception : Prop :=
 | Out_of_fuel
 | Overflow
-| Assertion_Failure (_ : String.string)
+| Assertion_Failure (A : Set) (a : A)
 | Lexing (_ : location)
 | Parsing
 | Parsing_Out_of_Fuel
 | Expansion (_ _ : location)
-| Typing.
+| Typing (A : Set) (a : A).
 
 Inductive M (A : Type) : Type :=
 | Failed : exception -> M A
 | Return : A -> M A.
 
-Lemma exception_dec (x y : exception) : {x = y} + {x <> y}.
-Proof.
-  generalize String.string_dec location_dec.
-  decide equality.
-Qed.
-
-Lemma M_dec {A} :
-  (forall x y : A, {x = y} + {x <> y}) ->
-  forall x y : M A, {x = y} + {x <> y}.
-Proof.
-  intros H x y.
-  generalize exception_dec.
-  decide equality.
-Qed.
-
-Definition bind {A B} (f : A -> M B) (m : M A) :=
+Definition bind {A B : Type} (f : A -> M B) (m : M A) :=
   match m with
   | Failed _ e => Failed B e
   | Return _ SB => f SB
+  end.
+
+Fixpoint list_fold_left {A B : Set} (f : A -> B -> M A) (l : Datatypes.list B) (a : A) : M A :=
+  match l with
+  | nil => Return _ a
+  | cons x l =>
+    bind (list_fold_left f l)
+         (f a x)
+  end.
+
+Fixpoint list_map {A B : Set} (f : A -> M B) (l : Datatypes.list A) : M (Datatypes.list B) :=
+  match l with
+  | nil => Return _ nil
+  | cons a l =>
+    bind (fun b =>
+            bind (fun l =>
+                    Return _ (cons b l))
+                 (list_map f l))
+         (f a)
   end.
 
 Definition try {A} (m1 m2 : M A) : M A :=
@@ -83,12 +88,12 @@ Defined.
 
 Coercion is_true := Is_true.
 
-Lemma IT_eq (b : bool) : b -> b = true.
+Lemma IT_eq (b : Datatypes.bool) : b -> b = true.
 Proof.
   destruct b; auto.
 Qed.
 
-Lemma IT_eq_rev (b : bool) : b = true -> b.
+Lemma IT_eq_rev (b : Datatypes.bool) : b = true -> b.
 Proof.
   intro H; subst b; exact I.
 Qed.
@@ -113,12 +118,12 @@ Definition extract {A : Type} (m : M A) : success m -> A :=
   | Failed _ _ => fun H => match H with end
   end.
 
-Definition IT_if {A : Type} (b : bool) (th : b -> A) (els : A) : A :=
+Definition IT_if {A : Type} (b : Datatypes.bool) (th : b -> A) (els : A) : A :=
   (if b as b0 return b = b0 -> A then
      fun H => th (IT_eq_rev _ H)
    else fun _ => els) eq_refl.
 
-Lemma success_bind {A B} (f : A -> M B) m :
+Lemma success_bind {A B : Set} (f : A -> M B) m :
   success (bind f m) ->
   exists x, m = Return _ x /\ success (f x).
 Proof.
@@ -137,7 +142,7 @@ Proof.
   exact I.
 Qed.
 
-Lemma success_bind_arg {A B} (f : A -> M B) m :
+Lemma success_bind_arg {A B : Set} (f : A -> M B) m :
   success (bind f m) ->
   success m.
 Proof.
@@ -157,7 +162,7 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma bind_eq_return {A B} f m b :
+Lemma bind_eq_return {A B : Set} f m b :
   bind f m = Return B b ->
   exists a : A, m = Return A a /\ f a = Return B b.
 Proof.

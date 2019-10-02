@@ -9,6 +9,20 @@ Definition char_is_num (c : ascii) :=
   | _ => false
   end.
 
+Definition char_is_annot (c : ascii) :=
+  match c with
+  | "%"%char | "@"%char | ":"%char => true
+  | _ => false
+  end.
+
+Check (eq_refl : char_is_num "a"%char = false).
+Check (eq_refl : char_is_num "z"%char = false).
+Check (eq_refl : char_is_num "A"%char = false).
+Check (eq_refl : char_is_num "Z"%char = false).
+Check (eq_refl : char_is_num "_"%char = false).
+Check (eq_refl : char_is_num "0"%char = true).
+Check (eq_refl : char_is_num "9"%char = true).
+
 Definition eqb_ascii (a b : ascii) : bool :=
  match a, b with
  | Ascii a0 a1 a2 a3 a4 a5 a6 a7,
@@ -22,6 +36,14 @@ Definition char_is_alpha (c : ascii) :=
   orb (andb (leb "a"%char c) (leb c "z"%char))
       (orb (andb (leb "A"%char c) (leb c "Z"%char))
            (eqb_ascii "_"%char c)).
+
+Check (eq_refl : char_is_alpha "a"%char = true).
+Check (eq_refl : char_is_alpha "z"%char = true).
+Check (eq_refl : char_is_alpha "A"%char = true).
+Check (eq_refl : char_is_alpha "Z"%char = true).
+Check (eq_refl : char_is_alpha "_"%char = true).
+Check (eq_refl : char_is_alpha "0"%char = false).
+Check (eq_refl : char_is_alpha "9"%char = false).
 
 Definition Z_of_char (c : ascii) (acc : Z) : Z :=
   match c with
@@ -86,30 +108,42 @@ Fixpoint lex_micheline (input : string) (loc : location) : error.M (list (locati
         (fix lex_micheline_number (input : string) (acc : Z) start loc :=
            match input with
            | String c s =>
-             let loc := location_incr loc in
              if char_is_num c then
+               let loc := location_incr loc in
                lex_micheline_number s (Z_of_char c acc) start loc
              else
                (error.bind (fun l =>
                               error.Return _ (cons (start, loc, NUMBER acc) l))
                            (lex_micheline input loc))
-           | s => lex_micheline s loc
+             | EmptyString => error.Return _ (cons (start, loc, NUMBER acc) nil)
            end) input (Z_of_char c 0%Z) loc loc
       else
         if char_is_alpha c then
           (fix lex_micheline_prim (input : string) (acc : string) start loc :=
              match input with
              | String c s =>
-               let loc := location_incr loc in
                if char_is_alpha c then
+                 let loc := location_incr loc in
                  lex_micheline_prim s (string_snoc acc c) start loc
                else
                  (error.bind (fun l => error.Return _ (cons (start, loc, PRIM acc) l))
                              (lex_micheline input loc))
-             | s => lex_micheline s loc
+             | EmptyString => error.Return _ (cons (start, loc, PRIM acc) nil)
              end) input (String c ""%string) loc loc
         else
-          error.Failed _ (error.Lexing loc)
+          if char_is_annot c then (* Annotations are ignored *)
+            (fix lex_micheline_annot input loc :=
+               match input with
+               | String c s =>
+                 if (orb (char_is_alpha c) (orb (char_is_num c) (char_is_annot c))) then
+                   let loc := location_incr loc in
+                   lex_micheline_annot s loc
+                 else
+                   lex_micheline input loc
+               | EmptyString => error.Return _ nil
+               end) input loc
+          else
+            error.Failed _ (error.Lexing loc)
     end
   | EmptyString => error.Return _ nil
   end

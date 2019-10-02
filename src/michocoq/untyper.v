@@ -4,6 +4,9 @@ Require Import untyped_syntax error.
 Require typer.
 Require Eqdep_dec.
 
+(* Not really needed but eases reading of proof states. *)
+Require Import String.
+
 Module Untyper(ST: SelfType)(C:ContractContext).
 
   Module syntax := Syntax ST C.
@@ -14,16 +17,16 @@ Module Untyper(ST: SelfType)(C:ContractContext).
   Fixpoint untype_data {a} (d : syntax.concrete_data a) : concrete_data :=
     match d with
     | syntax.Int_constant z => Int_constant z
-    | syntax.Nat_constant n => Nat_constant n
+    | syntax.Nat_constant n => Int_constant (Z.of_N n)
     | syntax.String_constant s => String_constant s
-    | syntax.Mutez_constant m => Mutez_constant m
+    | syntax.Mutez_constant (Mk_mutez m) => Int_constant (tez.to_Z m)
     | syntax.Bytes_constant s => Bytes_constant s
-    | syntax.Timestamp_constant t => Timestamp_constant t
-    | syntax.Signature_constant s => Signature_constant s
-    | syntax.Key_constant s => Key_constant s
-    | syntax.Key_hash_constant s => Key_hash_constant s
-    | syntax.Contract_constant c _ => Contract_constant c
-    | syntax.Address_constant c => Address_constant c
+    | syntax.Timestamp_constant t => Int_constant t
+    | syntax.Signature_constant s => String_constant s
+    | syntax.Key_constant s => String_constant s
+    | syntax.Key_hash_constant s => String_constant s
+    | syntax.Contract_constant (Mk_contract c) _ => String_constant c
+    | syntax.Address_constant (Mk_address c) => String_constant c
     | syntax.Unit => Unit
     | syntax.True_ => True_
     | syntax.False_ => False_
@@ -39,7 +42,7 @@ Module Untyper(ST: SelfType)(C:ContractContext).
                       (fun '(syntax.Elt _ _ x y) => Elt (untype_data x) (untype_data y))
                       l)
     | syntax.Instruction _ i => Instruction (untype_instruction i)
-    | syntax.Chain_id_constant c => Chain_id_constant c
+    | syntax.Chain_id_constant (Mk_chain_id c) => String_constant c
     end
   with
   untype_instruction {tff0 A B} (i : syntax.instruction tff0 A B) : instruction :=
@@ -477,13 +480,37 @@ Module Untyper(ST: SelfType)(C:ContractContext).
   Proof.
     - destruct d; try reflexivity.
       + simpl.
-        unfold typer.type_data.
-        destruct (mtype_dec (C.get_contract_type cst) (Return _ a)).
-        * f_equal. f_equal.
-          apply Eqdep_dec.UIP_dec.
-          apply M_dec.
-          apply type_dec.
-        * congruence.
+        assert (0 <= Z.of_N n)%Z as H by apply N2Z.is_nonneg.
+        rewrite <- Z.geb_le in H.
+        rewrite H.
+        rewrite N2Z.id.
+        reflexivity.
+      + simpl.
+        destruct m.
+        trans_refl (bind (fun m => Return _ (syntax.Mutez_constant (Mk_mutez m))) (tez.of_Z (tez.to_Z m))).
+        rewrite tez.of_Z_to_Z.
+        reflexivity.
+      + simpl.
+        destruct a.
+        simpl.
+        reflexivity.
+      + simpl.
+        destruct cst.
+        simpl.
+        unfold type_contract_data.
+        cut (forall tyopt H, type_contract_data_aux (Mk_contract s) a tyopt H =
+                             Return _ (Contract_constant (Mk_contract s) e)).
+        * intro H. apply H.
+        * intros tyopt H.
+          destruct tyopt.
+          -- simpl.
+             destruct (type_dec a t).
+             ++ unfold contract_cast.
+                repeat f_equal.
+                apply Eqdep_dec.eq_proofs_unicity.
+                intros; repeat decide equality.
+             ++ congruence.
+          -- congruence.
       + simpl.
         trans_refl (bind (fun x => bind (fun y => Return _ (@syntax.Pair a b x y)) (typer.type_data (untype_data d2) b)) (typer.type_data (untype_data d1) a)).
         rewrite (untype_type_data _ d1).
@@ -546,34 +573,27 @@ Module Untyper(ST: SelfType)(C:ContractContext).
                (type_data_set (List.map (fun x => untype_data x) l))).
           rewrite H.
           reflexivity.
-      + pose (fix type_data_map (l : Datatypes.list concrete_data) :=
-                match l with
-                | nil =>
-                  Return
-                    (Datatypes.list
-                       (syntax.elt_pair
-                          (@syntax.concrete_data a)
-                          (@syntax.concrete_data b)))
-                    nil
-                | cons (Elt x y) l =>
-                  bind (fun x =>
-                          bind (fun y =>
-                                  bind (fun l =>
-                                          Return _ (cons (syntax.Elt _ _ x y) l))
-                                       (type_data_map l))
-                               (typer.type_data y b))
-                       (typer.type_data x a)
-                | _ => Failed _ Typing
-                end) as type_data_map.
+      + pose (fix type_data_list L :=
+                   match L with
+                   | nil => Return _ nil
+                   | cons (Elt x y) l =>
+                     bind (fun x =>
+                             bind (fun y =>
+                                     bind (fun l =>
+                                             Return _ (cons (syntax.Elt _ _ x y) l))
+                                          (type_data_list l))
+                                  (type_data y b))
+                          (type_data x a)
+                   | _ => Failed _ (Typing _ (untype_data (syntax.Concrete_map l), (map a b)))
+                   end) as type_data_map.
         assert (forall l, type_data_map (List.map (fun '(syntax.Elt _ _ x y) => Elt (untype_data x) (untype_data y)) l) = Return _ l).
-        * clear l.
-          intro l; induction l.
+        * intro L; induction L.
           -- reflexivity.
           -- simpl.
              destruct a0.
              rewrite untype_type_data.
              rewrite untype_type_data.
-             rewrite IHl.
+             rewrite IHL.
              reflexivity.
         * trans_refl (bind
                           (fun l => Return _ (@syntax.Concrete_map a b l))
@@ -585,10 +605,14 @@ Module Untyper(ST: SelfType)(C:ContractContext).
              (fun '(existT _ tff i) => Return _ (syntax.Instruction _ (i : syntax.instruction _ _ _)))
              (typer.type_check_instruction
                 typer.type_instruction
-                (untype_instruction i)
+                (untype_instruction i0)
                 (cons a nil)
                 (cons b nil))).
         rewrite untype_type_check_instruction; auto.
+      + simpl.
+        destruct c.
+        simpl.
+        reflexivity.
     - destruct i; try reflexivity; simpl.
       + trans_refl
           (bind (fun '(existT _ B i1) =>
@@ -605,7 +629,7 @@ Module Untyper(ST: SelfType)(C:ContractContext).
         rewrite untype_type_instruction_no_tail_fail.
         * simpl.
           rewrite untype_type_instruction.
-          destruct tff; reflexivity.
+          destruct tff0; reflexivity.
         * auto.
       + trans_refl
           (@typer.type_branches
@@ -617,43 +641,36 @@ Module Untyper(ST: SelfType)(C:ContractContext).
       + trans_refl
           (bind (fun i => Return _ (@typer.Inferred_type _ _ (syntax.LOOP i)))
            (typer.type_check_instruction_no_tail_fail
-              typer.type_instruction (untype_instruction i) A (bool ::: A))).
+              typer.type_instruction (untype_instruction i0) A (bool ::: A))).
         rewrite untype_type_check_instruction_no_tail_fail; auto.
       + trans_refl
           (bind (fun i => Return _ (@typer.Inferred_type _ _ (syntax.LOOP_LEFT i)))
            (typer.type_check_instruction_no_tail_fail
-              typer.type_instruction (untype_instruction i) _ (or a b ::: A))).
+              typer.type_instruction (untype_instruction i0) _ (or a b ::: A))).
         rewrite untype_type_check_instruction_no_tail_fail; auto.
-      + trans_refl
-          (let A := a :: lambda a b :: C in
-           bind (fun i => Return _ (@typer.Inferred_type _ _ i))
-                (typer.instruction_cast_domain A A _ syntax.EXEC)).
+      + unfold untype_type_spec.
         simpl.
         rewrite instruction_cast_domain_same.
         reflexivity.
-      + pose (A := a :: lambda (pair a b) c :: D).
-        trans_refl
-          ((if is_packable a as b return is_packable a = b -> _
-            then fun i =>
-                   bind (fun i => Return _ (Inferred_type _ _ i))
-                        (instruction_cast_domain A A _ (@syntax.APPLY _ _ _ _ (IT_eq_rev _ i)))
-            else fun _ => Failed _ Typing) eq_refl).
-        assert (forall (b : Datatypes.bool) i0,
+      + unfold untype_type_spec.
+        simpl.
+        pose (A := a :: lambda (pair a b) c :: D).
+        assert (forall (b : Datatypes.bool) i1,
                    (if b return is_packable a = b -> _
                     then fun i =>
                            bind (fun i => Return _ (Inferred_type _ _ i))
                                 (instruction_cast_domain A A _ (@syntax.APPLY _ _ _ _ (IT_eq_rev _ i)))
-                    else fun _ => Failed _ Typing) i0
-                   = Return _ (Inferred_type A _ (@syntax.APPLY _ _ _ _ i))).
-        * intros b0 i0.
+                    else fun _ => Failed _ (Typing _ "APPLY"%string)) i1
+                   = Return _ (Inferred_type A _ (@syntax.APPLY _ _ _ _ i0))).
+        * intros b0 i1.
           destruct b0.
           -- rewrite instruction_cast_domain_same.
              simpl.
              repeat f_equal.
              apply Is_true_UIP.
           -- exfalso.
-             rewrite i0 in i.
-             exact i.
+             rewrite i1 in i0.
+             exact i0.
         * apply H.
       + trans_refl
           (bind (fun d => Return _ (@typer.Inferred_type A _ (syntax.PUSH a d)))
@@ -664,7 +681,7 @@ Module Untyper(ST: SelfType)(C:ContractContext).
           (bind (fun '(existT _ tff i) =>
                    Return _ (@typer.Inferred_type _ (lambda a b ::: A) (syntax.LAMBDA a b i)))
                 (typer.type_check_instruction
-                   typer.type_instruction (untype_instruction i) (a :: nil) (b :: nil))).
+                   typer.type_instruction (untype_instruction i0) (a :: nil) (b :: nil))).
         rewrite untype_type_check_instruction; auto.
       + destruct s as [v]; destruct v; reflexivity.
       + destruct s as [v]; destruct v; reflexivity.
@@ -686,10 +703,10 @@ Module Untyper(ST: SelfType)(C:ContractContext).
           rewrite instruction_cast_domain_same.
           simpl.
           reflexivity.
-      + destruct i as [v]; destruct v; reflexivity.
-      + destruct i as [v]; destruct v; reflexivity.
-      + destruct i as [v]; destruct v; reflexivity.
-      + destruct i as [v]; destruct v.
+      + destruct i0 as [v]; destruct v; reflexivity.
+      + destruct i0 as [v]; destruct v; reflexivity.
+      + destruct i0 as [v]; destruct v; reflexivity.
+      + destruct i0 as [v]; destruct v.
         * trans_refl
             (let A := a ::: set a ::: S in
              bind (fun i => Return _ (@typer.Inferred_type _ _ i))
@@ -714,7 +731,7 @@ Module Untyper(ST: SelfType)(C:ContractContext).
           simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
-      + destruct i as [v]; destruct v.
+      + destruct i0 as [v]; destruct v.
         * trans_refl
           (let A := a ::: bool ::: set a :: S in
            bind (fun i => Return _ (typer.Inferred_type _ _ i))
@@ -739,20 +756,20 @@ Module Untyper(ST: SelfType)(C:ContractContext).
           simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
-      + destruct i as [c v]; destruct v.
+      + destruct i0 as [c v]; destruct v.
         * trans_refl
             (bind (fun i => Return _ (@typer.Inferred_type _ _ (syntax.ITER i)))
-                  (typer.type_check_instruction_no_tail_fail typer.type_instruction (untype_instruction i0) (a ::: A) A)).
+                  (typer.type_check_instruction_no_tail_fail typer.type_instruction (untype_instruction i1) (a ::: A) A)).
           rewrite untype_type_check_instruction_no_tail_fail; auto.
         * trans_refl
             (bind (fun i => Return _ (@typer.Inferred_type _ _ (syntax.ITER i)))
-                  (typer.type_check_instruction_no_tail_fail typer.type_instruction (untype_instruction i0) (pair key val :: A) A)).
+                  (typer.type_check_instruction_no_tail_fail typer.type_instruction (untype_instruction i1) (pair key val :: A) A)).
           rewrite untype_type_check_instruction_no_tail_fail; auto.
         * trans_refl
             (bind (fun i => Return _ (@typer.Inferred_type _ _ (syntax.ITER i)))
-                  (typer.type_check_instruction_no_tail_fail typer.type_instruction (untype_instruction i0) (a :: A) A)).
+                  (typer.type_check_instruction_no_tail_fail typer.type_instruction (untype_instruction i1) (a :: A) A)).
           rewrite untype_type_check_instruction_no_tail_fail; auto.
-      + destruct i as [c v]; destruct v.
+      + destruct i0 as [c v]; destruct v.
         * trans_refl
             (let A := key ::: map key val :: S in
              bind (fun i => Return _ (typer.Inferred_type _ _ i))
@@ -769,16 +786,16 @@ Module Untyper(ST: SelfType)(C:ContractContext).
           simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
-      + destruct i as [a c v]; destruct v.
+      + destruct i0 as [a c v]; destruct v.
         * trans_refl
             (bind (fun r =>
                      match r with
                      | existT _ (b :: A') i =>
                        bind (fun i => Return _ (@typer.Inferred_type _ _ (syntax.MAP i)))
                             (typer.instruction_cast_range (pair key val :: A) (b :: A') (b :: A) i)
-                     | _ => Failed _ Typing
+                     | _ => Failed _ (Typing _ tt)
                      end)
-                  (typer.type_instruction_no_tail_fail typer.type_instruction (untype_instruction i0) (pair key val ::: A))).
+                  (typer.type_instruction_no_tail_fail typer.type_instruction (untype_instruction i1) (pair key val ::: A))).
           rewrite untype_type_instruction_no_tail_fail.
           -- simpl.
              rewrite instruction_cast_range_same.
@@ -790,9 +807,9 @@ Module Untyper(ST: SelfType)(C:ContractContext).
               | existT _ (b :: A') i =>
                 bind (fun i => Return _ (@typer.Inferred_type _ _ (syntax.MAP i)))
                      (typer.instruction_cast_range (a :: A) (b :: A') (b :: A) i)
-              | _ => Failed _ Typing
+              | _ => Failed _ (Typing _ tt)
               end)
-                  (typer.type_instruction_no_tail_fail typer.type_instruction (untype_instruction i0) (a :: A))).
+                  (typer.type_instruction_no_tail_fail typer.type_instruction (untype_instruction i1) (a :: A))).
           rewrite untype_type_instruction_no_tail_fail.
           -- simpl.
              rewrite instruction_cast_range_same.
@@ -840,7 +857,7 @@ Module Untyper(ST: SelfType)(C:ContractContext).
                         (typer.instruction_cast_domain
                            A A _
                            (syntax.CREATE_CONTRACT g p i)))
-                (typer.type_check_instruction typer.type_instruction (untype_instruction i) (pair p g :: nil) (pair (list operation) g :: nil))).
+                (typer.type_check_instruction typer.type_instruction (untype_instruction i0) (pair p g :: nil) (pair (list operation) g :: nil))).
         simpl.
         rewrite untype_type_check_instruction.
         -- simpl.

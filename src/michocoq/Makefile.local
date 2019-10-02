@@ -36,4 +36,5 @@ post-all:: extract
 VYS=$(wildcard *.vy)
 
 clean::
-	rm -f $(VYS:%.vy=%.v)
+	rm -f $(VYS:%.vy=%.v) *.glob *.ml *.mli *.vo
+

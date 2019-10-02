@@ -26,88 +26,10 @@ Require Import ZArith.
 Require String.
 Require Import ListSet.
 Require set map.
-Require Import error.
 Require tez.
+Require Export syntax_type.
 
 (* source: http://doc.tzalpha.net/whitedoc/michelson.html#xii-full-grammar *)
-
-Inductive simple_comparable_type : Set :=
-| string
-| nat
-| int
-| bytes
-| bool
-| mutez
-| address
-| key_hash
-| timestamp.
-
-Inductive comparable_type : Set :=
-| Comparable_type_simple : simple_comparable_type -> comparable_type
-| Cpair : simple_comparable_type -> comparable_type -> comparable_type.
-
-Lemma comparable_type_dec (a b : comparable_type) : {a = b} + {a <> b}.
-Proof.
-  repeat decide equality.
-Qed.
-
-Inductive type : Set :=
-| Comparable_type : simple_comparable_type -> type
-| key : type
-| unit : type
-| signature : type
-| option : type -> type
-| list : type -> type
-| set : comparable_type -> type
-| contract : type -> type
-| operation : type
-| pair : type -> type -> type
-| or : type -> type -> type
-| lambda : type -> type -> type
-| map : comparable_type -> type -> type
-| big_map : comparable_type -> type -> type
-| chain_id : type.
-
-Fixpoint comparable_type_to_type (c : comparable_type) : type :=
-  match c with
-  | Comparable_type_simple a => Comparable_type a
-  | Cpair a b => pair (Comparable_type a) (comparable_type_to_type b)
-  end.
-
-
-Coercion comparable_type_to_type : comparable_type >-> type.
-Coercion Comparable_type_simple : simple_comparable_type >-> comparable_type.
-(* Coercion Comparable_type : simple_comparable_type >-> type. *)
-
-Fixpoint is_packable (a : type) : Datatypes.bool :=
-  match a with
-  | operation | big_map _ _ | contract _ => false
-  | Comparable_type _ | unit | signature | key | lambda _ _ | set _ | chain_id => true
-  | option ty
-  | list ty
-  | map _ ty => is_packable ty
-  | pair a b | or a b => is_packable a && is_packable b
-  end.
-
-Lemma type_dec (a b : type) : {a = b} + {a <> b}.
-Proof.
-  repeat decide equality.
-Qed.
-
-Lemma mtype_dec (a b : M type) : {a = b} + {a <> b}.
-Proof.
-  apply error.M_dec.
-  apply type_dec.
-Qed.
-
-Lemma stype_dec (A B : Datatypes.list type) : {A = B} + {A <> B}.
-Proof.
-  decide equality; apply type_dec.
-Qed.
-
-Infix ":::" := (@cons type) (at level 60, right associativity).
-Infix "+++" := (@app type) (at level 60, right associativity).
-
 
 Section Overloading.
 
@@ -364,7 +286,7 @@ Module Type SelfType.
 End SelfType.
 
 Module Type ContractContext.
-  Parameter get_contract_type : contract_constant -> M type.
+  Parameter get_contract_type : contract_constant -> Datatypes.option type.
 End ContractContext.
 
 Module Syntax(ST : SelfType)(C:ContractContext).
@@ -389,7 +311,7 @@ this constructor "IF" but we can make a notation for it. *)
 | LOOP_LEFT {a b A} : instruction Datatypes.false (a :: A) (or a b :: A) ->
                       instruction Datatypes.false (or a b :: A) (b :: A)
 | EXEC {a b C} : instruction Datatypes.false (a ::: lambda a b ::: C) (b :: C)
-| APPLY {a b c D} {_ : Is_true (is_packable a)} :
+| APPLY {a b c D} {_ : Bool.Is_true (is_packable a)} :
     instruction Datatypes.false (a ::: lambda (pair a b) c ::: D) (lambda b c ::: D)
 | DUP {a A} : instruction Datatypes.false (a ::: A) (a ::: a ::: A)
 | SWAP {a b A} : instruction Datatypes.false (a ::: b ::: A) (b ::: a ::: A)
@@ -520,7 +442,7 @@ concrete_data : type -> Set :=
 | Mutez_constant : mutez_constant -> concrete_data mutez
 | Address_constant : address_constant -> concrete_data address
 | Contract_constant {a} : forall cst : contract_constant,
-    C.get_contract_type cst = Return _ a -> concrete_data (contract a)
+    C.get_contract_type cst = Some a -> concrete_data (contract a)
 | Unit : concrete_data unit
 | True_ : concrete_data bool
 | False_ : concrete_data bool

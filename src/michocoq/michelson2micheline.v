@@ -1,71 +1,63 @@
 Require Import Ascii String Bool List.
-Require Import untyped_syntax micheline_syntax error location.
+Require Import untyped_syntax micheline_syntax error location syntax_type.
 
 Open Scope string.
 
 Definition dummy_loc : location := Mk_loc 0 0.
 Definition dummy_mich (m:micheline) : loc_micheline :=
   Mk_loc_micheline (dummy_loc, dummy_loc, m).
-Definition dummy_prim (p:string) (l:list loc_micheline) :=
+Definition dummy_prim (p:String.string) (l:Datatypes.list loc_micheline) :=
   dummy_mich (PRIM (dummy_loc, dummy_loc, p) l).
 
-Definition michelson2micheline_sctype (ct: syntax.simple_comparable_type) : loc_micheline :=
+Definition michelson2micheline_sctype (ct: simple_comparable_type) : loc_micheline :=
   match ct with
-  | syntax.string => dummy_prim "string" nil
-  | syntax.nat => dummy_prim "nat" nil
-  | syntax.int => dummy_prim "int" nil
-  | syntax.bytes => dummy_prim "bytes" nil
-  | syntax.bool => dummy_prim "bool" nil
-  | syntax.mutez => dummy_prim "mutez" nil
-  | syntax.key_hash => dummy_prim "key_hash" nil
-  | syntax.timestamp => dummy_prim "timestamp" nil
-  | syntax.address => dummy_prim "address" nil
+  | string => dummy_prim "string" nil
+  | nat => dummy_prim "nat" nil
+  | int => dummy_prim "int" nil
+  | bytes => dummy_prim "bytes" nil
+  | bool => dummy_prim "bool" nil
+  | mutez => dummy_prim "mutez" nil
+  | key_hash => dummy_prim "key_hash" nil
+  | timestamp => dummy_prim "timestamp" nil
+  | address => dummy_prim "address" nil
   end.
 
-Fixpoint michelson2micheline_ctype (ct: syntax.comparable_type) : loc_micheline :=
+Fixpoint michelson2micheline_ctype (ct: comparable_type) : loc_micheline :=
   match ct with
-  | syntax.Comparable_type_simple sct => michelson2micheline_sctype sct
-  | syntax.Cpair sct ct =>
+  | Comparable_type_simple sct => michelson2micheline_sctype sct
+  | Cpair sct ct =>
     dummy_prim "pair" (michelson2micheline_sctype sct :: michelson2micheline_ctype ct :: nil)
   end.
 
-Fixpoint michelson2micheline_type (t : syntax.type) : loc_micheline :=
+Fixpoint michelson2micheline_type (t : type) : loc_micheline :=
   match t with
-  | syntax.Comparable_type ct => michelson2micheline_sctype ct
-  | syntax.key => dummy_prim "key" nil
-  | syntax.unit => dummy_prim "unit" nil
-  | syntax.signature => dummy_prim "signature" nil
-  | syntax.operation => dummy_prim "operation" nil
-  | syntax.option t' => dummy_prim "option" ((michelson2micheline_type t')::nil)
-  | syntax.list t' => dummy_prim "list" ((michelson2micheline_type t')::nil)
-  | syntax.set ct => dummy_prim "set" ((michelson2micheline_ctype ct)::nil)
-  | syntax.contract t' => dummy_prim "contract" ((michelson2micheline_type t')::nil)
-  | syntax.pair t1 t2 =>
+  | Comparable_type ct => michelson2micheline_sctype ct
+  | key => dummy_prim "key" nil
+  | unit => dummy_prim "unit" nil
+  | signature => dummy_prim "signature" nil
+  | operation => dummy_prim "operation" nil
+  | option t' => dummy_prim "option" ((michelson2micheline_type t')::nil)
+  | list t' => dummy_prim "list" ((michelson2micheline_type t')::nil)
+  | set ct => dummy_prim "set" ((michelson2micheline_ctype ct)::nil)
+  | contract t' => dummy_prim "contract" ((michelson2micheline_type t')::nil)
+  | pair t1 t2 =>
     dummy_prim "pair" ((michelson2micheline_type t1)::(michelson2micheline_type t2)::nil)
-  | syntax.or t1 t2 =>
+  | or t1 t2 =>
     dummy_prim "or" ((michelson2micheline_type t1)::(michelson2micheline_type t2)::nil)
-  | syntax.lambda t1 t2 =>
+  | lambda t1 t2 =>
     dummy_prim "lambda" ((michelson2micheline_type t1)::(michelson2micheline_type t2)::nil)
-  | syntax.map ct1 t2 =>
+  | map ct1 t2 =>
     dummy_prim "map" ((michelson2micheline_ctype ct1)::(michelson2micheline_type t2)::nil)
-  | syntax.big_map ct1 t2 =>
+  | big_map ct1 t2 =>
     dummy_prim "big_map" ((michelson2micheline_ctype ct1)::(michelson2micheline_type t2)::nil)
-  | syntax.chain_id => dummy_prim "chain_id" nil
+  | chain_id => dummy_prim "chain_id" nil
   end.
 
 Fixpoint michelson2micheline_data (d : concrete_data) : loc_micheline :=
   match d with
   | Int_constant z => dummy_mich (NUMBER z)
-  | Nat_constant n => dummy_mich (NUMBER (BinInt.Z.of_N n))
-  | Timestamp_constant ts => dummy_mich (NUMBER ts)
-  | Mutez_constant (syntax.Mk_mutez m) => dummy_mich (NUMBER (tez.to_Z m))
   | String_constant s => dummy_mich (STR s)
   | Bytes_constant b => dummy_mich (BYTES b)
-  | Signature_constant s => dummy_mich (STR s)
-  | Key_constant k => dummy_mich (STR k)
-  | Key_hash_constant h => dummy_mich (STR h)
-  | Contract_constant (syntax.Mk_contract c) => dummy_mich (STR c)
-  | Address_constant (syntax.Mk_address c) => dummy_mich (STR c)
   | Unit => dummy_prim "Unit" nil
   | True_ => dummy_prim "True" nil
   | False_ => dummy_prim "False" nil
@@ -77,9 +69,8 @@ Fixpoint michelson2micheline_data (d : concrete_data) : loc_micheline :=
   | None_ => dummy_prim "None" nil
   | Elt a b =>
     dummy_prim "Elt" ((michelson2micheline_data a)::(michelson2micheline_data b)::nil)
-  | Concrete_seq s => dummy_mich (SEQ (map michelson2micheline_data s))
+  | Concrete_seq s => dummy_mich (SEQ (List.map michelson2micheline_data s))
   | Instruction _ => dummy_prim "NOOP" nil (* Should never occur *)
-  | Chain_id_constant (syntax.Mk_chain_id c) => dummy_mich (STR c)
   end.
 
 Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
@@ -184,7 +175,7 @@ Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
   | CHAIN_ID => dummy_prim "CHAIN_ID" nil
   end.
 
-Definition eqb_ascii (a b : ascii) : bool :=
+Definition eqb_ascii (a b : ascii) : Datatypes.bool :=
  match a, b with
  | Ascii a0 a1 a2 a3 a4 a5 a6 a7,
    Ascii b0 b1 b2 b3 b4 b5 b6 b7 =>
@@ -192,7 +183,7 @@ Definition eqb_ascii (a b : ascii) : bool :=
     && Bool.eqb a4 b4 && Bool.eqb a5 b5 && Bool.eqb a6 b6 && Bool.eqb a7 b7
  end.
 
-Fixpoint eqb_string (s1 s2 : string) : bool :=
+Fixpoint eqb_string (s1 s2 : String.string) : Datatypes.bool :=
   match s1, s2 with
   | EmptyString, EmptyString => true
   | String a1 s1, String a2 s2 => andb (eqb_ascii a1 a2) (eqb_string s1 s2)
@@ -202,13 +193,13 @@ Fixpoint eqb_string (s1 s2 : string) : bool :=
 Fixpoint flatten_seqs (l : loc_micheline) {struct l} :=
   match l with
     | Mk_loc_micheline (_, _, (SEQ ls)) =>
-      (fix collect_seqs ls : list loc_micheline :=
+      (fix collect_seqs ls : Datatypes.list loc_micheline :=
          match ls with
          | nil => nil
          | hd::tl => (List.app (flatten_seqs hd) (collect_seqs tl))
          end) ls
     | Mk_loc_micheline (l1, l2, (PRIM (l3, l4, p) ls)) =>
-      Mk_loc_micheline (l1, l2, (PRIM (l3, l4, p) (map (fun s => let ls := flatten_seqs s in
+      Mk_loc_micheline (l1, l2, (PRIM (l3, l4, p) (List.map (fun s => let ls := flatten_seqs s in
                                                   match ls with
                                                   | hd::nil => if (eqb_string p "DIP")
                                                                  || (eqb_string p "IF")

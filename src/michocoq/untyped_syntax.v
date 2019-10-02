@@ -1,8 +1,6 @@
 Require syntax.
 Require Import ZArith String.
-
-Definition type := syntax.type.
-Definition comparable_type := syntax.comparable_type.
+Require Import syntax_type.
 
 
 Inductive instruction : Set :=
@@ -16,9 +14,9 @@ Inductive instruction : Set :=
 | APPLY : instruction
 | DUP : instruction
 | SWAP : instruction
-| PUSH : syntax.type -> concrete_data -> instruction
+| PUSH : type -> concrete_data -> instruction
 | UNIT : instruction
-| LAMBDA : syntax.type -> syntax.type -> instruction -> instruction
+| LAMBDA : type -> type -> instruction -> instruction
 | EQ : instruction
 | NEQ : instruction
 | LT : instruction
@@ -82,24 +80,16 @@ Inductive instruction : Set :=
 | SHA256 : instruction
 | SHA512 : instruction
 | CHECK_SIGNATURE : instruction
-| DIG : nat -> instruction
-| DUG : nat -> instruction
-| DIP : nat -> instruction -> instruction
-| DROP : nat -> instruction
+| DIG : Datatypes.nat -> instruction
+| DUG : Datatypes.nat -> instruction
+| DIP : Datatypes.nat -> instruction -> instruction
+| DROP : Datatypes.nat -> instruction
 | CHAIN_ID : instruction
 with
 concrete_data : Set :=
 | Int_constant : Z -> concrete_data
-| Nat_constant : N -> concrete_data
 | String_constant : String.string -> concrete_data
-| Mutez_constant : syntax.mutez_constant -> concrete_data
 | Bytes_constant : String.string -> concrete_data
-| Timestamp_constant : Z -> concrete_data
-| Signature_constant : String.string -> concrete_data
-| Key_constant : String.string -> concrete_data
-| Key_hash_constant : String.string -> concrete_data
-| Contract_constant : syntax.contract_constant -> concrete_data
-| Address_constant : syntax.address_constant -> concrete_data
 | Unit : concrete_data
 | True_ : concrete_data
 | False_ : concrete_data
@@ -109,9 +99,8 @@ concrete_data : Set :=
 | Some_ : concrete_data -> concrete_data
 | None_ : concrete_data
 | Elt : concrete_data -> concrete_data -> concrete_data
-| Concrete_seq : list concrete_data -> concrete_data
-| Instruction : instruction -> concrete_data
-| Chain_id_constant : syntax.chain_id_constant -> concrete_data.
+| Concrete_seq : Datatypes.list concrete_data -> concrete_data
+| Instruction : instruction -> concrete_data.
 
 (* Some macros *)
 Definition UNPAIR : instruction :=

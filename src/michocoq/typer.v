@@ -1,4 +1,4 @@
-Require Import ZArith List Nat.
+Require Import ZArith List Nat String.
 Require Import syntax semantics.
 Require Import untyped_syntax error.
 
@@ -24,10 +24,21 @@ Module Typer(ST: SelfType)(C:ContractContext).
     exact i.
   Defined.
 
+  Record cast_error :=
+    Mk_cast_error
+      {
+        input : Datatypes.list type;
+        output :  Datatypes.list type;
+        expected_input : Datatypes.list type;
+        expected_output : Datatypes.list type;
+        tff : Datatypes.bool;
+        i : instruction tff input output;
+      }.
+
   Definition instruction_cast {tff} A A' B B' i : M (instruction tff A' B') :=
     match stype_dec A A', stype_dec B B' with
     | left HA, left HB => Return _ (safe_instruction_cast A A' B B' i HA HB)
-    | _, _ => Failed _ Typing
+    | _, _ => Failed _ (Typing cast_error (Mk_cast_error A B A' B' tff i))
     end.
 
   Definition instruction_cast_range {tff} A B B' (i : instruction tff A B)
@@ -35,6 +46,12 @@ Module Typer(ST: SelfType)(C:ContractContext).
 
   Definition instruction_cast_domain {tff} A A' B (i : instruction tff A B)
     : M (instruction tff A' B) := instruction_cast A A' B B i.
+
+  Definition contract_cast (c : contract_constant) (a b : type)
+             (H : C.get_contract_type c = Some b)
+             (He : a = b)
+    : syntax.concrete_data (contract a) :=
+    syntax.Contract_constant c (eq_trans H (f_equal Some (eq_sym He))).
 
   Inductive typer_result A : Set :=
   | Inferred_type B : instruction false A B -> typer_result A
@@ -63,7 +80,7 @@ Module Typer(ST: SelfType)(C:ContractContext).
     bind (fun r1 =>
             match r1 with
             | Inferred_type _ B' i => instruction_cast_range A B' B i
-            | Any_type _ i => Failed _ Typing
+            | Any_type _ i => Failed _ (Typing _ tt)
             end)
          (type_instruction i A).
 
@@ -71,7 +88,7 @@ Module Typer(ST: SelfType)(C:ContractContext).
     M {B & instruction Datatypes.false A B} :=
     match r with
     | Inferred_type _ B i => Return _ (existT _ B i)
-    | Any_type _ _ => Failed _ Typing
+    | Any_type _ _ => Failed _ (Typing _ tt)
     end.
 
   Definition type_instruction_no_tail_fail
@@ -114,13 +131,13 @@ Module Typer(ST: SelfType)(C:ContractContext).
 
   Definition take_one (S : stack_type) : M (type * stack_type) :=
     match S with
-    | nil => Failed _ Typing
+    | nil => Failed _ (Typing _ "take_one"%string)
     | cons a l => Return _ (a, l)
     end.
 
-  Fixpoint take_n (A : stack_type) n : M ({B | length B = n} * stack_type) :=
-    match n as n return M ({B | length B = n} * stack_type) with
-    | 0 => Return ({B | length B = 0} * stack_type) (exist (fun B => length B = 0) nil eq_refl, A)
+  Fixpoint take_n (A : stack_type) n : M ({B | List.length B = n} * stack_type) :=
+    match n as n return M ({B | List.length B = n} * stack_type) with
+    | 0 => Return ({B | List.length B = 0} * stack_type) (exist (fun B => List.length B = 0) nil eq_refl, A)
     | S n =>
       bind (fun '(a, A) =>
               bind (fun '(exist _ B H, C) =>
@@ -138,7 +155,7 @@ Module Typer(ST: SelfType)(C:ContractContext).
       repeat decide equality.
     - discriminate.
     - discriminate.
-    - assert (length S1 = n) as H2.
+    - assert (List.length S1 = n) as H2.
       + apply (f_equal pred) in H1.
         exact H1.
       + rewrite (IHn S1 H2).
@@ -171,7 +188,7 @@ Module Typer(ST: SelfType)(C:ContractContext).
       bind (fun b =>
               Return _ (Cpair a b))
            (as_comparable b)
-    | _ => Failed _ Typing
+    | _ => Failed _ (Typing _ ("not a comparable type"%string, a))
     end.
 
   Lemma as_comparable_comparable (a : comparable_type) :
@@ -184,6 +201,18 @@ Module Typer(ST: SelfType)(C:ContractContext).
       reflexivity.
   Qed.
 
+  Definition type_contract_data_aux c a tyopt :=
+    match tyopt return C.get_contract_type c = tyopt -> error.M (syntax.concrete_data (contract a)) with
+    | Some b =>
+      match type_dec a b with
+      | left He => fun H => Return _ (contract_cast c a b H He)
+      | right _ => fun _ => Failed _ (Typing _ ("ill-typed contract"%string, c, a, b))
+      end
+    | None => fun _ => Failed _ (Typing _ ("contract not found"%string, c))
+    end.
+
+  Definition type_contract_data c a := type_contract_data_aux c a _ eq_refl.
+
   Fixpoint type_data (d : concrete_data) {struct d}
     : forall ty, M (syntax.concrete_data ty) :=
     match d with
@@ -191,91 +220,53 @@ Module Typer(ST: SelfType)(C:ContractContext).
       fun ty =>
         match ty with
         | Comparable_type int => Return _ (syntax.Int_constant z)
-        | _ => Failed _ Typing
-        end
-    | Nat_constant n =>
-      fun ty =>
-        match ty with
-        | Comparable_type nat => Return _ (syntax.Nat_constant n)
-        | Comparable_type int => Return _ (syntax.Int_constant (Z.of_N n))
-        | _ => Failed _ Typing
+        | Comparable_type nat =>
+          if (z >=? 0)%Z then Return _ (syntax.Nat_constant (Z.to_N z))
+          else Failed _ (Typing _ ("Negative value cannot be typed in nat"%string, d))
+        | Comparable_type mutez =>
+          bind (fun m =>
+                  Return _ (syntax.Mutez_constant (Mk_mutez m)))
+               (tez.of_Z z)
+        | Comparable_type timestamp => Return _ (syntax.Timestamp_constant z)
+        | _ => Failed _ (Typing _ (d, ty))
         end
     | String_constant s =>
       fun ty =>
         match ty with
         | Comparable_type string => Return _ (syntax.String_constant s)
-        | _ => Failed _ Typing
-        end
-    | Mutez_constant m =>
-      fun ty =>
-        match ty with
-        | Comparable_type mutez => Return _ (syntax.Mutez_constant m)
-        | _ => Failed _ Typing
+        | signature => Return _ (syntax.Signature_constant s)
+        | key => Return _ (syntax.Key_constant s)
+        | Comparable_type key_hash => Return _ (syntax.Key_hash_constant s)
+        | contract a =>
+          let c := Mk_contract s in
+          type_contract_data c a
+        | Comparable_type address => Return _ (syntax.Address_constant (syntax.Mk_address s))
+        | chain_id => Return _ (syntax.Chain_id_constant (syntax.Mk_chain_id s))
+        | _ => Failed _ (Typing _ (d, ty))
         end
     | Bytes_constant s =>
       fun ty =>
         match ty with
         | Comparable_type bytes => Return _ (syntax.Bytes_constant s)
-        | _ => Failed _ Typing
-        end
-    | Timestamp_constant s =>
-      fun ty =>
-        match ty with
-        | Comparable_type timestamp => Return _ (syntax.Timestamp_constant s)
-        | _ => Failed _ Typing
-        end
-    | Signature_constant s =>
-      fun ty =>
-        match ty with
-        | signature => Return _ (syntax.Signature_constant s)
-        | _ => Failed _ Typing
-        end
-    | Key_constant s =>
-      fun ty =>
-        match ty with
-        | key => Return _ (syntax.Key_constant s)
-        | _ => Failed _ Typing
-        end
-    | Key_hash_constant s =>
-      fun ty =>
-        match ty with
-        | Comparable_type key_hash => Return _ (syntax.Key_hash_constant s)
-        | _ => Failed _ Typing
-        end
-    | Contract_constant c =>
-      fun ty =>
-        match ty with
-        | contract a =>
-          match (mtype_dec (C.get_contract_type c) (Return _ a)) with
-          | left H => Return _ (syntax.Contract_constant c H)
-          | _ => Failed _ Typing
-          end
-        | _ => Failed _ Typing
-        end
-    | Address_constant c =>
-      fun ty =>
-        match ty with
-        | Comparable_type address =>
-          Return _ (syntax.Address_constant c)
-        | _ => Failed _ Typing
+        | _ => Failed _ (Typing _ (d, ty))
         end
     | Unit =>
       fun ty =>
         match ty with
         | unit => Return _ syntax.Unit
-        | _ => Failed _ Typing
+        | _ => Failed _ (Typing _ (d, ty))
         end
     | True_ =>
       fun ty =>
         match ty with
         | Comparable_type bool => Return _ syntax.True_
-        | _ => Failed _ Typing
+        | _ => Failed _ (Typing _ (d, ty))
         end
     | False_ =>
       fun ty =>
         match ty with
         | Comparable_type bool => Return _ syntax.False_
-        | _ => Failed _ Typing
+        | _ => Failed _ (Typing _ (d, ty))
         end
     | Pair x y =>
       fun ty =>
@@ -286,7 +277,7 @@ Module Typer(ST: SelfType)(C:ContractContext).
                           Return _ (syntax.Pair x y))
                        (type_data y b))
                (type_data x a)
-        | _ => Failed _ Typing
+        | _ => Failed _ (Typing _ (d, ty))
         end
     | Left x =>
       fun ty =>
@@ -295,7 +286,7 @@ Module Typer(ST: SelfType)(C:ContractContext).
           bind (fun x =>
                   Return _ (syntax.Left x))
                (type_data x a)
-        | _ => Failed _ Typing
+        | _ => Failed _ (Typing _ (d, ty))
         end
     | Right y =>
       fun ty =>
@@ -304,7 +295,7 @@ Module Typer(ST: SelfType)(C:ContractContext).
           bind (fun y =>
                   Return _ (syntax.Right y))
                (type_data y b)
-        | _ => Failed _ Typing
+        | _ => Failed _ (Typing _ (d, ty))
         end
     | Some_ x =>
       fun ty =>
@@ -313,13 +304,13 @@ Module Typer(ST: SelfType)(C:ContractContext).
           bind (fun x =>
                   Return _ (syntax.Some_ x))
                (type_data x a)
-        | _ => Failed _ Typing
+        | _ => Failed _ (Typing _ (d, ty))
         end
     | None_ =>
       fun ty =>
         match ty with
         | option a => Return _ syntax.None_
-        | _ => Failed _ Typing
+        | _ => Failed _ (Typing _ (d, ty))
         end
     | Concrete_seq l =>
       fun ty =>
@@ -361,27 +352,20 @@ Module Typer(ST: SelfType)(C:ContractContext).
                                           (type_data_list l))
                                   (type_data y b))
                           (type_data x a)
-                   | _ => Failed _ Typing
+                   | _ => Failed _ (Typing _ (d, ty))
                    end) l)
-        | _ => Failed _ Typing
+        | _ => Failed _ (Typing _ (d, ty))
         end
     | Instruction i =>
       fun ty =>
         match ty with
-        | syntax.lambda a b =>
+        | lambda a b =>
           bind
             (fun '(existT _ tff i) => Return _ (syntax.Instruction _ i))
             (type_check_instruction type_instruction i (cons a nil) (cons b nil))
-        | _ => Failed _ Typing
+        | _ => Failed _ (Typing _ (d, ty))
         end
-    | Chain_id_constant c =>
-      fun ty =>
-        match ty with
-        | chain_id =>
-          Return _ (syntax.Chain_id_constant c)
-        | _ => Failed _ Typing
-        end
-    | _ => fun _ => Failed _ Typing
+    | d => fun ty => Failed _ (Typing _ (d, ty))
     end
 
   with
@@ -414,10 +398,10 @@ Module Typer(ST: SelfType)(C:ContractContext).
       bind (fun i => Return _ (Inferred_type _ _ (syntax.LOOP i)))
            (type_check_instruction_no_tail_fail
               type_instruction i A (bool ::: A))
-    | LOOP_LEFT i, syntax.or a b :: A =>
+    | LOOP_LEFT i, or a b :: A =>
       bind (fun i => Return _ (Inferred_type _ _ (syntax.LOOP_LEFT i)))
            (type_check_instruction_no_tail_fail
-              type_instruction i (a :: A) (syntax.or a b :: A))
+              type_instruction i (a :: A) (or a b :: A))
     | EXEC, a :: lambda a' b :: B =>
       let A := a :: lambda a' b :: B in
       let A' := a :: lambda a b :: B in
@@ -430,7 +414,7 @@ Module Typer(ST: SelfType)(C:ContractContext).
        then fun i =>
               bind (fun i => Return _ (Inferred_type _ _ i))
                    (instruction_cast_domain A' A _ (@syntax.APPLY _ _ _ _ (IT_eq_rev _ i)))
-       else fun _ => Failed _ Typing) eq_refl
+       else fun _ => Failed _ (Typing _ "APPLY"%string)) eq_refl
     | DUP, a :: A =>
       Return _ (Inferred_type _ _ syntax.DUP)
     | SWAP, a :: b :: A =>
@@ -641,7 +625,7 @@ Module Typer(ST: SelfType)(C:ContractContext).
               | existT _ (b :: A') i =>
                 bind (fun i => Return _ (Inferred_type _ _ (syntax.MAP i)))
                      (instruction_cast_range (a :: A) (b :: A') (b :: A) i)
-              | _ => Failed _ Typing
+              | _ => Failed _ (Typing _ tt)
               end)
            (type_instruction_no_tail_fail type_instruction i (a :: A))
     | MAP i, map kty vty :: A =>
@@ -650,7 +634,7 @@ Module Typer(ST: SelfType)(C:ContractContext).
               | existT _ (b :: A') i =>
                 bind (fun i => Return _ (Inferred_type _ _ (syntax.MAP i)))
                      (instruction_cast_range (pair kty vty :: A) (b :: A') (b :: A) i)
-              | _ => Failed _ Typing
+              | _ => Failed _ (Typing _ tt)
               end)
            (type_instruction_no_tail_fail type_instruction i (pair kty vty ::: A))
     | SOME, a :: A => Return _ (Inferred_type _ _ syntax.SOME)
@@ -728,6 +712,6 @@ Module Typer(ST: SelfType)(C:ContractContext).
            (take_n S12 n)
     | CHAIN_ID, _ =>
       Return _ (Inferred_type _ _ syntax.CHAIN_ID)
-    | _, _ => Failed _ Typing
+    | _, _ => Failed _ (Typing _ (i, A))
     end.
 End Typer.

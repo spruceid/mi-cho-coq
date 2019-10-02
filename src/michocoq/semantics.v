@@ -48,7 +48,7 @@ Module EnvDef(ST : SelfType)(C:ContractContext).
     | big_map a b => map.map (comparable_data a) (data b) (compare a)
     | lambda a b =>
       {tff : Datatypes.bool & instruction tff (a ::: nil) (b ::: nil)}
-    | contract a => {s : contract_constant | C.get_contract_type s = Return _ a }
+    | contract a => {s : contract_constant | get_contract_type s = Some a }
     | chain_id => chain_id_constant
     end.
 
@@ -511,7 +511,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | S n =>
       match i in instruction tff0 A B return stack A -> M (stack B) with
       | @FAILWITH A B a =>
-        fun '(x, _) => Failed _ (Assertion_Failure (data_to_string x))
+        fun '(x, _) => Failed _ (Assertion_Failure _ x)
 
       (* According to the documentation, FAILWITH's argument should
          not be part of the state reached by the instruction but the

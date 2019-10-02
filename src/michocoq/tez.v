@@ -50,14 +50,42 @@ Coercion to_int64 : mutez >-> int64.int64.
 
 Definition to_Z (t : mutez) : Z := int64.to_Z t.
 
+Definition of_int64_aux (t : int64.int64) (sign : bool) :
+  int64.sign t = sign -> error.M mutez :=
+  if sign return int64.sign t = sign -> error.M mutez
+  then fun _ => error.Failed _ error.Overflow
+  else fun H => error.Return mutez (exist _ t H).
+
 Definition of_int64 (t : int64.int64) : error.M mutez :=
-  match int64.sign t as b return int64.sign t = b -> error.M mutez with
-  | false => fun H => error.Return _ (exist _ t H)
-  | true => fun _ => error.Failed _ error.Overflow
-  end eq_refl.
+  of_int64_aux t (int64.sign t) eq_refl.
+
+Lemma of_int64_return (t : int64.int64) (H : int64.sign t = false) :
+  of_int64 t = error.Return mutez (exist _ t H).
+Proof.
+  unfold of_int64.
+  cut (forall b H', of_int64_aux t b H' = error.Return mutez (exist _ t H)).
+  - intro Hl.
+    apply Hl.
+  - intros b H'.
+    unfold of_int64_aux.
+    destruct b.
+    + congruence.
+    + f_equal.
+      apply to_int64_inj.
+      reflexivity.
+Qed.
 
 Definition of_Z (t : Z) : error.M mutez :=
   of_int64 (int64.of_Z t).
+
+Lemma of_Z_to_Z (t : mutez) : of_Z (to_Z t) = error.Return _ t.
+Proof.
+  unfold of_Z, to_Z.
+  rewrite int64.of_Z_to_Z.
+  destruct t.
+  simpl.
+  apply of_int64_return.
+Qed.
 
 Definition compare (t1 t2 : mutez) : comparison :=
   int64.compare (to_int64 t1) (to_int64 t2).

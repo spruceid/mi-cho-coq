@@ -1,79 +1,82 @@
-Require Import String List.
+Require Import Ascii String List.
 Require Import untyped_syntax micheline_syntax error location.
+Require Import syntax_type.
 
 Open Scope string.
 
-Definition micheline2michelson_sctype (bem : loc_micheline) : M syntax.simple_comparable_type :=
+Definition micheline2michelson_sctype (bem : loc_micheline) : M simple_comparable_type :=
   let 'Mk_loc_micheline ((b, e), m) := bem in
   match m with
-  | PRIM (_, "string") nil => Return _ syntax.string
-  | PRIM (_, "nat") nil => Return _ syntax.nat
-  | PRIM (_, "int") nil => Return _ syntax.int
-  | PRIM (_, "bytes") nil => Return _ syntax.bytes
-  | PRIM (_, "bool") nil => Return _ syntax.bool
-  | PRIM (_, "mutez") nil => Return _ syntax.mutez
-  | PRIM (_, "key_hash") nil => Return _ syntax.key_hash
-  | PRIM (_, "timestamp") nil => Return _ syntax.timestamp
-  | PRIM (_, "address") nil => Return _ syntax.address
+  | PRIM (_, "string") nil => Return _ string
+  | PRIM (_, "nat") nil => Return _ nat
+  | PRIM (_, "int") nil => Return _ int
+  | PRIM (_, "bytes") nil => Return _ bytes
+  | PRIM (_, "bool") nil => Return _ bool
+  | PRIM (_, "mutez") nil => Return _ mutez
+  | PRIM (_, "key_hash") nil => Return _ key_hash
+  | PRIM (_, "timestamp") nil => Return _ timestamp
+  | PRIM (_, "address") nil => Return _ address
   | _ => Failed _ (Expansion b e)
   end.
 
-Fixpoint micheline2michelson_ctype (bem : loc_micheline) : M syntax.comparable_type :=
+Fixpoint micheline2michelson_ctype (bem : loc_micheline) : M comparable_type :=
   let 'Mk_loc_micheline ((b, e), m) := bem in
   match m with
   | PRIM (_, "pair") (a :: b :: nil) =>
     bind (fun a =>
-            bind (fun b => Return _ (syntax.Cpair a b))
+            bind (fun b => Return _ (Cpair a b))
               (micheline2michelson_ctype b)
          )
          (micheline2michelson_sctype a)
   | _ =>
-    bind (fun a => Return _ (syntax.Comparable_type_simple a))
+    bind (fun a => Return _ (Comparable_type_simple a))
          (micheline2michelson_sctype bem)
   end.
 
-Fixpoint micheline2michelson_type (bem : loc_micheline) : M syntax.type :=
-  try (bind (fun ty => Return _ (syntax.Comparable_type ty)) (micheline2michelson_sctype bem))
+Notation "A ;; B" := (untyped_syntax.SEQ A B) (at level 100, right associativity).
+
+Fixpoint micheline2michelson_type (bem : loc_micheline) : M type :=
+  try (bind (fun ty => Return _ (Comparable_type ty)) (micheline2michelson_sctype bem))
       (match bem with
-       | Mk_loc_micheline (_, PRIM (_, "key") nil) => Return _ syntax.key
-       | Mk_loc_micheline (_, PRIM (_, "unit") nil) => Return _ syntax.unit
-       | Mk_loc_micheline (_, PRIM (_, "signature") nil) => Return _ syntax.signature
-       | Mk_loc_micheline (_, PRIM (_, "operation") nil) => Return _ syntax.operation
+       | Mk_loc_micheline (_, PRIM (_, "key") nil) => Return _ key
+       | Mk_loc_micheline (_, PRIM (_, "unit") nil) => Return _ unit
+       | Mk_loc_micheline (_, PRIM (_, "signature") nil) => Return _ signature
+       | Mk_loc_micheline (_, PRIM (_, "operation") nil) => Return _ operation
        | Mk_loc_micheline (_, PRIM (_, "option") (a :: nil)) =>
-         bind (fun a => Return _ (syntax.option a))
+         bind (fun a => Return _ (option a))
               (micheline2michelson_type a)
        | Mk_loc_micheline (_, PRIM (_, "list") (a :: nil)) =>
-         bind (fun a => Return _ (syntax.list a))
+         bind (fun a => Return _ (list a))
               (micheline2michelson_type a)
        | Mk_loc_micheline (_, PRIM (_, "contract") (a :: nil)) =>
-         bind (fun a => Return _ (syntax.contract a))
+         bind (fun a => Return _ (contract a))
               (micheline2michelson_type a)
        | Mk_loc_micheline (_, PRIM (_, "set") (a :: nil)) =>
-         bind (fun a => Return _ (syntax.set a))
+         bind (fun a => Return _ (set a))
               (micheline2michelson_ctype a)
        | Mk_loc_micheline (_, PRIM (_, "pair") (a :: b :: nil)) =>
          bind (fun a =>
-                 bind (fun b => Return _ (syntax.pair a b))
+                 bind (fun b => Return _ (pair a b))
                       (micheline2michelson_type b))
               (micheline2michelson_type a)
        | Mk_loc_micheline (_, PRIM (_, "or") (a :: b :: nil)) =>
          bind (fun a =>
-                 bind (fun b => Return _ (syntax.or a b))
+                 bind (fun b => Return _ (or a b))
                       (micheline2michelson_type b))
               (micheline2michelson_type a)
        | Mk_loc_micheline (_, PRIM (_, "lambda") (a :: b :: nil)) =>
          bind (fun a =>
-                 bind (fun b => Return _ (syntax.lambda a b))
+                 bind (fun b => Return _ (lambda a b))
                       (micheline2michelson_type b))
               (micheline2michelson_type a)
        | Mk_loc_micheline (_, PRIM (_, "map") (a :: b :: nil)) =>
          bind (fun a =>
-                 bind (fun b => Return _ (syntax.map a b))
+                 bind (fun b => Return _ (map a b))
                       (micheline2michelson_type b))
               (micheline2michelson_ctype a)
        | Mk_loc_micheline (_, PRIM (_, "big_map") (a :: b :: nil)) =>
          bind (fun a =>
-                 bind (fun b => Return _ (syntax.big_map a b))
+                 bind (fun b => Return _ (big_map a b))
                       (micheline2michelson_type b))
               (micheline2michelson_ctype a)
        | Mk_loc_micheline ((b, e), _) => Failed _ (Expansion b e)
@@ -118,15 +121,68 @@ Fixpoint micheline2michelson_data (bem : loc_micheline) : M concrete_data :=
   | Mk_loc_micheline ((b, e), PRIM s _) => Failed _ (Expansion b e)
   end.
 
+Definition op_of_string (s : String.string) b e :=
+  match s with
+  | "EQ" => Return _ EQ
+  | "NEQ" => Return _ NEQ
+  | "LE" => Return _ LE
+  | "GE" => Return _ GE
+  | "LT" => Return _ LT
+  | "GT" => Return _ GT
+  | _ => Failed _ (Expansion b e)
+  end.
+
+Definition FAIL := UNIT ;; FAILWITH.
+Definition ASSERT := IF_ NOOP FAIL.
+
+Definition IF_op_of_string (s : String.string) b e bt bf :=
+  match s with
+  | String "I" (String "F" s) =>
+    bind (fun op => Return _ (op ;; IF_ bt bf))
+         (op_of_string s b e)
+  | _ => Failed _ (Expansion b e)
+  end.
+
+Definition ASSERT_op_of_string (s : String.string) b e :=
+  match s with
+  | String "A" (String "S" (String "S" (String "E" (String "R" (String "T" (String "_" s)))))) =>
+    bind (fun op => Return _ (op ;; IF_ NOOP FAIL))
+         (op_of_string s b e)
+  | _ => Failed _ (Expansion b e)
+  end.
+
+Definition ASSERT_NONE := IF_NONE NOOP FAIL.
+Definition ASSERT_SOME := IF_NONE FAIL NOOP.
+Definition ASSERT_LEFT := IF_LEFT NOOP FAIL.
+Definition ASSERT_RIGHT := IF_LEFT FAIL NOOP.
+
+Fixpoint DIPn n code :=
+  match n with
+  | 0 => code
+  | S n => DIP 1 (DIPn n code)
+  end.
+
+Fixpoint DUP_Sn n :=
+  match n with
+  | 0 => DUP
+  | S n => DIP 1 (DUP_Sn n) ;; SWAP
+  end.
+
+Definition IF_SOME bt bf := IF_NONE bf bt.
+Definition IF_RIGHT bt bf := IF_LEFT bf bt.
+Definition IF_NIL bt bf := IF_CONS bf bt.
+
+
 Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
   match m with
   | Mk_loc_micheline (_, SEQ l) =>
     (fix micheline2michelson_instr_seq (l : Datatypes.list loc_micheline) : M instruction :=
        match l with
        | nil => Return _ NOOP
+       | cons i nil => micheline2michelson_instruction i
        | i1 :: l =>
          bind (fun i1 =>
-                 bind (fun i2 => Return _ (untyped_syntax.SEQ i1 i2))
+                 bind (fun i2 => Return _ (i1 ;; i2))
                       (micheline2michelson_instr_seq l))
               (micheline2michelson_instruction i1)
        end) l
@@ -253,12 +309,6 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
                     Return _ (IF_LEFT i1 i2))
                  (micheline2michelson_instruction i2))
          (micheline2michelson_instruction i1)
-  | Mk_loc_micheline (_, PRIM (_, "IF_RIGHT") (i1 :: i2 :: nil)) =>
-    bind (fun i1 =>
-            bind (fun i2 =>
-                    Return _ (IF_RIGHT i1 i2))
-                 (micheline2michelson_instruction i2))
-         (micheline2michelson_instruction i1)
   | Mk_loc_micheline (_, PRIM (_, "IF_CONS") (i1 :: i2 :: nil)) =>
     bind (fun i1 =>
             bind (fun i2 =>
@@ -277,11 +327,149 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
     bind (fun a =>
             bind (fun v => Return _ (PUSH a v))
                  (match a with
-                  | syntax.lambda _ _ =>
+                  | lambda _ _ =>
                     bind (fun i => Return _ (Instruction i))
                          (micheline2michelson_instruction v)
                   | _ => micheline2michelson_data v
                   end))
          (micheline2michelson_type a)
+
+  (* Macros *)
+  | Mk_loc_micheline ((b, e), PRIM (_, "FAIL") nil) => Return _ FAIL
+  | Mk_loc_micheline ((b, e), PRIM (_, "ASSERT") nil) => Return _ ASSERT
+  | Mk_loc_micheline ((b, e), PRIM (_, "ASSERT_NONE") nil) => Return _ ASSERT_NONE
+  | Mk_loc_micheline ((b, e), PRIM (_, "ASSERT_SOME") nil) => Return _ ASSERT_SOME
+  | Mk_loc_micheline ((b, e), PRIM (_, "ASSERT_LEFT") nil) => Return _ ASSERT_LEFT
+  | Mk_loc_micheline ((b, e), PRIM (_, "ASSERT_RIGHT") nil) => Return _ ASSERT_RIGHT
+
+  | Mk_loc_micheline (_, PRIM (_, "IF_SOME") (i1 :: i2 :: nil)) =>
+    bind (fun i1 =>
+            bind (fun i2 =>
+                    Return _ (IF_SOME i1 i2))
+                 (micheline2michelson_instruction i2))
+         (micheline2michelson_instruction i1)
+  | Mk_loc_micheline (_, PRIM (_, "IF_RIGHT") (i1 :: i2 :: nil)) =>
+    bind (fun i1 =>
+            bind (fun i2 =>
+                    Return _ (IF_RIGHT i1 i2))
+                 (micheline2michelson_instruction i2))
+         (micheline2michelson_instruction i1)
+  | Mk_loc_micheline (_, PRIM (_, "IF_NIL") (i1 :: i2 :: nil)) =>
+    bind (fun i1 =>
+            bind (fun i2 =>
+                    Return _ (IF_NIL i1 i2))
+                 (micheline2michelson_instruction i2))
+         (micheline2michelson_instruction i1)
+
+  | Mk_loc_micheline ((b, e), PRIM (_, String "C" (String "M" (String "P" s))) nil) =>
+    bind (fun op => Return _ (COMPARE ;; op))
+         (op_of_string s b e)
+  | Mk_loc_micheline ((b, e), PRIM (_,
+       String "I" (String "F" (String "C" (String "M" (String "P" s))))) (i1 :: i2 :: nil)) =>
+    bind (fun i1 =>
+            bind (fun i2 =>
+                    bind (fun op => Return _ (COMPARE ;; op ;; IF_ i1 i2))
+                         (op_of_string s b e))
+                 (micheline2michelson_instruction i2))
+         (micheline2michelson_instruction i1)
+  | Mk_loc_micheline ((b, e), PRIM (_,
+       String "I" (String "F" s)) (i1 :: i2 :: nil)) =>
+    bind (fun i1 =>
+            bind (fun i2 =>
+                    bind (fun op => Return _ (op ;; IF_ i1 i2))
+                         (op_of_string s b e))
+                 (micheline2michelson_instruction i2))
+         (micheline2michelson_instruction i1)
+  | Mk_loc_micheline ((b, e), PRIM (_,
+      String "A" (String "S" (String "S" (String "E" (String "R" (String "T"
+      (String "_" (String "C" (String "M" (String "P" s)))))))))) nil) =>
+    bind (fun op => Return _ (COMPARE;; op ;; IF_ NOOP FAIL))
+         (op_of_string s b e)
+
+  | Mk_loc_micheline (_, PRIM (_, "UNPAIR") nil) => (* TODO: PAPAIR and UNPAPAIR *)
+    Return _ (DUP ;; CAR ;; DIP 1 CDR)
+  | Mk_loc_micheline ((b, e), PRIM (_, String "D" (String "I" s)) (a :: nil)) =>
+    let is_diip := fix is_diip s :=
+                     match s with
+                     | "P" => true
+                     | String "I" s => is_diip s
+                     | _ => false
+                     end in
+    if is_diip s then
+      bind (fun a => Return _ (DIPn (String.length s) a)) (micheline2michelson_instruction a)
+    else Failed _ (Expansion b e)
+  | Mk_loc_micheline ((b, e), PRIM (_, String "D" (String "U" (String "U" s))) (a :: nil)) =>
+    let is_duup := fix is_duup s :=
+                     match s with
+                     | "P" => true
+                     | String "U" s => is_duup s
+                     | _ => false
+                     end in
+    if is_duup s then Return _ (DUP_Sn (String.length s))
+    else Failed _ (Expansion b e)
+
+  (* Unknown case *)
   | Mk_loc_micheline ((b, e), _) => Failed _ (Expansion b e)
   end.
+
+Record untyped_michelson_file :=
+  Mk_untyped_michelson_file
+    { parameter : type;
+      storage : type;
+      code : instruction }.
+
+Record untyped_michelson_file_opt :=
+  Mk_untyped_michelson_file_opt
+    { parameter_opt : Datatypes.option type;
+      storage_opt : Datatypes.option type;
+      code_opt : Datatypes.option instruction }.
+
+Definition read_parameter (ty : type) (f : untyped_michelson_file_opt) :=
+  match f.(parameter_opt) with
+  | None => Return _ {| parameter_opt := Some ty;
+                        storage_opt := f.(storage_opt);
+                        code_opt := f.(code_opt) |}
+  | Some _ => Failed _ Parsing
+  end.
+
+Definition read_storage (ty : type) (f : untyped_michelson_file_opt) :=
+  match f.(storage_opt) with
+  | None => Return _ {| parameter_opt := f.(parameter_opt);
+                        storage_opt := Some ty;
+                        code_opt := f.(code_opt) |}
+  | Some _ => Failed _ Parsing
+  end.
+
+Definition read_code (c : instruction) (f : untyped_michelson_file_opt) :=
+  match f.(code_opt) with
+  | None => Return _ {| parameter_opt := f.(parameter_opt);
+                        storage_opt := f.(storage_opt);
+                        code_opt := Some c |}
+  | Some _ => Failed _ Parsing
+  end.
+
+Definition micheline2michelson_file (m : Datatypes.list loc_micheline) : M untyped_michelson_file :=
+  bind (fun a =>
+          match a.(parameter_opt), a.(storage_opt), a.(code_opt) with
+          | Some param, Some storage, Some code =>
+            Return _ {| parameter := param; storage := storage; code := code |}
+          | _, _, _ => Failed _ Parsing
+          end)
+       (error.list_fold_left
+          (fun (a : untyped_michelson_file_opt) (lm : loc_micheline) =>
+             let 'Mk_loc_micheline (_, _, m) := lm in
+             match m with
+             | PRIM (_, _, "parameter") (cons param nil) =>
+               bind (fun ty => read_parameter ty a)
+                    (micheline2michelson_type param)
+             | PRIM (_, _, "storage") (cons storage nil) =>
+               bind (fun ty => read_storage ty a)
+                    (micheline2michelson_type storage)
+             | PRIM (_, _, "code") (cons code nil) =>
+               bind (fun c => read_code c a)
+                    (micheline2michelson_instruction code)
+             | _ => Failed _ Parsing
+             end)
+          m
+       {| parameter_opt := None; storage_opt := None; code_opt := None |}).
+
