@@ -1,0 +1,3 @@
+bin: [
+  "src/michocoq/extraction/_build/michocoq.native" {"michocoq"}
+]
