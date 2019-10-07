@@ -49,6 +49,9 @@ Qed.
 Definition compare (a b : int64) : comparison :=
   Z.compare (to_Z a) (to_Z b).
 
+(* To avoid a name clash in OCaml extracted code. *)
+Definition int64_compare (a b : int64) : comparison := compare a b.
+
 Lemma compare_eq_iff (a b : int64) : compare a b = Eq <-> a = b.
 Proof.
   unfold compare.

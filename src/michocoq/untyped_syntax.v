@@ -49,6 +49,7 @@ Inductive instruction : Set :=
 | UPDATE : instruction
 | ITER : instruction -> instruction
 | EMPTY_MAP : comparable_type -> type -> instruction
+| EMPTY_BIG_MAP : comparable_type -> type -> instruction
 | GET : instruction
 | MAP : instruction -> instruction
 | SOME : instruction

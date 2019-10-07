@@ -120,6 +120,9 @@ Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
   | EMPTY_SET ct => dummy_prim "EMPTY_SET" ((michelson2micheline_ctype ct)::nil)
   | EMPTY_MAP ct t => dummy_prim "EMPTY_MAP" ((michelson2micheline_ctype ct)
                                                ::(michelson2micheline_type t)::nil)
+  | EMPTY_BIG_MAP ct t => dummy_prim "EMPTY_BIG_MAP"
+                                     ((michelson2micheline_ctype ct)
+                                        ::(michelson2micheline_type t)::nil)
   | MEM => dummy_prim "MEM" nil
   | UPDATE => dummy_prim "UPDATE" nil
   | CREATE_CONTRACT t1 t2 i => dummy_prim "CREATE_CONTRACT"

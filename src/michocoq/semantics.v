@@ -426,6 +426,19 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | Stringlike_variant_bytes => String.append
     end.
 
+  Definition empty_stringlike a (v : stringlike_variant a) : data a :=
+    match v with
+    | Stringlike_variant_string => EmptyString
+    | Stringlike_variant_bytes => EmptyString
+    end.
+
+  Fixpoint concat_list a (v : stringlike_variant a) (l : data (list a)) : data a :=
+    match l with
+    | nil => empty_stringlike a v
+    | cons x l =>
+      concat a v x (concat_list a v l)
+    end.
+
   Definition slice a (v : stringlike_variant a) : data nat -> data nat -> data a -> data (option a) :=
     match v with
     | Stringlike_variant_string =>
@@ -620,6 +633,9 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       | @CONCAT _ _ s _ =>
         fun env '(x, (y, SA)) =>
           Return _ (concat _ (stringlike_variant_field _ s) x y, SA)
+      | @CONCAT_list _ _ s _ =>
+        fun env '(l, SA) =>
+          Return _ (concat_list _ (stringlike_variant_field _ s) l, SA)
       | @SLICE _ _ i =>
         fun env '(n1, (n2, (s, SA))) =>
           Return _ (slice _ (stringlike_variant_field _ i) n1 n2 s, SA)
@@ -645,6 +661,8 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       | @SIZE _ _ s =>
         fun env '(x, SA) => Return _ (N.of_nat (size _ (size_variant_field _ s) x), SA)
       | EMPTY_MAP k val =>
+        fun env SA => Return _ (map.empty (comparable_data k) (data val) _, SA)
+      | EMPTY_BIG_MAP k val =>
         fun env SA => Return _ (map.empty (comparable_data k) (data val) _, SA)
       | @GET _ _ _ s _ =>
         fun env '(x, (y, SA)) =>
@@ -929,6 +947,9 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | @CONCAT _ _ s _ =>
       fun env psi '(x, (y, SA)) =>
         psi (concat _ (stringlike_variant_field _ s) x y, SA)
+    | @CONCAT_list _ _ s _ =>
+      fun env psi '(l, SA) =>
+        psi (concat_list _ (stringlike_variant_field _ s) l, SA)
     | @SLICE _ _ i =>
       fun env psi '(n1, (n2, (s, SA))) =>
         psi (slice _ (stringlike_variant_field _ i) n1 n2 s, SA)
@@ -954,6 +975,8 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | @SIZE _ _ s =>
       fun env psi '(x, SA) => psi (N.of_nat (size _ (size_variant_field _ s) x), SA)
     | EMPTY_MAP k val =>
+      fun env psi SA => psi (map.empty (comparable_data k) (data val) _, SA)
+    | EMPTY_BIG_MAP k val =>
       fun env psi SA => psi (map.empty (comparable_data k) (data val) _, SA)
     | @GET _ _ _ s _ =>
       fun env psi '(x, (y, SA)) => psi (get _ _ _ (get_variant_field _ _ s) (data_to_comparable_data _ x) y, SA)
@@ -1116,6 +1139,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     - destruct st as (x, (y, st)); reflexivity.
     - destruct st as (x, (y, st)); reflexivity.
     - destruct st; reflexivity.
+    - destruct st; reflexivity.
     - destruct st as (x, (y, (z, st))); reflexivity.
     - destruct st as (x, (y, st)); reflexivity.
     - destruct st as ((x, y), st); reflexivity.
@@ -1132,6 +1156,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         intro SA.
         apply IHn.
       + reflexivity.
+    - reflexivity.
     - reflexivity.
     - destruct st as (x, (y, st)); reflexivity.
     - destruct st as (x, st).

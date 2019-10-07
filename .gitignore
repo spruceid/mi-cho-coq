@@ -11,6 +11,10 @@ _CoqProject
 Makefile
 .coqdeps.d
 
+# OCaml
+*.cmi
+*.cmo
+
 # LaTeX
 *.tex
 *.vrb

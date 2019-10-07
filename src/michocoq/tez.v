@@ -23,13 +23,13 @@
 (* Tez amounts implemented by positive signed 64-bits integers *)
 
 Require Import ZArith.
-Require int64.
+Require int64bv.
 Require Eqdep_dec.
 Require error.
 
-Definition mutez : Set := {t : int64.int64 | int64.sign t = false }.
+Definition mutez : Set := {t : int64bv.int64 | int64bv.sign t = false }.
 
-Definition to_int64 (t : mutez) : int64.int64 :=
+Definition to_int64 (t : mutez) : int64bv.int64 :=
   let (t, _) := t in t.
 
 Definition to_int64_inj (t1 t2 : mutez) :
@@ -46,20 +46,20 @@ Proof.
   destruct (Bool.bool_dec x y); tauto.
 Qed.
 
-Coercion to_int64 : mutez >-> int64.int64.
+Coercion to_int64 : mutez >-> int64bv.int64.
 
-Definition to_Z (t : mutez) : Z := int64.to_Z t.
+Definition to_Z (t : mutez) : Z := int64bv.to_Z t.
 
-Definition of_int64_aux (t : int64.int64) (sign : bool) :
-  int64.sign t = sign -> error.M mutez :=
-  if sign return int64.sign t = sign -> error.M mutez
+Definition of_int64_aux (t : int64bv.int64) (sign : bool) :
+  int64bv.sign t = sign -> error.M mutez :=
+  if sign return int64bv.sign t = sign -> error.M mutez
   then fun _ => error.Failed _ error.Overflow
   else fun H => error.Return mutez (exist _ t H).
 
-Definition of_int64 (t : int64.int64) : error.M mutez :=
-  of_int64_aux t (int64.sign t) eq_refl.
+Definition of_int64 (t : int64bv.int64) : error.M mutez :=
+  of_int64_aux t (int64bv.sign t) eq_refl.
 
-Lemma of_int64_return (t : int64.int64) (H : int64.sign t = false) :
+Lemma of_int64_return (t : int64bv.int64) (H : int64bv.sign t = false) :
   of_int64 t = error.Return mutez (exist _ t H).
 Proof.
   unfold of_int64.
@@ -76,28 +76,28 @@ Proof.
 Qed.
 
 Definition of_Z (t : Z) : error.M mutez :=
-  of_int64 (int64.of_Z t).
+  of_int64 (int64bv.of_Z t).
 
 Lemma of_Z_to_Z (t : mutez) : of_Z (to_Z t) = error.Return _ t.
 Proof.
   unfold of_Z, to_Z.
-  rewrite int64.of_Z_to_Z.
+  rewrite int64bv.of_Z_to_Z.
   destruct t.
   simpl.
   apply of_int64_return.
 Qed.
 
 Definition compare (t1 t2 : mutez) : comparison :=
-  int64.compare (to_int64 t1) (to_int64 t2).
+  int64bv.int64_compare (to_int64 t1) (to_int64 t2).
 
 Lemma compare_eq_iff (t1 t2 : mutez) : compare t1 t2 = Eq <-> t1 = t2.
 Proof.
   unfold compare.
-  rewrite int64.compare_eq_iff.
+  rewrite int64bv.compare_eq_iff.
   split.
   - apply to_int64_inj.
   - apply f_equal.
 Qed.
 
 
-Eval compute in (of_int64 (int64.of_Z (-1)%Z)).
+Eval compute in (of_int64 (int64bv.of_Z (-1)%Z)).

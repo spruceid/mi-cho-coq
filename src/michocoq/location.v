@@ -11,7 +11,7 @@ Definition location_add (loc : location) (n : nat) : location :=
   {| line := loc.(line); column := n + loc.(column) |}.
 
 Definition location_start : location :=
-  {| line := 0; column := 0 |}.
+  {| line := 1; column := 0 |}.
 
 Definition location_incr (loc : location) := location_add loc 1.
 

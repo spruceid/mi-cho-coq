@@ -25,7 +25,7 @@ Require Bool String.
 Require Import location.
 Require Import syntax_type.
 
-Inductive exception : Prop :=
+Inductive exception : Type :=
 | Out_of_fuel
 | Overflow
 | Assertion_Failure (A : Set) (a : A)
@@ -33,6 +33,7 @@ Inductive exception : Prop :=
 | Parsing
 | Parsing_Out_of_Fuel
 | Expansion (_ _ : location)
+| Expansion_prim (_ _ : location) (_ : String.string)
 | Typing (A : Set) (a : A).
 
 Inductive M (A : Type) : Type :=

@@ -23,11 +23,13 @@
    and key hashes *)
 
 Require Import ZArith.
+Require Import Ascii.
 Require String.
 Require Import ListSet.
 Require tez.
 Require Relations_1.
 Require Import syntax.
+Require Import syntax_type.
 
 Definition simple_comparable_data (a : simple_comparable_type) : Set :=
   match a with
@@ -96,7 +98,7 @@ Definition bool_compare (b1 b2 : Datatypes.bool) : comparison :=
   | true, true => Eq
   end.
 
-Definition ascii_compare (a1 a2 : Ascii.ascii) : comparison :=
+Definition ascii_compare (a1 a2 : ascii) : comparison :=
   (Ascii.N_of_ascii a1 ?= Ascii.N_of_ascii a2)%N.
 
 Fixpoint string_compare (s1 s2 : str) : comparison :=
@@ -281,7 +283,7 @@ Definition key_hash_compare (h1 h2 : key_hash_constant) : comparison :=
 
 Definition comprel (A : Set) := A -> A -> comparison.
 
-Definition simple_compare (a : simple_comparable_type) :
+Definition simple_compare (a : syntax_type.simple_comparable_type) :
   comprel (simple_comparable_data a) :=
   match a with
   | nat => N.compare

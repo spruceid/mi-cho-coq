@@ -84,6 +84,7 @@ Module Untyper(C:ContractContext).
     | syntax.LSR => LSR
     | syntax.COMPARE => COMPARE
     | syntax.CONCAT => CONCAT
+    | syntax.CONCAT_list => CONCAT
     | syntax.SIZE => SIZE
     | syntax.SLICE => SLICE
     | syntax.PAIR => PAIR
@@ -94,6 +95,7 @@ Module Untyper(C:ContractContext).
     | syntax.UPDATE => UPDATE
     | syntax.ITER i => ITER (untype_instruction i)
     | syntax.EMPTY_MAP kty vty => EMPTY_MAP kty vty
+    | syntax.EMPTY_BIG_MAP kty vty => EMPTY_BIG_MAP kty vty
     | syntax.GET => GET
     | syntax.MAP i => MAP (untype_instruction i)
     | syntax.SOME => SOME
@@ -695,6 +697,7 @@ Module Untyper(C:ContractContext).
         * rewrite instruction_cast_domain_same.
           simpl.
           reflexivity.
+      + destruct i0 as [v]; destruct v; reflexivity.
       + destruct i0 as [v]; destruct v; reflexivity.
       + destruct i0 as [v]; destruct v; reflexivity.
       + destruct i0 as [v]; destruct v; reflexivity.

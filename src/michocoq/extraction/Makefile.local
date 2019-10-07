@@ -19,8 +19,22 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+main0.ml: extraction.vo
+
+zarith.ml:
+	echo "include Z" > $@
+
+zarith.mli:
+	echo "include module type of Z with type t = Z.t" > $@
+
+%.ml: %.ml.hand-written
+	cp $< $@
+
+post-all:: michocoq.ml extraction.vo zarith.ml zarith.mli
+	ocamlbuild -package zarith michocoq.native
+
 clean-extracted:
-	rm -f *.ml *.mli
+	rm -f *.ml *.mli *.cmi *.cmo *.native
 
 cleanall::
 	make clean-extracted

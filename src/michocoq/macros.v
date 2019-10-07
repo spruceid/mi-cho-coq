@@ -19,7 +19,7 @@
 (* FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER *)
 (* DEALINGS IN THE SOFTWARE. *)
 
-Require Import syntax.
+Require Import syntax syntax_type.
 Require Import comparable.
 
 Module Macros(C:ContractContext).

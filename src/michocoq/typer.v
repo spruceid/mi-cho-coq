@@ -539,6 +539,10 @@ Module Typer(C:ContractContext).
       Return _ (Inferred_type _ _ (@syntax.CONCAT _ _ stringlike_string _))
     | CONCAT, Comparable_type bytes :: Comparable_type bytes :: B =>
       Return _ (Inferred_type _ _ (@syntax.CONCAT _ _ stringlike_bytes _))
+    | CONCAT, list (Comparable_type string) :: B =>
+      Return _ (Inferred_type _ _ (@syntax.CONCAT_list _ _ stringlike_string _))
+    | CONCAT, list (Comparable_type bytes) :: B =>
+      Return _ (Inferred_type _ _ (@syntax.CONCAT_list _ _ stringlike_bytes _))
     | SIZE, set a :: A =>
       Return _ (Inferred_type _ _ (@syntax.SIZE _ _ (size_set a) _))
     | SIZE, cons (list a) A =>
@@ -608,6 +612,8 @@ Module Typer(C:ContractContext).
            (type_check_instruction_no_tail_fail type_instruction i (pair kty vty :: A) A)
     | EMPTY_MAP kty vty, A =>
       Return _ (Inferred_type _ _ (syntax.EMPTY_MAP kty vty))
+    | EMPTY_BIG_MAP kty vty, A =>
+      Return _ (Inferred_type _ _ (syntax.EMPTY_BIG_MAP kty vty))
     | GET, kty' :: map kty vty :: B =>
       let A := kty' :: map kty vty :: B in
       let A' := kty ::: map kty vty :: B in

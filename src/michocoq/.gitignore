@@ -1,3 +1,5 @@
 micheline_parser.v
 *.ml
 *.mli
+_build/
+*.native

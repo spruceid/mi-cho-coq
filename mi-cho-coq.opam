@@ -21,6 +21,8 @@ depends: [
   "ott"
   "menhir"
   "coq-menhirlib" {>= "20190626"}
+  "zarith"
+  "ocaml" {>= "4.07.1"}
 ]
 
 tags: [

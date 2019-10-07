@@ -1,0 +1,18 @@
+(* Conversion functions between Coq and OCaml strings, taken from CompCert. *)
+
+let camlstring_of_coqstring (s: char list) =
+  let r = Bytes.create (Stdlib.List.length s) in
+  let rec fill pos = function
+    | [] -> r
+    | c :: s -> Bytes.set r pos c; fill (pos + 1) s
+  in Bytes.to_string (fill 0 s)
+
+let coqstring_of_camlstring s =
+  let rec cstring accu pos =
+    if pos < 0 then accu else cstring (Stdlib.String.get s pos :: accu) (pos - 1)
+  in cstring [] (Stdlib.String.length s - 1)
+
+(* main entrypoint *)
+let () =
+  if Array.length Sys.argv > 1 then
+    print_endline (camlstring_of_coqstring (Main0.print_info (coqstring_of_camlstring Sys.argv.(1)) Main0.fixed_fuel));

@@ -341,6 +341,7 @@ this constructor "IF" but we can make a notation for it. *)
 | LSR {self_type S} : instruction self_type Datatypes.false (nat ::: nat ::: S) (nat ::: S)
 | COMPARE {self_type} {a : comparable_type} {S} : instruction self_type Datatypes.false (a ::: a ::: S) (int ::: S)
 | CONCAT {self_type a} {i : stringlike_struct a} {S} : instruction self_type Datatypes.false (a ::: a ::: S) (a ::: S)
+| CONCAT_list {self_type a} {i : stringlike_struct a} {S} : instruction self_type Datatypes.false (list a ::: S) (a ::: S)
 | SIZE {self_type a} {i : size_struct a} {S} :
     instruction self_type Datatypes.false (a ::: S) (nat ::: S)
 | SLICE {self_type a} {i : stringlike_struct a} {S} :
@@ -357,6 +358,8 @@ this constructor "IF" but we can make a notation for it. *)
     instruction self_type Datatypes.false (iter_elt_type _ i ::: A) A -> instruction self_type Datatypes.false (collection :: A) A
 | EMPTY_MAP (key : comparable_type) (val : type) {self_type S} :
     instruction self_type Datatypes.false S (map key val :: S)
+| EMPTY_BIG_MAP (key : comparable_type) (val : type) {self_type S} :
+    instruction self_type Datatypes.false S (big_map key val :: S)
 | GET {self_type key collection} {i : get_struct key collection} {S} :
     instruction self_type Datatypes.false (key ::: collection ::: S) (option (get_val_type _ _ i) :: S)
 | MAP {self_type collection b} {i : map_struct collection b} {A} :
@@ -463,10 +466,23 @@ Coercion int_constant := Int_constant.
 Coercion nat_constant := Nat_constant.
 Coercion string_constant := String_constant.
 
-Definition full_contract param storage :=
-  instruction (Some param) Datatypes.false
+Definition full_contract tff param storage :=
+  instruction (Some param) tff
     ((pair param storage) ::: nil)
     ((pair (list operation) storage) ::: nil).
+
+Record contract_file : Set :=
+  Mk_contract_file
+    {
+      contract_file_parameter : type;
+      contract_file_storage : type;
+      contract_tff : Datatypes.bool;
+      contract_file_code :
+        full_contract
+          contract_tff
+          contract_file_parameter
+          contract_file_storage;
+    }.
 
 Notation "'IF'" := (IF_).
 Definition stack_type := Datatypes.list type.
@@ -476,7 +492,7 @@ Notation "A ;; B" := (SEQ A B) (at level 100, right associativity).
 (* For debugging purpose, a version of ;; with explicit stack type *)
 Notation "A ;;; S ;;;; B" := (@SEQ _ _ S _ A B) (at level 100, only parsing).
 
-Notation "n ~Mutez" := (exist _ (int64.of_Z n) eq_refl) (at level 100).
+Notation "n ~Mutez" := (exist _ (int64bv.of_Z n) eq_refl) (at level 100).
 
 Notation "n ~mutez" := (Mutez_constant (Mk_mutez (n ~Mutez))) (at level 100).
 

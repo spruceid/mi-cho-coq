@@ -101,6 +101,11 @@ Proof.
   intuition.
 Qed.
 
+Lemma and_both_0 {P Q R S : Prop} : (P <-> R) -> (Q <-> S) -> (P /\ Q) <-> (R /\ S).
+Proof.
+  intuition.
+Qed.
+
 Lemma and_left {P Q R : Prop} : P -> (Q <-> R) -> ((P /\ Q) <-> R).
 Proof.
   intuition.
@@ -168,8 +173,19 @@ Proof.
     + intro; split; reflexivity.
 Qed.
 
+Lemma lt_is_leb a c1 c2 :
+  BinInt.Z.gtb (comparison_to_int (compare a c1 c2)) Z0 =
+  negb (BinInt.Z.leb (comparison_to_int (compare a c1 c2)) Z0).
+Proof.
+  generalize (comparison_to_int (compare a c1 c2)).
+  intro z.
+  rewrite Z.gtb_ltb.
+  apply Z.ltb_antisym.
+Qed.
 
-Lemma if_false_is_and (b : Datatypes.bool) A : (if b then A else error.is_true false) <-> (b = true /\ A).
+
+
+Lemma if_false_is_and (b : Datatypes.bool) A : (if b then A else False) <-> (b = true /\ A).
 Proof.
   destruct b.
   - apply and_right.
@@ -178,6 +194,17 @@ Proof.
   - split.
     + intro H; inversion H.
     + intros (H, _); inversion H.
+Qed.
+
+Lemma if_false_not (b : Datatypes.bool) A : (if b then False else A) <-> (b = false /\ A).
+Proof.
+  destruct b.
+  - split.
+    + intro H; inversion H.
+    + intros (H, _); inversion H.
+  - apply and_right.
+    + reflexivity.
+    + intuition.
 Qed.
 
 Lemma eq_sym_iff {A : Type} (x y : A) : x = y <-> y = x.

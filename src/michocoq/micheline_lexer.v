@@ -37,6 +37,14 @@ Definition char_is_alpha (c : ascii) :=
       (orb (andb (leb "A"%char c) (leb c "Z"%char))
            (eqb_ascii "_"%char c)).
 
+Definition char_is_dot (c : ascii) := eqb_ascii "."%char c.
+
+Definition char_is_hex (c : ascii) :=
+  let leb a b := (N.leb (N_of_ascii a) (N_of_ascii b)) in
+  orb (andb (leb "a"%char c) (leb c "f"%char))
+      (orb (andb (leb "A"%char c) (leb c "F"%char))
+           (char_is_num c)).
+
 Check (eq_refl : char_is_alpha "a"%char = true).
 Check (eq_refl : char_is_alpha "z"%char = true).
 Check (eq_refl : char_is_alpha "A"%char = true).
@@ -103,6 +111,42 @@ Fixpoint lex_micheline (input : string) (loc : location) : error.M (list (locati
       | _ =>
         error.Failed _ (error.Lexing loc)
       end
+    | "-"%char =>
+      let loc := location_incr loc in
+      (fix lex_micheline_number (input : string) (acc : Z) start loc :=
+         match input with
+         | String c s =>
+           if char_is_num c then
+             let loc := location_incr loc in
+             lex_micheline_number s (Z_of_char c acc) start loc
+           else
+             (error.bind (fun l =>
+                            error.Return _ (cons (start, loc, NUMBER (- acc)%Z) l))
+                         (lex_micheline input loc))
+         | EmptyString => error.Return _ (cons (start, loc, NUMBER (- acc)%Z) nil)
+         end) input 0%Z loc loc
+    | "0"%char =>
+      match input with
+      | String "x" s =>
+        (fix lex_micheline_bytes (input : string) (acc : string) start loc :=
+           match input with
+           | String c s =>
+             if char_is_hex c then
+               let loc := location_incr loc in
+               lex_micheline_bytes s (string_snoc acc c) start loc
+             else
+               (error.bind (fun l => error.Return _ (cons (start, loc, BYTES acc) l))
+                           (lex_micheline input loc))
+           | EmptyString => error.Return _ (cons (start, loc, BYTES acc) nil)
+           end) s EmptyString loc (location_incr (location_incr loc))
+      | String c s =>
+        if char_is_num c then error.Failed _ (error.Lexing loc)
+        else
+          (error.bind (fun l =>
+                         error.Return _ (cons (loc, location_incr loc, NUMBER 0%Z) l))
+                      (lex_micheline input loc))
+      | EmptyString => error.Return _ (cons (loc, location_incr loc, NUMBER 0%Z) nil)
+      end
     | c =>
       if char_is_num c then
         (fix lex_micheline_number (input : string) (acc : Z) start loc :=
@@ -115,14 +159,14 @@ Fixpoint lex_micheline (input : string) (loc : location) : error.M (list (locati
                (error.bind (fun l =>
                               error.Return _ (cons (start, loc, NUMBER acc) l))
                            (lex_micheline input loc))
-             | EmptyString => error.Return _ (cons (start, loc, NUMBER acc) nil)
+           | EmptyString => error.Return _ (cons (start, loc, NUMBER acc) nil)
            end) input (Z_of_char c 0%Z) loc loc
       else
         if char_is_alpha c then
           (fix lex_micheline_prim (input : string) (acc : string) start loc :=
              match input with
              | String c s =>
-               if char_is_alpha c then
+               if orb (char_is_alpha c) (char_is_num c) then
                  let loc := location_incr loc in
                  lex_micheline_prim s (string_snoc acc c) start loc
                else
@@ -135,7 +179,10 @@ Fixpoint lex_micheline (input : string) (loc : location) : error.M (list (locati
             (fix lex_micheline_annot input loc :=
                match input with
                | String c s =>
-                 if (orb (char_is_alpha c) (orb (char_is_num c) (char_is_annot c))) then
+                 if (orb (char_is_alpha c)
+                         (orb (char_is_num c)
+                              (orb (char_is_annot c)
+                                   (char_is_dot c)))) then
                    let loc := location_incr loc in
                    lex_micheline_annot s loc
                  else
