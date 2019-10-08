@@ -554,203 +554,186 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
   in the SEQ case, both instructions are run with gas n *)
 
   Fixpoint eval {param_ty : Datatypes.option type} {tff0} (env : @proto_env param_ty) {A : stack_type} {B : stack_type}
-           (i : instruction param_ty tff0 A B) (fuel : Datatypes.nat) {struct fuel} :
-    stack A -> M (stack B) :=
+           (i : instruction param_ty tff0 A B) (fuel : Datatypes.nat) (SA : stack A) {struct fuel} : M (stack B) :=
     match fuel with
-    | O => fun SA => Failed _ Out_of_fuel
+    | O => Failed _ Out_of_fuel
     | S n =>
-      match i in instruction param_ty tff0 A B return @proto_env param_ty -> stack A -> M (stack B) with
-      | @FAILWITH A B a =>
-        fun env '(x, _) => Failed _ (Assertion_Failure _ x)
+      match i, SA, env with
+      | FAILWITH, (x, _), _ =>
+        Failed _ (Assertion_Failure _ x)
 
       (* According to the documentation, FAILWITH's argument should
          not be part of the state reached by the instruction but the
          whole point of this instruction (compared to the FAIL macro)
          is to report the argument to the user. *)
 
-      | NOOP => fun _ SA => Return _ SA
-      | SEQ B C =>
-        fun env SA => bind (eval env C n) (eval env B n SA)
-      | IF_ bt bf =>
-        fun env '(b, SA) => if b then eval env bt n SA else eval env bf n SA
-      | LOOP body =>
-        fun env '(b, SA) => if b then eval env (body;; (LOOP body)) n SA else Return _ SA
-      | LOOP_LEFT body =>
-        fun env '(ab, SA) =>
-          match ab return M (stack (_ ::: _)) with
-          | inl x => eval env (body;; LOOP_LEFT body) n (x, SA)
-          | inr y => Return _ (y, SA)
-          end
-      | EXEC =>
-        fun env '(x, (existT _ tff f, SA)) =>
-          bind (fun '(y, tt) => Return _ (y, SA)) (eval (param_ty := None) (no_self env) f n (x, tt))
-      | @APPLY _ a b c D i =>
-        fun env '(x, (existT _ _ f, SA)) =>
-          Return _ (existT _ _ (PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f), SA)
-      | DUP => fun env '(x, SA) => Return _ (x, (x, SA))
-      | SWAP => fun env '(x, (y, SA)) => Return _ (y, (x, SA))
-      | PUSH a x => fun env SA => Return _ (concrete_data_to_data _ x, SA)
-      | UNIT => fun env SA => Return _ (tt, SA)
-      | LAMBDA a b code => fun env SA => Return _ (existT _ _ code, SA)
-      | EQ => fun env '(x, SA) => Return _ ((x =? 0)%Z, SA)
-      | NEQ => fun env '(x, SA) => Return _ (negb (x =? 0)%Z, SA)
-      | LT => fun env '(x, SA) => Return _ ((x <? 0)%Z, SA)
-      | GT => fun env '(x, SA) => Return _ ((x >? 0)%Z, SA)
-      | LE => fun env '(x, SA) => Return _ ((x <=? 0)%Z, SA)
-      | GE => fun env '(x, SA) => Return _ ((x >=? 0)%Z, SA)
-      | @OR _ _ s =>
-        fun env '(x, (y, SA)) => Return _ (or_fun _ (bitwise_variant_field _ s) x y, SA)
-      | @AND _ _ s =>
-        fun env '(x, (y, SA)) => Return _ (and _ (bitwise_variant_field _ s) x y, SA)
-      | @XOR _ _ s =>
-        fun env '(x, (y, SA)) => Return _ (xor _ (bitwise_variant_field _ s) x y, SA)
-      | @NOT _ _ s =>
-        fun env '(x, SA) => Return _ (not _ _ (not_variant_field _ s) x, SA)
-      | @NEG _ _ s =>
-        fun env '(x, SA) => Return _ (neg _ (neg_variant_field _ s) x, SA)
-      | ABS => fun env '(x, SA) => Return _ (Z.abs_N x, SA)
-      | ISNAT => fun env '(x, SA) => Return _ (if (x >=? 0)%Z then (Some (Z.to_N x), SA) else (None, SA))
-      | INT => fun env '(x, SA) => Return _ (Z.of_N x, SA)
-      | @ADD _ _ _ s =>
-        fun env '(x, (y, SA)) =>
-          bind (fun r => Return _ (r, SA))
-               (add _ _ _ (add_variant_field _ _ s) x y)
-      | @SUB _ _ _ s =>
-        fun env '(x, (y, SA)) =>
-          bind (fun r => Return _ (r, SA))
-               (sub _ _ _ (sub_variant_field _ _ s) x y)
-      | @MUL _ _ _ s =>
-        fun env '(x, (y, SA)) =>
-          bind (fun r => Return _ (r, SA))
-               (mul _ _ _ (mul_variant_field _ _ s) x y)
-      | @EDIV _ _ _ s =>
-        fun env '(x, (y, SA)) =>
-          Return _ (ediv _ _ _ _ (ediv_variant_field _ _ s) x y, SA)
-      | LSL => fun env '(x, (y, SA)) => Return _ (N.shiftl x y, SA)
-      | LSR => fun env '(x, (y, SA)) => Return _ (N.shiftr x y, SA)
-      | COMPARE =>
-        fun env '(x, (y, SA)) => Return _ (comparison_to_int (compare _ (data_to_comparable_data _ x) (data_to_comparable_data _ y)), SA)
-      | @CONCAT _ _ s _ =>
-        fun env '(x, (y, SA)) =>
-          Return _ (concat _ (stringlike_variant_field _ s) x y, SA)
-      | @CONCAT_list _ _ s _ =>
-        fun env '(l, SA) =>
-          Return _ (concat_list _ (stringlike_variant_field _ s) l, SA)
-      | @SLICE _ _ i =>
-        fun env '(n1, (n2, (s, SA))) =>
-          Return _ (slice _ (stringlike_variant_field _ i) n1 n2 s, SA)
-      | PAIR => fun env '(x, (y, SA)) => Return _ ((x, y), SA)
-      | CAR => fun env '((x, y), SA) => Return _ (x, SA)
-      | CDR => fun env '((x, y), SA) => Return _ (y, SA)
-      | EMPTY_SET a => fun env SA => Return _ (set.empty _ (compare a), SA)
-      | @MEM _ _ _ s _ =>
-        fun env '(x, (y, SA)) =>
-          Return _ (mem _ _ (mem_variant_field _ _ s) (data_to_comparable_data _ x) y, SA)
-      | @UPDATE _ _ _ _ s _ =>
-        fun env '(x, (y, (z, SA))) =>
-          Return _ (update _ _ _ (update_variant_field _ _ _ s) (data_to_comparable_data _ x) y z, SA)
-      | @ITER _ _ s _ body =>
-        fun env '(x, SA) =>
-          match iter_destruct _ _ (iter_variant_field _ s) x with
-          | None => Return _ SA
-          | Some (a, y) =>
-            bind (fun SB =>
-                    eval env (ITER body) n (y, SB))
-                 (eval env body n (a, SA))
-          end
-      | @SIZE _ _ s =>
-        fun env '(x, SA) => Return _ (N.of_nat (size _ (size_variant_field _ s) x), SA)
-      | EMPTY_MAP k val =>
-        fun env SA => Return _ (map.empty (comparable_data k) (data val) _, SA)
-      | EMPTY_BIG_MAP k val =>
-        fun env SA => Return _ (map.empty (comparable_data k) (data val) _, SA)
-      | @GET _ _ _ s _ =>
-        fun env '(x, (y, SA)) =>
-          Return _ (get _ _ _ (get_variant_field _ _ s) (data_to_comparable_data _ x) y, SA)
-      | @MAP _ _ _ s _ body =>
+      | NOOP, SA, _ => Return _ SA
+      | SEQ B C, SA, env =>
+        bind (eval env C n) (eval env B n SA)
+      | IF_ bt bf, (b, SA), env =>
+        if b then eval env bt n SA else eval env bf n SA
+      | LOOP body, (b, SA), env =>
+        if b then eval env (body;; (LOOP body)) n SA else Return _ SA
+      | LOOP_LEFT body, (ab, SA), env =>
+        match ab with
+        | inl x => eval env (body;; LOOP_LEFT body) n (x, SA)
+        | inr y => Return _ (y, SA)
+        end
+      | EXEC, (x, (existT _ tff f, SA)), env =>
+        bind (fun '(y, tt) => Return _ (y, SA)) (eval (no_self env) f n (x, tt))
+      | @APPLY _ a b c D i, (x, (existT _ _ f, SA)), env =>
+        Return _ (existT
+                    _ _
+                    (PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f), SA)
+      | DUP, (x, SA), _ => Return _ (x, (x, SA))
+      | SWAP, (x, (y, SA)), _ => Return _ (y, (x, SA))
+      | PUSH a x, SA, _ => Return _ (concrete_data_to_data _ x, SA)
+      | UNIT, SA, _ => Return _ (tt, SA)
+      | LAMBDA a b code, SA, _ => Return _ (existT _ _ code, SA)
+      | EQ, (x, SA), _ => Return _ ((x =? 0)%Z, SA)
+      | NEQ, (x, SA), _ => Return _ (negb (x =? 0)%Z, SA)
+      | LT, (x, SA), _ => Return _ ((x <? 0)%Z, SA)
+      | GT, (x, SA), _ => Return _ ((x >? 0)%Z, SA)
+      | LE, (x, SA), _ => Return _ ((x <=? 0)%Z, SA)
+      | GE, (x, SA), _ => Return _ ((x >=? 0)%Z, SA)
+      | @OR _ _ s, (x, (y, SA)), _ =>
+        Return _ (or_fun _ (bitwise_variant_field _ s) x y, SA)
+      | @AND _ _ s, (x, (y, SA)), _ =>
+        Return _ (and _ (bitwise_variant_field _ s) x y, SA)
+      | @XOR _ _ s, (x, (y, SA)), _ =>
+        Return _ (xor _ (bitwise_variant_field _ s) x y, SA)
+      | @NOT _ _ s, (x, SA), _ => Return _ (not _ _ (not_variant_field _ s) x, SA)
+      | @NEG _ _ s, (x, SA), _ => Return _ (neg _ (neg_variant_field _ s) x, SA)
+      | ABS, (x, SA), _ => Return _ (Z.abs_N x, SA)
+      | ISNAT, (x, SA), _ =>
+        Return _ (if (x >=? 0)%Z then (Some (Z.to_N x), SA) else (None, SA))
+      | INT, (x, SA), _ => Return _ (Z.of_N x, SA)
+      | @ADD _ _ _ s, (x, (y, SA)), _ =>
+        bind (fun r => Return _ (r, SA))
+             (add _ _ _ (add_variant_field _ _ s) x y)
+      | @SUB _ _ _ s, (x, (y, SA)), _ =>
+        bind (fun r => Return _ (r, SA))
+             (sub _ _ _ (sub_variant_field _ _ s) x y)
+      | @MUL _ _ _ s, (x, (y, SA)), _ =>
+        bind (fun r => Return _ (r, SA))
+             (mul _ _ _ (mul_variant_field _ _ s) x y)
+      | @EDIV _ _ _ s, (x, (y, SA)), _ =>
+        Return _ (ediv _ _ _ _ (ediv_variant_field _ _ s) x y, SA)
+      | LSL, (x, (y, SA)), _ => Return _ (N.shiftl x y, SA)
+      | LSR, (x, (y, SA)), _ => Return _ (N.shiftr x y, SA)
+      | COMPARE, (x, (y, SA)), _ =>
+        Return _ (comparison_to_int
+                    (compare _
+                             (data_to_comparable_data _ x)
+                             (data_to_comparable_data _ y)), SA)
+      | @CONCAT _ _ s _, (x, (y, SA)), _ =>
+        Return _ (concat _ (stringlike_variant_field _ s) x y, SA)
+      | @CONCAT_list _ _ s _, (l, SA), _ =>
+        Return _ (concat_list _ (stringlike_variant_field _ s) l, SA)
+      | @SLICE _ _ i, (n1, (n2, (s, SA))), _ =>
+        Return _ (slice _ (stringlike_variant_field _ i) n1 n2 s, SA)
+      | PAIR, (x, (y, SA)), _ => Return _ ((x, y), SA)
+      | CAR, ((x, y), SA), _ => Return _ (x, SA)
+      | CDR, ((x, y), SA), _ => Return _ (y, SA)
+      | EMPTY_SET a, SA, _ => Return _ (set.empty _ (compare a), SA)
+      | @MEM _ _ _ s _, (x, (y, SA)), _ =>
+        Return _ (mem _ _
+                      (mem_variant_field _ _ s)
+                      (data_to_comparable_data _ x)
+                      y, SA)
+      | @UPDATE _ _ _ _ s _, (x, (y, (z, SA))), _ =>
+        Return _ (update _ _ _ (update_variant_field _ _ _ s) (data_to_comparable_data _ x) y z, SA)
+      | @ITER _ _ s _ body, (x, SA), env =>
+        match iter_destruct _ _ (iter_variant_field _ s) x with
+        | None => Return _ SA
+        | Some (a, y) =>
+          bind (fun SB =>
+                  eval env (ITER body) n (y, SB))
+               (eval env body n (a, SA))
+        end
+      | @SIZE _ _ s, (x, SA), _ =>
+        Return _ (N.of_nat (size _ (size_variant_field _ s) x), SA)
+      | EMPTY_MAP k val, SA, _ =>
+        Return _ (map.empty (comparable_data k) (data val) _, SA)
+      | EMPTY_BIG_MAP k val, SA, _ =>
+        Return _ (map.empty (comparable_data k) (data val) _, SA)
+      | @GET _ _ _ s _, (x, (y, SA)), _ =>
+        Return _ (get _ _ _
+                      (get_variant_field _ _ s)
+                      (data_to_comparable_data _ x)
+                      y, SA)
+      | @MAP _ _ _ s _ body, (x, SA), env =>
         let v := (map_variant_field _ _ s) in
-        fun env '(x, SA) =>
-          match map_destruct _ _ _ _ v x with
-          | None => Return _ (map_empty _ _ _ _ v, SA)
-          | Some (a, y) =>
-            bind (fun '(b, SB) =>
-                    bind (fun '(c, SC) =>
-                            Return _ (map_insert _ _ _ _ v a b c,
-                                      SC))
-                         (eval env (MAP body) n (y, SB)))
-                 (eval env body n (a, SA))
-          end
-      | SOME => fun env '(x, SA) => Return _ (Some x, SA)
-      | NONE _ => fun env SA => Return _ (None, SA)
-      | IF_NONE bt bf =>
-        fun env '(b, SA) =>
-          match b with
-          | None => eval env bt n SA
-          | Some b => eval env bf n (b, SA)
-          end
-      | LEFT _ => fun env '(x, SA) => Return _ (inl x, SA)
-      | RIGHT _ => fun env '(x, SA) => Return _ (inr x, SA)
-      | IF_LEFT bt bf =>
-        fun env '(b, SA) =>
-          match b with
-          | inl a => eval env bt n (a, SA)
-          | inr b => eval env bf n (b, SA)
-          end
-      | IF_RIGHT bt bf =>
-        fun env '(b, SA) =>
-          match b with
-          | inl a => eval env bf n (a, SA)
-          | inr b => eval env bt n (b, SA)
-          end
-      | CONS => fun env '(x, (y, SA)) => Return _ (cons x y, SA)
-      | NIL _ => fun env SA => Return _ (nil, SA)
-      | IF_CONS bt bf =>
-        fun env '(l, SA) =>
-          match l with
-          | cons a b => eval env bt n (a, (b, SA))
-          | nil => eval env bf n SA
-          end
-      | CREATE_CONTRACT _ _ f =>
-        fun env '(a, (b, (c, SA))) =>
-          let (oper, addr) := create_contract env _ _ _ a b f c in
-          Return _ (oper, (addr, SA))
-      | TRANSFER_TOKENS =>
-        fun env '(a, (b, (c, SA))) => Return _ (transfer_tokens env _ a b c, SA)
-      | SET_DELEGATE => fun env '(x, SA) => Return _ (set_delegate env x, SA)
-      | BALANCE => fun env SA => Return _ (balance env, SA)
-      | ADDRESS =>
-        fun env '(x, SA) => Return _ (address_ env _ x, SA)
-      | CONTRACT _ =>
-        fun env '(x, SA) => Return _ (contract_ env _ x, SA)
-      | SOURCE => fun env SA => Return _ (source env, SA)
-      | SENDER => fun env SA => Return _ (sender env, SA)
-      | SELF => fun env SA => Return _ (self env, SA)
-      | AMOUNT => fun env SA => Return _ (amount env, SA)
-      | IMPLICIT_ACCOUNT =>
-        fun env '(x, SA) => Return _ (implicit_account env x, SA)
-      | NOW => fun env SA => Return _ (now env, SA)
-      | PACK => fun env '(x, SA) => Return _ (pack env _ x, SA)
-      | UNPACK ty => fun env '(x, SA) => Return _ (unpack env ty x, SA)
-      | HASH_KEY => fun env '(x, SA) => Return _ (hash_key env x, SA)
-      | BLAKE2B => fun env '(x, SA) => Return _ (blake2b env x, SA)
-      | SHA256 => fun env '(x, SA) => Return _ (sha256 env x, SA)
-      | SHA512 => fun env '(x, SA) => Return _ (sha512 env x, SA)
-      | CHECK_SIGNATURE =>
-        fun env '(x, (y, (z, SA))) =>
-          Return _ (check_signature env x y z, SA)
-      | DIG n Hlen => fun env SA => Return _ (stack_dig SA)
-      | DUG n Hlen => fun env SA => Return _ (stack_dug SA)
-      | DIP nl Hlen i =>
-        fun env SA =>
-          let (S1, S2) := stack_split SA in
-          bind (fun S3 =>
-                  Return _ (stack_app S1 S3))
-               (eval env i n S2)
-      | DROP n Hlen =>
-        fun env SA =>
-          let (S1, S2) := stack_split SA in Return _ S2
-      | CHAIN_ID => fun env SA => Return _ (chain_id_ env, SA)
-      end env
+        match map_destruct _ _ _ _ v x with
+        | None => Return _ (map_empty _ _ _ _ v, SA)
+        | Some (a, y) =>
+          bind (fun '(b, SB) =>
+                  bind (fun '(c, SC) =>
+                          Return _ (map_insert _ _ _ _ v a b c,
+                                    SC))
+                       (eval env (MAP body) n (y, SB)))
+               (eval env body n (a, SA))
+        end
+      | SOME, (x, SA), _ => Return _ (Some x, SA)
+      | NONE _, SA, _ => Return _ (None, SA)
+      | IF_NONE bt bf, (b, SA), env =>
+        match b with
+        | None => eval env bt n SA
+        | Some b => eval env bf n (b, SA)
+        end
+      | LEFT _, (x, SA), _ => Return _ (inl x, SA)
+      | RIGHT _, (x, SA), _ => Return _ (inr x, SA)
+      | IF_LEFT bt bf, (b, SA), env =>
+        match b with
+        | inl a => eval env bt n (a, SA)
+        | inr b => eval env bf n (b, SA)
+        end
+      | IF_RIGHT bt bf, (b, SA), env =>
+        match b with
+        | inl a => eval env bf n (a, SA)
+        | inr b => eval env bt n (b, SA)
+        end
+      | CONS, (x, (y, SA)), _ => Return _ (cons x y, SA)
+      | NIL _, SA, _ => Return _ (nil, SA)
+      | IF_CONS bt bf, (l, SA), env =>
+        match l with
+        | cons a b => eval env bt n (a, (b, SA))
+        | nil => eval env bf n SA
+        end
+      | CREATE_CONTRACT _ _ f, (a, (b, (c, SA))), env =>
+        let (oper, addr) := create_contract env _ _ _ a b f c in
+        Return _ (oper, (addr, SA))
+      | TRANSFER_TOKENS, (a, (b, (c, SA))), env =>
+        Return _ (transfer_tokens env _ a b c, SA)
+      | SET_DELEGATE, (x, SA), env => Return _ (set_delegate env x, SA)
+      | BALANCE, SA, env => Return _ (balance env, SA)
+      | ADDRESS, (x, SA), env => Return _ (address_ env _ x, SA)
+      | CONTRACT _, (x, SA), env => Return _ (contract_ env _ x, SA)
+      | SOURCE, SA, env => Return _ (source env, SA)
+      | SENDER, SA, env => Return _ (sender env, SA)
+      | SELF, SA, env => Return _ (self env, SA)
+      | AMOUNT, SA, env => Return _ (amount env, SA)
+      | IMPLICIT_ACCOUNT, (x, SA), env => Return _ (implicit_account env x, SA)
+      | NOW, SA, env => Return _ (now env, SA)
+      | PACK, (x, SA), env => Return _ (pack env _ x, SA)
+      | UNPACK ty, (x, SA), env => Return _ (unpack env ty x, SA)
+      | HASH_KEY, (x, SA), env => Return _ (hash_key env x, SA)
+      | BLAKE2B, (x, SA), env => Return _ (blake2b env x, SA)
+      | SHA256, (x, SA), env => Return _ (sha256 env x, SA)
+      | SHA512, (x, SA), env => Return _ (sha512 env x, SA)
+      | CHECK_SIGNATURE, (x, (y, (z, SA))), env =>
+        Return _ (check_signature env x y z, SA)
+      | DIG n Hlen, SA, _ => Return _ (stack_dig SA)
+      | DUG n Hlen, SA, _ => Return _ (stack_dug SA)
+      | DIP nl Hlen i, SA, env =>
+        let (S1, S2) := stack_split SA in
+        bind (fun S3 =>
+                Return _ (stack_app S1 S3))
+             (eval env i n S2)
+      | DROP n Hlen, SA, _ =>
+        let (S1, S2) := stack_split SA in Return _ S2
+      | CHAIN_ID, SA, env => Return _ (chain_id_ env, SA)
+      end
     end.
 
   (* The evaluator does not depend on the amount of fuel provided *)
