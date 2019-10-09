@@ -859,202 +859,164 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
 
   Definition eval_precond_body
              (eval_precond_n : forall {self_type},
-                 @proto_env self_type -> forall {tff0 A B}, instruction self_type tff0 A B ->
-                 (stack B -> Prop) -> stack A -> Prop)
+                 @proto_env self_type ->
+                 forall {tff0 A B},
+                   instruction self_type tff0 A B ->
+                   (stack B -> Prop) -> stack A -> Prop)
              {self_type} env tff0 A B
-             (i : instruction self_type tff0 A B) :
-    (stack B -> Prop) -> (stack A -> Prop) :=
-    match i in instruction self_type _ A B return @proto_env self_type -> (stack B -> Prop) -> (stack A -> Prop) with
-    | FAILWITH => fun _ _ _ => false
-    | NOOP => fun env psi st => psi st
-    | SEQ B C => fun env psi =>
-                   eval_precond_n env B (eval_precond_n env C psi)
-    | IF_ bt bf =>
-      fun env psi '(b, SA) => if b then eval_precond_n env bt psi SA
-                          else eval_precond_n env bf psi SA
-    | LOOP body =>
-      fun env psi '(b, SA) => if b then eval_precond_n env (body;; (LOOP body)) psi SA
-                          else psi SA
-    | LOOP_LEFT body =>
-      fun env psi '(ab, SA) =>
-        match ab with
-        | inl x => eval_precond_n env (body;; LOOP_LEFT body) psi (x, SA)
-        | inr y => psi (y, SA)
-        end
-    | EXEC =>
-      fun env psi '(x, (existT _ _ f, SA)) =>
-        eval_precond_n (no_self env) f (fun '(y, tt) => psi (y, SA)) (x, tt)
-    | @APPLY _ a b c D i =>
-      fun env psi '(x, (existT _ _ f, SA)) =>
-        psi (existT _ _ (PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f), SA)
-    | DUP => fun env psi '(x, SA) => psi (x, (x, SA))
-    | SWAP => fun env psi '(x, (y, SA)) => psi (y, (x, SA))
-    | PUSH a x => fun env psi SA => psi (concrete_data_to_data _ x, SA)
-    | UNIT => fun env psi SA => psi (tt, SA)
-    | LAMBDA a b code => fun env psi SA => psi (existT _ _ code, SA)
-    | EQ => fun env psi '(x, SA) => psi ((x =? 0)%Z, SA)
-    | NEQ => fun env psi '(x, SA) => psi (negb (x =? 0)%Z, SA)
-    | LT => fun env psi '(x, SA) => psi ((x <? 0)%Z, SA)
-    | GT => fun env psi '(x, SA) => psi ((x >? 0)%Z, SA)
-    | LE => fun env psi '(x, SA) => psi ((x <=? 0)%Z, SA)
-    | GE => fun env psi '(x, SA) => psi ((x >=? 0)%Z, SA)
-    | @OR _ _ s _ =>
-      fun env psi '(x, (y, SA)) => psi (or_fun _ (bitwise_variant_field _ s) x y, SA)
-    | @AND _ _ s _ =>
-      fun env psi '(x, (y, SA)) => psi (and _ (bitwise_variant_field _ s) x y, SA)
-    | @XOR _ _ s _ =>
-      fun env psi '(x, (y, SA)) => psi (xor _ (bitwise_variant_field _ s) x y, SA)
-    | @NOT _ _ s _ =>
-      fun env psi '(x, SA) => psi (not _ _ (not_variant_field _ s) x, SA)
-    | @NEG _ _ s _ =>
-      fun env psi '(x, SA) => psi (neg _ (neg_variant_field _ s) x, SA)
-    | ABS => fun env psi '(x, SA) => psi (Z.abs_N x, SA)
-    | ISNAT => fun env psi '(x, SA) => psi (if (x >=? 0)%Z then (Some (Z.to_N x), SA) else (None, SA))
-    | INT => fun env psi '(x, SA) => psi (Z.of_N x, SA)
-    | @ADD _ _ _ s _ =>
-      fun env psi '(x, (y, SA)) =>
-        precond (add _ _ _ (add_variant_field _ _ s) x y) (fun z => psi (z, SA))
-    | @SUB _ _ _ s _ =>
-      fun env psi '(x, (y, SA)) =>
-        precond (sub _ _ _ (sub_variant_field _ _ s) x y) (fun z => psi (z, SA))
-    | @MUL _ _ _ s _ =>
-      fun env psi '(x, (y, SA)) =>
-        precond (mul _ _ _ (mul_variant_field _ _ s) x y) (fun z => psi (z, SA))
-    | @EDIV _ _ _ s _ =>
-      fun env psi '(x, (y, SA)) =>
-        psi (ediv _ _ _ _ (ediv_variant_field _ _ s) x y, SA)
-    | LSL => fun env psi '(x, (y, SA)) => psi (N.shiftl x y, SA)
-    | LSR => fun env psi '(x, (y, SA)) => psi (N.shiftr x y, SA)
-    | COMPARE =>
-      fun env psi '(x, (y, SA)) => psi (comparison_to_int (compare _ (data_to_comparable_data _ x) (data_to_comparable_data _ y)), SA)
-    | @CONCAT _ _ s _ =>
-      fun env psi '(x, (y, SA)) =>
-        psi (concat _ (stringlike_variant_field _ s) x y, SA)
-    | @CONCAT_list _ _ s _ =>
-      fun env psi '(l, SA) =>
-        psi (concat_list _ (stringlike_variant_field _ s) l, SA)
-    | @SLICE _ _ i =>
-      fun env psi '(n1, (n2, (s, SA))) =>
-        psi (slice _ (stringlike_variant_field _ i) n1 n2 s, SA)
-    | PAIR => fun env psi '(x, (y, SA)) => psi ((x, y), SA)
-    | CAR => fun env psi '((x, y), SA) => psi (x, SA)
-    | CDR => fun env psi '((x, y), SA) => psi (y, SA)
-    | EMPTY_SET a => fun env psi SA => psi (set.empty _ (compare a), SA)
-    | @MEM _ _ _ s _ =>
-      fun env psi '(x, (y, SA)) =>
-        psi (mem _ _ (mem_variant_field _ _ s) (data_to_comparable_data _ x) y, SA)
-    | @UPDATE _ _ _ _ s _ =>
-      fun env psi '(x, (y, (z, SA))) =>
-        psi (update _ _ _ (update_variant_field _ _ _ s) (data_to_comparable_data _ x) y z, SA)
-    | @ITER _ _ s _ body =>
-      fun env psi '(x, SA) =>
-        match iter_destruct _ _ (iter_variant_field _ s) x with
-        | None => psi SA
-        | Some (a, y) =>
-          eval_precond_n env body
-                       (fun SB => eval_precond_n env (ITER body) psi (y, SB))
-                       (a, SA)
-        end
-    | @SIZE _ _ s =>
-      fun env psi '(x, SA) => psi (N.of_nat (size _ (size_variant_field _ s) x), SA)
-    | EMPTY_MAP k val =>
-      fun env psi SA => psi (map.empty (comparable_data k) (data val) _, SA)
-    | EMPTY_BIG_MAP k val =>
-      fun env psi SA => psi (map.empty (comparable_data k) (data val) _, SA)
-    | @GET _ _ _ s _ =>
-      fun env psi '(x, (y, SA)) => psi (get _ _ _ (get_variant_field _ _ s) (data_to_comparable_data _ x) y, SA)
-    | @MAP _ _ _ s _ body =>
+             (i : instruction self_type tff0 A B)
+             (psi : stack B -> Prop)
+             (SA : stack A) : Prop :=
+    match i, env, psi, SA with
+    | FAILWITH, _, _, _ => false
+    | NOOP, env, psi, st => psi st
+    | SEQ B C, env, psi, st =>
+      eval_precond_n env B (eval_precond_n env C psi) st
+    | IF_ bt bf, env, psi, (b, SA) =>
+      if b then eval_precond_n env bt psi SA
+      else eval_precond_n env bf psi SA
+    | LOOP body, env, psi, (b, SA) =>
+      if b then eval_precond_n env (body;; (LOOP body)) psi SA
+      else psi SA
+    | LOOP_LEFT body, env, psi, (ab, SA) =>
+      match ab with
+      | inl x => eval_precond_n env (body;; LOOP_LEFT body) psi (x, SA)
+      | inr y => psi (y, SA)
+      end
+    | EXEC, env, psi, (x, (existT _ _ f, SA)) =>
+      eval_precond_n (no_self env) f (fun '(y, tt) => psi (y, SA)) (x, tt)
+    | @APPLY _ a b c D i, env, psi, (x, (existT _ _ f, SA)) =>
+      psi (existT _ _ (PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f), SA)
+    | DUP, env, psi, (x, SA) => psi (x, (x, SA))
+    | SWAP, env, psi, (x, (y, SA)) => psi (y, (x, SA))
+    | PUSH a x, env, psi, SA => psi (concrete_data_to_data _ x, SA)
+    | UNIT, env, psi, SA => psi (tt, SA)
+    | LAMBDA a b code, env, psi, SA => psi (existT _ _ code, SA)
+    | EQ, env, psi, (x, SA) => psi ((x =? 0)%Z, SA)
+    | NEQ, env, psi, (x, SA) => psi (negb (x =? 0)%Z, SA)
+    | LT, env, psi, (x, SA) => psi ((x <? 0)%Z, SA)
+    | GT, env, psi, (x, SA) => psi ((x >? 0)%Z, SA)
+    | LE, env, psi, (x, SA) => psi ((x <=? 0)%Z, SA)
+    | GE, env, psi, (x, SA) => psi ((x >=? 0)%Z, SA)
+    | @OR _ _ s _, env, psi, (x, (y, SA)) => psi (or_fun _ (bitwise_variant_field _ s) x y, SA)
+    | @AND _ _ s _, env, psi, (x, (y, SA)) => psi (and _ (bitwise_variant_field _ s) x y, SA)
+    | @XOR _ _ s _, env, psi, (x, (y, SA)) => psi (xor _ (bitwise_variant_field _ s) x y, SA)
+    | @NOT _ _ s _, env, psi, (x, SA) => psi (not _ _ (not_variant_field _ s) x, SA)
+    | @NEG _ _ s _, env, psi, (x, SA) => psi (neg _ (neg_variant_field _ s) x, SA)
+    | ABS, env, psi, (x, SA) => psi (Z.abs_N x, SA)
+    | ISNAT, env, psi, (x, SA) => psi (if (x >=? 0)%Z then (Some (Z.to_N x), SA) else (None, SA))
+    | INT, env, psi, (x, SA) => psi (Z.of_N x, SA)
+    | @ADD _ _ _ s _, env, psi, (x, (y, SA)) =>
+      precond (add _ _ _ (add_variant_field _ _ s) x y) (fun z => psi (z, SA))
+    | @SUB _ _ _ s _, env, psi, (x, (y, SA)) =>
+      precond (sub _ _ _ (sub_variant_field _ _ s) x y) (fun z => psi (z, SA))
+    | @MUL _ _ _ s _, env, psi, (x, (y, SA)) =>
+      precond (mul _ _ _ (mul_variant_field _ _ s) x y) (fun z => psi (z, SA))
+    | @EDIV _ _ _ s _, env, psi, (x, (y, SA)) =>
+      psi (ediv _ _ _ _ (ediv_variant_field _ _ s) x y, SA)
+    | LSL, env, psi, (x, (y, SA)) => psi (N.shiftl x y, SA)
+    | LSR, env, psi, (x, (y, SA)) => psi (N.shiftr x y, SA)
+    | COMPARE, env, psi, (x, (y, SA)) => psi (comparison_to_int (compare _ (data_to_comparable_data _ x) (data_to_comparable_data _ y)), SA)
+    | @CONCAT _ _ s _, env, psi, (x, (y, SA)) =>
+      psi (concat _ (stringlike_variant_field _ s) x y, SA)
+    | @CONCAT_list _ _ s _, env, psi, (l, SA) =>
+      psi (concat_list _ (stringlike_variant_field _ s) l, SA)
+    | @SLICE _ _ i, env, psi, (n1, (n2, (s, SA))) =>
+      psi (slice _ (stringlike_variant_field _ i) n1 n2 s, SA)
+    | PAIR, env, psi, (x, (y, SA)) => psi ((x, y), SA)
+    | CAR, env, psi, ((x, y), SA) => psi (x, SA)
+    | CDR, env, psi, ((x, y), SA) => psi (y, SA)
+    | EMPTY_SET a, env, psi, SA => psi (set.empty _ (compare a), SA)
+    | @MEM _ _ _ s _, env, psi, (x, (y, SA)) =>
+      psi (mem _ _ (mem_variant_field _ _ s) (data_to_comparable_data _ x) y, SA)
+    | @UPDATE _ _ _ _ s _, env, psi, (x, (y, (z, SA))) =>
+      psi (update _ _ _ (update_variant_field _ _ _ s) (data_to_comparable_data _ x) y z, SA)
+    | @ITER _ _ s _ body, env, psi, (x, SA) =>
+      match iter_destruct _ _ (iter_variant_field _ s) x with
+      | None => psi SA
+      | Some (a, y) =>
+        eval_precond_n
+          env body
+          (fun SB => eval_precond_n env (ITER body) psi (y, SB))
+          (a, SA)
+      end
+    | @SIZE _ _ s, env, psi, (x, SA) => psi (N.of_nat (size _ (size_variant_field _ s) x), SA)
+    | EMPTY_MAP k val, env, psi, SA => psi (map.empty (comparable_data k) (data val) _, SA)
+    | EMPTY_BIG_MAP k val, env, psi, SA => psi (map.empty (comparable_data k) (data val) _, SA)
+    | @GET _ _ _ s _, env, psi, (x, (y, SA)) => psi (get _ _ _ (get_variant_field _ _ s) (data_to_comparable_data _ x) y, SA)
+    | @MAP _ _ _ s _ body, env, psi, (x, SA) =>
       let v := (map_variant_field _ _ s) in
-      fun env psi '(x, SA) =>
-        match map_destruct _ _ _ _ v x with
-        | None => psi (map_empty _ _ _ _ v, SA)
-        | Some (a, y) =>
-          eval_precond_n env body
-            (fun '(b, SB) =>
-               eval_precond_n env (MAP body)
-                 (fun '(c, SC) => psi (map_insert _ _ _ _ v a b c, SC))
-                 (y, SB))
-            (a, SA)
-        end
-    | SOME => fun env psi '(x, SA) => psi (Some x, SA)
-    | NONE _ => fun env psi SA => psi (None, SA)
-    | IF_NONE bt bf =>
-      fun env psi '(b, SA) =>
-        match b with
-        | None => eval_precond_n env bt psi SA
-        | Some b => eval_precond_n env bf psi (b, SA)
-        end
-    | LEFT _ => fun env psi '(x, SA) => psi (inl x, SA)
-    | RIGHT _ => fun env psi '(x, SA) => psi (inr x, SA)
-    | IF_LEFT bt bf =>
-      fun env psi '(b, SA) =>
-        match b with
-        | inl a => eval_precond_n env bt psi (a, SA)
-        | inr b => eval_precond_n env bf psi (b, SA)
-        end
-    | IF_RIGHT bt bf =>
-      fun env psi '(b, SA) =>
-        match b with
-        | inl a => eval_precond_n env bf psi (a, SA)
-        | inr b => eval_precond_n env bt psi (b, SA)
-        end
-    | CONS => fun env psi '(x, (y, SA)) => psi (cons x y, SA)
-    | NIL _ => fun env psi SA => psi (nil, SA)
-    | IF_CONS bt bf =>
-      fun env psi '(l, SA) =>
-        match l with
-        | cons a b => eval_precond_n env bt psi (a, (b, SA))
-        | nil => eval_precond_n env bf psi SA
-        end
-    | CREATE_CONTRACT _ _ f =>
-      fun env psi '(a, (b, (c, SA))) =>
-        let (oper, addr) := create_contract env _ _ _ a b f c in
-        psi (oper, (addr, SA))
-    | TRANSFER_TOKENS =>
-      fun env psi '(a, (b, (c, SA))) =>
-        psi (transfer_tokens env _ a b c, SA)
-    | SET_DELEGATE =>
-      fun env psi '(x, SA) =>
-        psi (set_delegate env x, SA)
-    | BALANCE =>
-      fun env psi SA => psi (balance env, SA)
-    | ADDRESS =>
-      fun env psi '(x, SA) => psi (address_ env _ x, SA)
-    | CONTRACT _ =>
-      fun env psi '(x, SA) => psi (contract_ env _ x, SA)
-    | SOURCE => fun env psi SA => psi (source env, SA)
-    | SENDER => fun env psi SA => psi (sender env, SA)
-    | SELF => fun env psi SA => psi (self env, SA)
-    | AMOUNT => fun env psi SA => psi (amount env, SA)
-    | IMPLICIT_ACCOUNT =>
-      fun env psi '(x, SA) => psi (implicit_account env x, SA)
-    | NOW => fun env psi SA => psi (now env, SA)
-    | PACK => fun env psi '(x, SA) => psi (pack env _ x, SA)
-    | UNPACK ty =>
-      fun env psi '(x, SA) => psi (unpack env ty x, SA)
-    | HASH_KEY =>
-      fun env psi '(x, SA) => psi (hash_key env x, SA)
-    | BLAKE2B =>
-      fun env psi '(x, SA) => psi (blake2b env x, SA)
-    | SHA256 => fun env psi '(x, SA) => psi (sha256 env x, SA)
-    | SHA512 => fun env psi '(x, SA) => psi (sha512 env x, SA)
-    | CHECK_SIGNATURE =>
-      fun env psi '(x, (y, (z, SA))) =>
-        psi (check_signature env x y z, SA)
-    | DIG n Hlen =>
-      fun env psi st => psi (stack_dig st)
-    | DUG n Hlen =>
-      fun env psi st => psi (stack_dug st)
-    | DIP n Hlen i =>
-      fun env psi SA =>
-        let (S1, S2) := stack_split SA in
-        eval_precond_n env i (fun SB => psi (stack_app S1 SB)) S2
-    | DROP n Hlen =>
-      fun env psi SA =>
-        let (S1, S2) := stack_split SA in psi S2
-    | CHAIN_ID =>
-      fun env psi SA => psi (chain_id_ env, SA)
-    end env.
+      match map_destruct _ _ _ _ v x with
+      | None => psi (map_empty _ _ _ _ v, SA)
+      | Some (a, y) =>
+        eval_precond_n
+          env body
+          (fun '(b, SB) =>
+             eval_precond_n
+               env (MAP body)
+               (fun '(c, SC) => psi (map_insert _ _ _ _ v a b c, SC))
+               (y, SB))
+          (a, SA)
+      end
+    | SOME, env, psi, (x, SA) => psi (Some x, SA)
+    | NONE _, env, psi, SA => psi (None, SA)
+    | IF_NONE bt bf, env, psi, (b, SA) =>
+      match b with
+      | None => eval_precond_n env bt psi SA
+      | Some b => eval_precond_n env bf psi (b, SA)
+      end
+    | LEFT _, env, psi, (x, SA) => psi (inl x, SA)
+    | RIGHT _, env, psi, (x, SA) => psi (inr x, SA)
+    | IF_LEFT bt bf, env, psi, (b, SA) =>
+      match b with
+      | inl a => eval_precond_n env bt psi (a, SA)
+      | inr b => eval_precond_n env bf psi (b, SA)
+      end
+    | IF_RIGHT bt bf, env, psi, (b, SA) =>
+      match b with
+      | inl a => eval_precond_n env bf psi (a, SA)
+      | inr b => eval_precond_n env bt psi (b, SA)
+      end
+    | CONS, env, psi, (x, (y, SA)) => psi (cons x y, SA)
+    | NIL _, env, psi, SA => psi (nil, SA)
+    | IF_CONS bt bf, env, psi, (l, SA) =>
+      match l with
+      | cons a b => eval_precond_n env bt psi (a, (b, SA))
+      | nil => eval_precond_n env bf psi SA
+      end
+    | CREATE_CONTRACT _ _ f, env, psi, (a, (b, (c, SA))) =>
+      let (oper, addr) := create_contract env _ _ _ a b f c in
+      psi (oper, (addr, SA))
+    | TRANSFER_TOKENS, env, psi, (a, (b, (c, SA))) =>
+      psi (transfer_tokens env _ a b c, SA)
+    | SET_DELEGATE, env, psi, (x, SA) =>
+      psi (set_delegate env x, SA)
+    | BALANCE, env, psi, SA => psi (balance env, SA)
+    | ADDRESS, env, psi, (x, SA) => psi (address_ env _ x, SA)
+    | CONTRACT _, env, psi, (x, SA) => psi (contract_ env _ x, SA)
+    | SOURCE, env, psi, SA => psi (source env, SA)
+    | SENDER, env, psi, SA => psi (sender env, SA)
+    | SELF, env, psi, SA => psi (self env, SA)
+    | AMOUNT, env, psi, SA => psi (amount env, SA)
+    | IMPLICIT_ACCOUNT, env, psi, (x, SA) => psi (implicit_account env x, SA)
+    | NOW, env, psi, SA => psi (now env, SA)
+    | PACK, env, psi, (x, SA) => psi (pack env _ x, SA)
+    | UNPACK ty, env, psi, (x, SA) => psi (unpack env ty x, SA)
+    | HASH_KEY, env, psi, (x, SA) => psi (hash_key env x, SA)
+    | BLAKE2B, env, psi, (x, SA) => psi (blake2b env x, SA)
+    | SHA256, env, psi, (x, SA) => psi (sha256 env x, SA)
+    | SHA512, env, psi, (x, SA) => psi (sha512 env x, SA)
+    | CHECK_SIGNATURE, env, psi, (x, (y, (z, SA))) =>
+      psi (check_signature env x y z, SA)
+    | DIG n Hlen, env, psi, st => psi (stack_dig st)
+    | DUG n Hlen, env, psi, st => psi (stack_dug st)
+    | DIP n Hlen i, env, psi, SA =>
+      let (S1, S2) := stack_split SA in
+      eval_precond_n env i (fun SB => psi (stack_app S1 SB)) S2
+    | DROP n Hlen, env, psi, SA =>
+      let (S1, S2) := stack_split SA in psi S2
+    | CHAIN_ID, env, psi, SA => psi (chain_id_ env, SA)
+    end.
 
   Fixpoint eval_precond (fuel : Datatypes.nat) :
     forall {self_type} env {tff0 A B},
