@@ -1,0 +1,546 @@
+* Options :noexport:
+#+TITLE: Mi-Cho-Coq, a framework for certifying Tezos Smart Contracts
+#+AUTHOR: /Bruno Bernardo/, Raphaël Cauderlier, Zhenlei Hu, Basile Pesin and Julien Tesson
+#+EMAIL: bruno@nomadic-labs.com
+#+DATE: Coq Workshop, September 8, 2019
+#+LANGUAGE:  en
+#+OPTIONS:   H:2 num:t toc:nil \n:nil @:t ::t |:t ^:t -:t f:t *:t <:t
+#+LATEX_HEADER: \usepackage{pgfpages}
+#+LATEX_HEADER: \usepackage{lmodern}
+#+LATEX_HEADER: \usepackage{export}
+#+LATEX_HEADER: \mode<handout>{\setbeameroption{show notes} \pgfpagesuselayout{2 on 1}[a4paper,border shrink=5mm]}
+#+LATEX_HEADER: \beamertemplatenavigationsymbolsempty
+#+LATEX_HEADER: \setbeamertemplate{footline}[frame number]
+#+LATEX_HEADER: \usepackage{appendixnumberbeamer}
+#+LATEX_HEADER: \titlegraphic{\includegraphics[height=1cm]{../logos/nomadic-logo}}
+** Beamer
+#+STARTUP: beamer
+#+BEAMER_COLOR_THEME: default
+#+BEAMER_FONT_THEME:
+#+LaTeX_header: \usepackage{ wasysym }
+#+BEAMER_HEADER: \setbeamertemplate{navigation symbols}{}
+#+BEAMER_HEADER: \setbeamertemplate{footline}[frame number]
+#+BEAMER_HEADER: \usetikzlibrary{svg.path}
+#+BEAMER_INNER_THEME:
+#+BEAMER_OUTER_THEME:
+#+LATEX_CLASS: beamer
+#+LATEX_CLASS_OPTIONS:
+
+** Code Listing
+#+LaTeX_Header: \usepackage{listings}
+#+LaTeX_Header: \usepackage{color}
+#+LaTeX_Header: \lstset{basicstyle={\ttfamily\small},keywordstyle={\color{blue}}}
+*** Coq
+#+LaTeX_Header: \lstdefinelanguage{coq}{backgroundcolor=\color{orange!20},alsoletter={=->:},keywords={Definition,Type,Set,Prop,Parameter,Check,Ltac,Defined,Qed,Print,Theorem,Lemma,Proof,Inductive,fun,forall,exists,let,Fixpoint,struct,match,with,in,return,Module,Record,Class,Structure,End,Canonical,if,then,else,Coercion,end},moredelim=[s][\color{red}]{(*}{*)}}
+#+LaTeX_Header: \lstnewenvironment{coqcode}
+#+LaTeX_Header: {\lstset{language={coq}}}{}
+*** OCaml
+#+LaTeX_Header: \lstdefinelanguage{camligo}[Objective]{Caml}{backgroundcolor=\color{yellow!50}}
+
+** Tikz
+#+LaTeX_header: \usepackage{tikz}
+
+
+* About :export:
+** Nomadic Labs
+- R&D company focused on distributed, decentralised and formally verified software.
+- Involved in the development of the core software of the Tezos blockchain.
+- Based in Paris, France.
+
+* Blockchains and smart contracts :export:
+** Blockchains
+- Distributed immutable ledger, replicated via a consensus protocol
+- Smart contracts = programmable accounts
+  + Accounts with space for code and data
+  + Programs executed by each node (/must/ be small!)
+  + A scarce resource (gas) is needed to /pay/ for computation
+  + Execution can rollback if runtime fail
+
+
+* Tezos :export:
+** Tezos
+- Public blockchain
+- Live since June 2018
+- Implemented in OCaml
+- Open source project (MIT License) https://gitlab.com/tezos/tezos
+** Tezos
+- Smart contract platform
+- Proof-of-Stake consensus algorithm
+- On-Chain governance mechanism
+  - /Economic ruleset/ can be changed through a vote
+  - Includes the consensus algorithm, the smart contract language (and the voting rules)
+- Focus on Formal Methods
+  - Use of OCaml as a first step
+    - Strong static guarantees of OCaml
+    - Certified OCaml code can be produced by Coq, F*, Why3, etc.
+  - Formally verified cryptographic primitives (HACL*)
+  - Long-term goals
+    - Certification of the whole Tezos codebase
+    - Certified smart contracts
+
+* Mi-Cho-Coq: Michelson in Coq                                       :export:
+** Michelson: the smart contract language in Tezos
+
+- Small stack-based Turing-complete language
+
+- Designed with software verification in mind:
+  + Static typing
+  + Clear documentation (syntax, typing, semantics)
+  + Failure is explicit
+    * Integers do not overflow
+    * Division returns an option
+
+- Implemented using an OCaml GADT
+  + Representable programs are well typed
+
+** Mi-Cho-Coq: Michelson in Coq
+
+#+BEGIN_CENTER
+#+BEGIN_EXPORT latex
+\includegraphics[width=.3\linewidth]{../logos/logo_michocoq.png}
+#+END_EXPORT
+#+END_CENTER
+
+https://gitlab.com/nomadic-labs/mi-cho-coq/
+
+Free software (MIT License)
+
+** Syntax: Types
+
+#+BEGIN_SRC coq
+Inductive comparable_type : Set :=
+| nat | int | string | bytes | bool
+| mutez | address | key_hash | timestamp.
+
+Inductive type : Set :=
+| Comparable_type (_ : comparable_type)
+| unit | key | signature | operation
+| option (_ : type) | list (_ : type)
+| set (_ : comparable_type)
+| map (_ : comparable_type) (_ : type)
+| contract (_  : type)
+| pair (_ _ : type) | or (_ _ : type)
+| lambda (_ _ : type).
+
+Coercion Comparable_type : comparable_type >-> type.
+
+Definition stack_type := Datatypes.list type.
+#+END_SRC
+
+** Syntax: Instructions
+
+#+BEGIN_SRC coq
+Inductive instruction : stack_type -> stack_type -> Set :=
+| FAILWITH {A B a} : instruction (a :: A) B
+| SEQ {A B C} : instruction A B -> instruction B C ->
+                instruction A C
+| IF {A B} : instruction A B -> instruction A B ->
+             instruction (bool :: A) B
+| LOOP {A} : instruction A (bool :: A) ->
+             instruction (bool :: A) A
+| COMPARE {a : comparable_type} {S} :
+          instruction (a :: a :: S) (int :: S)
+| ADD {a b} {s : add_struct a b} {S} :
+    instruction (a ::: b ::: S) (add_ret_type _ _ s ::: S)
+| ….
+#+END_SRC
+
+** Semantics
+#+BEGIN_SRC coq
+  Fixpoint eval {A B : stack_type}
+        (i : instruction A B) : stack A -> stack B :=
+      match i in instruction A B
+        return stack A -> stack B with
+      | FAILWITH x =>
+         ...
+      | SEQ i1 i2 =>
+         fun SA => eval i2 (eval i1 SA)
+      | IF bt bf =>
+         fun SbA => let (b, SA) := SbA in
+           if b then eval bt SA else eval bf SA
+      | LOOP body =>
+         fun SbA => let (b, SA) := SbA in
+           if b then eval (SEQ body (LOOP body)) SA
+           else SA
+      ...
+#+END_SRC
+
+** Semantics
+#+BEGIN_SRC coq
+  Fixpoint eval {A B : stack_type}
+        (i : instruction A B) : stack A -> M (stack B) :=
+      match i in instruction A B
+        return stack A -> M (stack B) with
+      | FAILWITH x =>
+         fun SA => Failed _ (Assertion_Failure _ x)
+      | SEQ i1 i2 =>
+         fun SA => bind (eval i2) (eval i1 SA)
+      | IF bt bf =>
+         fun SbA => let (b, SA) := SbA in
+           if b then eval bt SA else eval bf SA
+      | LOOP body =>
+         fun SbA => let (b, SA) := SbA in
+           if b then eval (SEQ body (LOOP body)) SA
+           else Return _ SA
+      ...
+#+END_SRC
+
+** Semantics
+#+BEGIN_SRC coq
+  Fixpoint eval {A B : stack_type}
+        (i : instruction A B) (fuel : nat)
+        {struct fuel} : stack A -> M (stack B) :=
+    match fuel with
+    | 0 => fun SA => Failed _ Out_of_fuel
+    | S n =>
+      match i in instruction A B
+        return stack A -> M (stack B) with
+      | FAILWITH x =>
+         fun _ => Failed _ (Assertion_Failure _ x)
+      | SEQ i1 i2 =>
+         fun SA => bind (eval i2 n) (eval i1 n SA)
+      | IF bt bf =>
+         ...
+      | LOOP body =>
+         ...
+#+END_SRC
+
+** Verification
+
+#+BEGIN_SRC coq
+  Definition correct_smart_contract {A B : stack_type}
+    (i : instruction A B) min_fuel spec : Prop :=
+    forall (input : stack A) (output : stack B) fuel,
+      fuel >= min_fuel input ->
+      eval i fuel input = Return (stack B) output <->
+        spec input output.
+#+END_SRC
+
+\pause Full functional verification: we characterise the successful runs of
+the contract.
+
+** Computing weakest precondition
+
+#+BEGIN_SRC coq
+  Fixpoint wp {A B} (i : instruction A B) fuel
+    (psi : stack B -> Prop) : (stack A -> Prop) :=
+    match fuel with
+    | 0 => fun _ => False
+    | S fuel =>
+       match i with
+       | FAILWITH => fun _ => false
+       | SEQ B C => wp B fuel (wp C fuel psi)
+       | IF bt bf => fun '(b, SA) =>
+           if b then wp bt fuel psi SA
+           else wp bf fuel psi SA
+       | LOOP body => fun '(b, SA) =>
+           if b then wp (SEQ body (LOOP body)) fuel psi SA
+           else psi SA
+       | …
+#+END_SRC
+
+** Computing weakest precondition
+
+#+BEGIN_SRC coq
+  Lemma wp_correct {A B} (i : instruction A B)
+    fuel psi st :
+    wp i fuel psi st <->
+      exists output,
+        eval i fuel st = Return _ output /\ psi output.
+  Proof. … Qed.
+#+END_SRC
+
+
+* Example of Functional Verification :export:
+
+** The multisig contract
+
+- $n$ persons share the ownership of the contract.
+
+- they agree on a threshold $t$ (an integer).
+
+- to do anything with the contract, at least $t$ owners must agree.
+
+- possible actions:
+  + transfer from the multisig contract to somewhere else
+  + changing the list of owners and the threshold
+
+
+** Multisig implementation in pseudo-OCaml
+
+#+BEGIN_SRC camligo
+  type storage =
+    {counter : nat; threshold : nat; keys : list key}
+
+  type action_ty =
+  | Transfer of
+     {amount : mutez; destination : contract unit}
+  | SetKeys of {new_threshold : nat; new_keys : list key}
+
+  type parameter =
+    {counter : nat;
+     action : action_ty;
+     signature_opts : list (option signature)}
+#+END_SRC
+
+** Multisig implementation in pseudo-OCaml
+
+#+BEGIN_SRC camligo
+  let multisig param storage =
+    (* pack bytes that should correspond to the input sigs *)
+    let packed : bytes =
+      pack (counter, address self, param.action) in
+    assert (param.counter = storage.counter);
+    (* check validity of signatures *)
+    let valid_sigs : ref nat = ref 0 in
+    List.iter2 (fun key signature_opt ->
+        match signature_opt with | None -> ()
+        | Some signature ->
+          assert (check_signature signature key bytes);
+          incr valid_sigs)
+      storage.keys
+      param.signature_opts;
+    …
+#+END_SRC
+** Multisig implementation in pseudo-OCaml
+
+#+BEGIN_SRC camligo
+    …
+    (* checks and action *)
+    assert (valid_sigs >= storage.threshold);
+    storage.counter := 1 + storage.counter;
+    match param.action with
+    | Transfer {amount; destination} ->
+        transfer amount destination
+    | SetKeys {new_threshold; new_keys} ->
+        storage.threshold := new_threshold;
+        storage.keys := new_keys
+#+END_SRC
+
+
+** Multisig specification
+
+#+BEGIN_SRC coq
+  Definition multisig_spec input output :=
+    let '(((c, a), sigs), (sc, (t, keys))) := input in
+    let '(ops, (nc, (nt, nkeys))) := output in
+    c = sc /\ length sigs = length keys /\
+    check_all_signatures sigs keys
+      (pack (address self), (c, a)) /\
+    count_signatures sigs >= t /\ nc = sc + 1 /\
+    match a with
+    | inl (amount, dest) => nt = t /\ nkeys = keys /\
+      ops = [transfer_tokens unit tt amount dest]
+    | inr (t, ks) => nt = t /\ nkeys = ks /\
+      ops = nil
+    end.
+#+END_SRC
+
+** Multisig correctness
+
+#+BEGIN_SRC coq
+Theorem multisig_correct :
+  correct_smart_contract multisig
+    (fun '(keys, _) => 14 * length keys + 37)
+    multisig_spec.
+Proof. … Qed.
+#+END_SRC
+
+
+* Conclusion :export:
+** Conclusion
+
+- The Michelson smart-contract language is formalised in Coq.
+
+- This formalisation can be used to prove interesting Michelson smart-contracts.
+
+** Ongoing and Future Work
+
+- Connect Michelson and Mi-Cho-Coq
+  + Formalise the Michelson cost model
+  + Use code extraction to replace the current GADT-based implementation in OCaml.
+
+- Certify compilers from higher-level languages to Michelson
+
+- Improve expressiveness of Mi-Cho-Coq
+  - Improve proof automation
+
+  - Formalise the contract life, mutual and recursive calls
+
+  - Prove security properties
+
+** Thank you!
+
+- Tezos https://gitlab.com/tezos/tezos
+- Mi-Cho-Coq https://gitlab.com/nomadic-labs/mi-cho-coq/
+- Multisig contract in Michelson https://github.com/murbard/smart-contracts/blob/master/multisig/michelson/multisig.tz
+
+* Appendix :export:
+#+BEGIN_EXPORT latex
+\appendix
+#+END_EXPORT
+** Multisig proof: part 1 / 3
+
+#+BEGIN_SRC camligo
+  let multisig param storage =
+    let packed : bytes =
+      pack (counter, address self, param.action) in
+    assert (param.counter = storage.counter);
+    let valid_sigs : ref nat = ref 0 in
+    …
+#+END_SRC
+
+\pause
+
+#+BEGIN_SRC coq
+  Definition multisig_part_1 :
+    instruction (pair parameter_ty storage_ty :: nil)
+                (nat :: nat :: list (option signature) ::
+                 bytes :: action_ty :: storage_ty ::: nil) :=
+    UNPAIR ; SWAP ; DUP ; DIP SWAP ;
+    DIP (UNPAIR ; DUP ; SELF ; ADDRESS ; PAIR ;
+         PACK ; DIP (UNPAIR ; DIP SWAP) ; SWAP) ;
+    UNPAIR ; DIP SWAP ; ASSERT_CMPEQ ;
+    DIP SWAP; UNPAIR; PUSH nat 0.
+#+END_SRC
+
+** Multisig proof: part 1 / 3
+
+#+BEGIN_SRC coq
+Definition multisig_part_1_spec input output :=
+  let '((((counter, action), sigs), storage), tt)
+    := input in
+  output = (storage, (counter,
+           (pack (address self), (counter, action)),
+           (sigs, (action, (storage, tt)))))).
+#+END_SRC
+
+#+BEGIN_SRC coq
+  Lemma multisig_part_1_correct :
+    correct_smart_contract
+      multisig_part_1 (fun _ => 14) multisig_part_1_spec.
+  Proof.
+    (* Simple proof using wp_correct *)
+  Qed.
+#+END_SRC
+
+** Multisig proof: part 2 / 3
+
+#+BEGIN_SRC camligo
+    List.iter2 (fun key signature_opt ->
+        match signature_opt with | None -> ()
+        | Some signature ->
+          assert (check_signature signature key bytes);
+          incr valid_sigs)
+      storage.keys
+      param.signature_opts;…
+#+END_SRC
+
+\pause
+
+#+BEGIN_SRC coq
+  Definition multisig_loop_body :
+    instruction
+      (key :: nat :: list (option signature) ::
+       bytes :: action_ty :: storage_ty :: nil)
+      (nat :: list (option signature) ::
+       bytes :: action_ty :: storage_ty :: nil)
+  := …
+#+END_SRC
+
+** Multisig proof: part 2 / 3
+
+#+BEGIN_SRC coq
+  Definition multisig_loop_body :=
+    DIP SWAP; SWAP;
+    IF_CONS (IF_SOME
+               (SWAP; DIP (SWAP; DIIP (DIP DUP; SWAP);
+                CHECK_SIGNATURE; ASSERT;
+                PUSH nat 1 ; ADD_nat))
+               (SWAP; DROP))
+            FAIL;
+    SWAP.
+
+  Definition multisig_loop := ITER multisig_loop_body.
+#+END_SRC
+
+** Multisig proof: part 2 / 3
+
+#+BEGIN_SRC coq
+  Lemma multisig_loop_body_spec fuel input output :=
+    let '(k, (n, (sigs, (packed, st)))) := input in
+    match sigs with
+    | nil => False
+    | cons None sigs => output = (n, (sigs, (packed, st)))
+    | cons (Some sig) sigs =>
+      if check_signature k sig packed
+      then output = (1 + n, (sigs, (packed, st)))
+      else False
+    end.
+
+  Lemma multisig_loop_body_correct :
+    correct_smart_contract multisig_loop_body
+      (fun _ => 14) multisig_fuel_body_spec.
+  Proof.
+    (* Simple proof using wp_correct *)
+  Qed.
+#+END_SRC
+
+** Multisig proof: part 2 / 3
+
+#+BEGIN_SRC coq
+  Lemma multisig_loop_spec fuel input output :=
+    let '(keys, (n, (sigs, (packed, st)))) := input in
+    check_all_signatures sigs keys packed /\
+    output =
+      (count_signatures sigs + n, (nil, (packed, st))).
+
+  Lemma multisig_loop_correct :
+    correct_smart_contract multisig_loop_body
+      (fun '(keys, _) => length keys * 14 + 1)
+      multisig_fuel_body_spec.
+  Proof.
+    (* Not so simple inductive proof
+       using multisig_loop_body_correct *)
+  Qed.
+#+END_SRC
+
+** Multisig proof: part 3 / 3
+
+#+BEGIN_SRC camligo
+    assert (!valid_sigs > storage.threshold);
+    storage.counter := 1 + storage.threshold;
+    match param.action with
+    | Transfer {amount; destination} ->
+        transfer amount destination
+    | SetDelegate new_delegate ->
+        set_delegate new_delegate
+    | SetKeys {new_threshold; new_keys} ->
+        storage.threshold := new_threshold;
+        storage.keys := new_keys
+#+END_SRC
+
+#+BEGIN_SRC coq
+  Definition multisig_part_3 :
+    instruction (nat :: nat :: list (option signature) ::
+                 bytes :: action_ty :: storage_ty :: nil)
+                (pair (list operation) storage_ty :: nil) := …
+#+END_SRC
+
+** Multisig proof: part 3 / 3
+
+#+BEGIN_SRC coq
+  Definition multisig_part_3 :
+    instruction (nat :: nat :: list (option signature) ::
+                 bytes :: action_ty :: storage_ty :: nil)
+                (pair (list operation) storage_ty :: nil) :=
+    ASSERT_CMPLE; ASSERT_NIL; DROP;
+    DIP (UNPAIR; PUSH nat 1; ADD; PAIR);
+    NIL operation; SWAP;
+    IF_LEFT (UNPAIR; UNIT; TRANSFER_TOKENS; CONS)
+            (IF_LEFT (SET_DELEGATE; CONS)
+                     (DIP (SWAP; CAR); SWAP; PAIR; SWAP));
+    PAIR.
+#+END_SRC
+
+
