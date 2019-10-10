@@ -172,6 +172,43 @@ Definition IF_SOME bt bf := IF_NONE bf bt.
 Definition IF_RIGHT bt bf := IF_LEFT bf bt.
 Definition IF_NIL bt bf := IF_CONS bf bt.
 
+Inductive cadr : Set :=
+| Cadr_CAR : cadr -> cadr
+| Cadr_CDR : cadr -> cadr
+| Cadr_nil : cadr.
+
+Fixpoint micheline2michelson_cadr (x : cadr) : instruction :=
+  match x with
+  | Cadr_CAR x => CAR ;; micheline2michelson_cadr x
+  | Cadr_CDR x => CDR ;; micheline2michelson_cadr x
+  | Cadr_nil => NOOP
+  end.
+
+Fixpoint micheline2michelson_set_cadr (x : cadr) : instruction :=
+  match x with
+  | Cadr_CAR Cadr_nil =>
+    CDR ;; SWAP ;; PAIR
+  | Cadr_CDR Cadr_nil =>
+    CAR ;; PAIR
+  | Cadr_CAR x =>
+    DUP ;; DIP 1 (CAR;; micheline2michelson_set_cadr x) ;; CDR ;; SWAP ;; PAIR
+  | Cadr_CDR x =>
+    DUP ;; DIP 1 (CDR;; micheline2michelson_set_cadr x) ;; CAR ;; PAIR
+  | Cadr_nil => NOOP (* Should not happen *)
+  end.
+
+Fixpoint micheline2michelson_map_cadr (x : cadr) (code : instruction) : instruction :=
+  match x with
+  | Cadr_CAR Cadr_nil =>
+    DUP ;; CDR ;; DIP 1 ( CAR ;; code ) ;; SWAP ;; PAIR
+  | Cadr_CDR Cadr_nil =>
+    DUP ;; CDR ;; code ;; SWAP ;; CAR ;; PAIR
+  | Cadr_CAR x =>
+    DUP ;; DIP 1 (CAR;; micheline2michelson_map_cadr x code) ;; CDR ;; SWAP ;; PAIR
+  | Cadr_CDR x =>
+    DUP ;; DIP 1 (CDR;; micheline2michelson_map_cadr x code) ;; CAR ;; PAIR
+  | Cadr_nil => code (* Should not happen *)
+  end.
 
 Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
   match m with
@@ -423,6 +460,69 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
     bind (fun op => Return _ (op ;; IF_ NOOP FAIL))
          (op_of_string s b e)
 
+  | Mk_loc_micheline ((b, e), PRIM (_, "CR") nil) =>
+    Failed _ (Expansion_prim b e "CR")
+  | Mk_loc_micheline ((b, e), PRIM (_, "SET_CR") nil) =>
+    Failed _ (Expansion_prim b e "SET_CR")
+  | Mk_loc_micheline ((b, e), PRIM (_, "MAP_CR") nil) =>
+    Failed _ (Expansion_prim b e "MAP_CR")
+
+  (* CADAAR *)
+  | Mk_loc_micheline ((b, e), PRIM (_, String "C" s) nil) =>
+    let prim := String "C" s in
+    let get_cadr := fix get_cadr s :=
+                      match s with
+                      | "R" => Return _ Cadr_nil
+                      | String "A" s =>
+                        bind (fun x => Return _ (Cadr_CAR x))
+                             (get_cadr s)
+                      | String "D" s =>
+                        bind (fun x => Return _ (Cadr_CDR x))
+                             (get_cadr s)
+                      | _ => Failed _ (Expansion_prim b e prim)
+                      end in
+    bind (fun x => Return _ (micheline2michelson_cadr x))
+         (get_cadr s)
+
+  | Mk_loc_micheline ((b, e),
+      PRIM (_, String "S" (String "E"(String "T"(String "_"(String "C" s)))))
+           nil) =>
+    let prim := String "S" (String "E"(String "T"(String "_"(String "C" s)))) in
+    let get_cadr := fix get_cadr s :=
+                      match s with
+                      | "R" => Return _ Cadr_nil
+                      | String "A" s =>
+                        bind (fun x => Return _ (Cadr_CAR x))
+                             (get_cadr s)
+                      | String "D" s =>
+                        bind (fun x => Return _ (Cadr_CDR x))
+                             (get_cadr s)
+                      | _ => Failed _ (Expansion_prim b e prim)
+                      end in
+    bind (fun x => Return _ (micheline2michelson_set_cadr x))
+         (get_cadr s)
+
+  | Mk_loc_micheline ((b, e),
+      PRIM (_, String "M" (String "A"(String "P"(String "_"(String "C" s)))))
+           (a :: nil)) =>
+    let prim := String "M" (String "A"(String "P"(String "_"(String "C" s)))) in
+    let get_cadr := fix get_cadr s :=
+                      match s with
+                      | "R" => Return _ Cadr_nil
+                      | String "A" s =>
+                        bind (fun x => Return _ (Cadr_CAR x))
+                             (get_cadr s)
+                      | String "D" s =>
+                        bind (fun x => Return _ (Cadr_CDR x))
+                             (get_cadr s)
+                      | _ => Failed _ (Expansion_prim b e prim)
+                      end in
+    bind (fun x =>
+            bind (fun code =>
+                    Return _ (micheline2michelson_map_cadr x code))
+                 (micheline2michelson_instruction a))
+         (get_cadr s)
+
   | Mk_loc_micheline (_, PRIM (_, "UNPAIR") nil) => (* TODO: PAPAIR and UNPAPAIR *)
     Return _ (DUP ;; CAR ;; DIP 1 CDR)
   | Mk_loc_micheline ((b, e), PRIM (_, String "D" (String "I" s)) (a :: nil)) =>
@@ -434,7 +534,7 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
                      end in
     if is_diip s then
       bind (fun a => Return _ (DIPn (String.length s) a)) (micheline2michelson_instruction a)
-    else Failed _ (Expansion b e)
+    else Failed _ (Expansion_prim b e (String "D" (String "I" s)))
   | Mk_loc_micheline ((b, e), PRIM (_, "DUP") (Mk_loc_micheline (_, NUMBER n) :: nil)) =>
     match BinInt.Z.to_nat n with
     | S n => Return _ (DUP_Sn n)
@@ -448,7 +548,7 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
                      | _ => false
                      end in
     if is_duup s then Return _ (DUP_Sn (String.length s))
-    else Failed _ (Expansion b e)
+    else Failed _ (Expansion_prim b e (String "D" (String "U" (String "U" s))))
 
   (* Unknown case *)
   | Mk_loc_micheline ((b, e), PRIM (_, s) _) => Failed _ (Expansion_prim b e s)
