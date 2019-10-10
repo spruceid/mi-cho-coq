@@ -1,0 +1,464 @@
+* Options                                                         :noexport:
+#+OPTIONS: H:2 texht:t toc:nil
+#+DATE: FMBC, Porto \newline October 11, 2019
+#+Title: Functional Verification of Tezos Smart Contracts in Coq
+#+Author: Bruno Bernardo, \textit{Raphaël Cauderlier}, Zhenlei Hu, Basile Pesin, Julien Tesson
+#+LaTeX_Header: \institute{Nomadic Labs, Paris, France}
+** Beamer
+#+STARTUP: beamer
+#+BEAMER_COLOR_THEME: default
+#+BEAMER_FONT_THEME:
+#+LaTeX_header: \usepackage{ wasysym }
+#+LaTeX_header: \mode<beamer>{\usetheme{Darmstadt}}
+#+BEAMER_HEADER: \setbeamertemplate{navigation symbols}{}
+#+BEAMER_HEADER: \setbeamertemplate{footline}[frame number]
+#+BEAMER_HEADER: \usetikzlibrary{svg.path}
+#+BEAMER_INNER_THEME:
+#+BEAMER_OUTER_THEME:
+#+LATEX_CLASS: beamer
+#+LATEX_CLASS_OPTIONS:
+
+** XeLaTeX
+#+LATEX_HEADER: \usepackage{fontspec} \setmainfont{FreeSerif}
+** Code Listing
+#+LaTeX_Header: \usepackage{listings}
+#+LaTeX_Header: \usepackage{color}
+#+LaTeX_Header: \lstset{basicstyle={\ttfamily\small},keywordstyle={\color{blue}}}
+*** Coq
+#+LaTeX_Header: \lstdefinelanguage{Coq}{backgroundcolor=\color{orange!20},alsoletter={=->:},basicstyle=\footnotesize\tt,keywords={Definition,Type,Set,Prop,Parameter,Check,Ltac,Defined,Qed,Print,Theorem,Lemma,Proof,Inductive,fun,forall,exists,let,Fixpoint,struct,match,with,in,return,Module,Record,Class,Structure,End,Canonical,if,then,else,Coercion,end},moredelim=[s][\color{red}]{(*}{*)}}
+#+LaTeX_Header: \lstnewenvironment{coqcode}
+#+LaTeX_Header: {\lstset{language={Coq}}}{}
+*** OCaml
+#+LaTeX_Header: \lstdefinelanguage{Camligo}[Objective]{Caml}{backgroundcolor=\color{yellow!50}}
+
+*** Michelson
+#+LaTeX_Header: \lstdefinelanguage{michelson}{columns=fullflexible,basicstyle=\small\tt, commentstyle=\slshape,keywords={\{,\}, DROP, DUP, SWAP, PUSH, SOME, NONE, UNIT, IF_NONE, PAIR, CAR, CDR, LEFT, RIGHT, IF_LEFT, IF_RIGHT, NIL, CONS, IF_CONS, SIZE, EMPTY_SET, EMPTY_MAP, MAP, ITER, MEM, GET, UPDATE, IF, LOOP, LOOP_LEFT, LAMBDA, EXEC, DIP, FAILWITH, CAST, RENAME, CONCAT, SLICE, PACK, UNPACK, ADD, SUB, MUL, EDIV, ABS, NEG, LSL, LSR, OR, AND, XOR, NOT, COMPARE, EQ, NEQ, LT, GT, LE, GE, SELF, CONTRACT, TRANSFER_TOKENS, SET_DELEGATE, CREATE_ACCOUNT, CREATE_CONTRACT, CREATE_CONTRACT, IMPLICIT_ACCOUNT, NOW, AMOUNT, BALANCE, CHECK_SIGNATURE, BLAKE, SHA, SHA, HASH_KEY, STEPS_TO_QUOTA, SOURCE, SENDER, ADDRESS, CMPEQ,CMPNEQ,CMPLT,CMPGT,CMPLE,CMPGE, IFEQ,IFNEQ,IFLT,IFGT,IFLE,IFGE, IFCMPEQ,IFCMPNEQ,IFCMPLT,IFCMPGT,IFCMPLE,IFCMPGE, FAIL, ASSERT, ASSERT_EQ,ASSERT_NEQ,ASSERT_LT,ASSERT_LE,ASSERT_GT,ASSERT_GE, ASSERT_CMPEQ,ASSERT_CMPNEQ,ASSERT_CMPLT,ASSERT_CMPLE,ASSERT_CMPGT,ASSERT_CMPGE, ASSERT_NONE,ASSERT_SOME, ASSERT_LEFT,ASSERT_RIGHT, UNPAIR,}, alsoletter={'}, upquote=true, keywordstyle={\bfseries\sffamily\scriptsize}, morekeywords=[2]{ key, unit, signature, option, list, set, operation, address, contract, pair, or, lambda, big_map, map, int, nat, string, bytes, mutez, bool, key_hash,  timestamp, 'a, 'b, 'S, 'p}, keywordstyle=[2]{\bfseries\ttfamily}, classoffset=2, morekeywords=[3]{ storage, parameter, code }, keywordstyle=[3]{\bfseries}, sensitive, comment=[l]\#, literate={->}{{$\rightarrow{}$}}1,backgroundcolor=\color{yellow!50}}[keywords,comments,strings]
+
+** Busproof
+#+LaTeX_Header: \usepackage{setspace}
+#+LaTeX_header: \usepackage{bussproofs}
+#+LaTeX_header: \newcommand{\myUIC}[2]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#1}
+#+LaTeX_header:      \UnaryInfC{#2}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\myBIC}[3]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#1}
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \BinaryInfC{#3}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\myTIC}[4]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#1}
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \AxiomC{#3}
+#+LaTeX_header:      \TrinaryInfC{#4}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\mylUIC}[3]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \RightLabel{\scriptsize(#1)}
+#+LaTeX_header:      \UnaryInfC{#3}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\mylBIC}[4]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \AxiomC{#3}
+#+LaTeX_header:      \RightLabel{\scriptsize(#1)}
+#+LaTeX_header:      \BinaryInfC{#4}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\mylTIC}[5]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \AxiomC{#3}
+#+LaTeX_header:      \AxiomC{#4}
+#+LaTeX_header:      \RightLabel{\scriptsize(#1)}
+#+LaTeX_header:      \TrinaryInfC{#5}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newenvironment{infset}
+#+LaTeX_header:   {\begin{center} \setstretch{2.5}}
+#+LaTeX_header:   {\end{center}}
+
+** Arrays
+#+LaTeX_Header: \newenvironment{leftarray}{\begin{array}{l}}{\end{array}}
+#+LaTeX_Header: \newenvironment{leftleftarray}{\begin{array}{ll}}{\end{array}}
+#+LaTeX_Header: \newenvironment{leftleftleftarray}{\begin{array}{lll}}{\end{array}}
+#+LaTeX_Header: \newenvironment{leftleftxleftarray}{\begin{array}{ll@{}l}}{\end{array}}
+#+LaTeX_Header: \newenvironment{leftreducearray}{\begin{array}{l@{~}l@{ }r@{}l}}{\end{array}}
+
+** Tikz
+#+LaTeX_header: \usepackage{tikz}
+
+
+* Introduction
+
+** Nomadic Labs
+
+#+BEGIN_CENTER
+#+BEGIN_EXPORT latex
+\includegraphics[width=.7\linewidth]{../LogoNL.jpg}
+#+END_EXPORT
+#+END_CENTER
+
+
+- R&D company focused on distributed, decentralised and formally verified software.
+- Involved in the development of the core software of the Tezos blockchain.
+- Based in Paris, France.
+
+#+BEGIN_EXPORT latex
+\end{frame}
+\usebackgroundtemplate{\parbox[c][11cm][c]{\paperwidth}{\centering\begin{tikzpicture}[opacity=0.1]\input{../logo_tezos.tikz}\end{tikzpicture}}}
+
+\begin{frame}{Tezos}
+#+END_EXPORT
+
+- Public blockchain
+- Live since June 2018
+- Implemented in OCaml
+- Open source project (MIT License) https://gitlab.com/tezos/tezos
+
+** Tezos
+
+- Liquid Proof of Stake
+  + Block production rights come from owned tokens
+  + Rights can be delegated
+  + Delegations are revocable
+
+- On-chain governance
+  + Ruleset can be amended through on-chain vote
+
+    Consensus, smart contract language, voting procedure
+  + Voting right is the same as block production right
+
+- Formal methods
+  + Recognised as crucial since the Tezos whitepaper
+  + Static analysis, model checking, and functional verification (in F\(^\star\) and Coq)
+  + Targeting both the OCaml implementation of the Tezos node and the smart-contract layer
+
+** Michelson: Tezos smart contract language
+
+- stack-based Turing-complete language
+  + low-level computation paradigm
+  + high-level data structures
+
+- designed with software verification in mind
+  + static typing
+  + language specification (syntax, typing, semantics)
+  + failure is explicit
+    * integers do not overflow
+    * division returns an option
+
+- implemented using an OCaml GADT
+  + subject reduction for free
+
+** Michelson example: vote
+
+#+BEGIN_SRC michelson
+  storage (map string int);
+  parameter string;
+  code {
+         # Check that at least 5tz have been sent
+         AMOUNT;
+         PUSH mutez 5000000; COMPARE; GT; IF { FAIL } {};
+
+         # Pair and stack manipulation
+         DUP; DIP { CDR; DUP }; CAR; DUP;
+
+         DIP { # Get the number of votes for the chosen option
+               GET; IF_NONE { FAIL } {};
+               # Increment
+               PUSH int 1; ADD; SOME };
+         UPDATE;
+         NIL operation; PAIR
+       }
+#+END_SRC
+
+* Michelson in Coq
+#+BEGIN_EXPORT latex
+\setbeamertemplate{background canvas}{\parbox[c][11cm][c]{\paperwidth}{\centering\begin{tikzpicture}[opacity=0.1]\node[opacity=0.1] {\includegraphics[width=.7\linewidth]{../logo_michocoq.png}};\end{tikzpicture}}}
+#+END_EXPORT
+
+** Mi-Cho-Coq
+
+#+BEGIN_CENTER
+#+BEGIN_EXPORT latex
+\includegraphics[width=.3\linewidth]{../logo_michocoq.png}
+#+END_EXPORT
+#+END_CENTER
+
+- Deep embedding of the Michelson language in Coq
+- Weakest-precondition calculus
+- Free software (MIT License)
+
+   https://gitlab.com/nomadic-labs/mi-cho-coq/
+
+** Syntax of types
+
+#+BEGIN_SRC coq
+  Inductive comparable_type : Set :=
+  | nat | int | string | bytes | bool
+  | mutez | address | key_hash | timestamp.
+
+  Inductive type : Set :=
+  | Comparable_type (_ : comparable_type)
+  | unit | option (_ : type) | lambda (_ _ : type)
+  | pair (_ _ : type) | or (_ _ : type)
+  (* Domain specific *)
+  | key | signature | operation | contract (_  : type)
+  (* Data structures *)
+  | list (_ : type) | set (_ : comparable_type)
+  | map (_ : comparable_type) (_ : type).
+
+  Coercion Comparable_type : comparable_type >-> type.
+
+  Definition stack_type := Datatypes.list type.
+#+END_SRC
+
+** Syntax and typing of instructions
+
+#+BEGIN_SRC coq
+Inductive instruction
+   : stack_type -> stack_type -> Set :=
+| FAILWITH {A B a} : instruction (a :: A) B
+| SEQ {A B C} : instruction A B -> instruction B C ->
+                instruction A C
+| IF {A B} : instruction A B -> instruction A B ->
+             instruction (bool :: A) B
+| LOOP {A} : instruction A (bool :: A) ->
+             instruction (bool :: A) A
+| COMPARE {a : comparable_type} {S} :
+          instruction (a :: a :: S) (int :: S)
+| DROP {a S} : instruction (a :: S) S
+| DUP {a S} : instruction (a :: S) (a :: a :: S)
+| SWAP {a b S} : instruction (a :: b :: S) (b :: a :: S)
+| ….
+#+END_SRC
+
+** Semantics
+#+BEGIN_SRC coq
+  Fixpoint eval {A B : stack_type}
+        (i : instruction A B) (input : stack A) : stack B :=
+      match i, input with
+      | FAILWITH, (x, _) =>
+         ...
+      | SEQ i1 i2, input =>
+         eval i2 (eval i1 input)
+      | IF bt bf, (b, st) =>
+         if b then eval bt st else eval bf st
+      | LOOP body, (b, st) =>
+         if b then eval (SEQ body (LOOP body)) st
+         else st
+      ...
+#+END_SRC
+
+** Semantics
+#+BEGIN_SRC coq
+  Fixpoint eval {A B : stack_type}
+        (i : instruction A B) (input : stack A) : M (stack B) :=
+      match i, input with
+      | FAILWITH, (x, _) =>
+         Failed _ (Assertion_Failure _ x)
+      | SEQ i1 i2, input =>
+         bind (eval i2) (eval i1 input)
+      | IF bt bf, (b, st) =>
+         if b then eval bt st else eval bf st
+      | LOOP body, (b, st) =>
+         if b then eval (SEQ body (LOOP body)) st
+         else Return _ st
+      ...
+#+END_SRC
+
+** Semantics
+#+BEGIN_SRC coq
+  Fixpoint eval {A B : stack_type}
+        (i : instruction A B) (input : strack A)
+        (fuel : nat) {struct fuel} : M (stack B) :=
+    match fuel with
+    | 0 => Failed _ Out_of_fuel
+    | S n =>
+      match i, input with
+      | FAILWITH, (x, _) =>
+         Failed _ (Assertion_Failure _ x)
+      | SEQ i1 i2, input =>
+         bind (eval i2 n) (eval i1 n input)
+      | IF bt bf, (b, st) =>
+         ...
+      | LOOP body, (b, st) =>
+         ...
+#+END_SRC
+
+** Semantics of domain specific operations
+
+- =mutez= and =timestamp= arithmetics are supported
+- serialisation, cryptographic primitives, and access to the chain
+  context are axiomatized
+
+* Smart contract verification
+** Verification
+
+ #+BEGIN_SRC coq
+   Definition correct_smart_contract {A B : stack_type}
+     (i : instruction A B) min_fuel spec : Prop :=
+     forall (input : stack A) (output : stack B) fuel,
+       fuel >= min_fuel input ->
+       eval i fuel input = Return (stack B) output <->
+         spec input output.
+ #+END_SRC
+
+ \pause Full functional verification: we characterize all successful runs of
+ the contract.
+
+** Computing weakest precondition
+
+#+BEGIN_SRC coq
+  Fixpoint wp {A B} (i : instruction A B) fuel
+    (post : stack B -> Prop) : (stack A -> Prop) :=
+    match fuel with
+    | 0 => fun _ => False
+    | S fuel =>
+       match i, input with
+       | FAILWITH, _ => False
+       | SEQ B C, input => wp B fuel (wp C fuel post) input
+       | IF bt bf, (b, input) =>
+           if b then wp bt fuel post input
+           else wp bf fuel post input
+       | LOOP body, (b, input) =>
+           if b then wp (SEQ body (LOOP body)) fuel post input
+           else post input
+       | …
+#+END_SRC
+
+** Correctness of wp
+
+#+BEGIN_SRC coq
+  Lemma wp_correct {A B} (i : instruction A B)
+    fuel (post : stack B -> Prop) (input : stack A) :
+    wp i fuel psi input <->
+      exists output,
+        eval i fuel input = Return _ output /\ psi output.
+  Proof. … Qed.
+#+END_SRC
+
+** Proven smart contracts
+
+- Vote example
+
+- Default "manager" smart contract
+
+- Multisig
+
+  + $n$ persons share the ownership of the contract.
+
+  + they agree on a threshold $t$ (an integer).
+
+  + to do anything with the contract, at least $t$ owners must agree.
+
+  + possible actions:
+    + transfer from the multisig contract to somewhere else
+    + change the list of owners and the threshold
+
+
+* Conclusion
+** Conclusion
+
+- The Michelson smart-contract language is formalized in Coq.
+
+- This formalisation can be used to prove interesting Michelson smart-contracts.
+
+** Ongoing and Future Work
+
+- certify compilers to Michelson
+
+- formalize the Michelson cost model
+
+- use code extraction to replace the current GADT-based implementation in OCaml
+
+- formalize the contract life, mutual and recursive calls
+
+- implement serialisation and cryptography
+
+#+BEGIN_EXPORT latex
+\end{frame}
+\setbeamertemplate{background canvas}{\parbox[c][11cm][c]{\paperwidth}{\centering\begin{tikzpicture}\node[opacity=0.1] {\includegraphics[width=.7\linewidth]{../logo_pile_qui_chante.png}};\end{tikzpicture}}}
+\begin{frame}{Thank you!}
+#+END_EXPORT
+
+- Tezos
+
+  https://gitlab.com/tezos/tezos
+- Mi-Cho-Coq
+
+  https://gitlab.com/nomadic-labs/mi-cho-coq/
+- Multisig contract in Michelson
+
+  https://github.com/murbard/smart-contracts/blob/master/multisig/michelson/multisig.tz
+- Multisig proof
+
+  https://gitlab.com/nomadic-labs/mi-cho-coq/blob/master/src/contracts_coq/multisig.v
+
+\appendix
+
+* Appendix
+
+** Mutlisig Specification
+:PROPERTIES:
+:BEAMER_OPT: plain,noframenumbering
+:END:
+
+#+BEGIN_SRC coq
+Definition multisig_spec
+           (counter : N)
+           (action : data action_ty)
+           (sigs : Datatypes.list (Datatypes.option (data signature)))
+           (stored_counter : N)
+           (threshold : N)
+           (keys : Datatypes.list (data key))
+           (new_stored_counter : N)
+           (new_threshold : N)
+           (new_keys : Datatypes.list (data key))
+           (returned_operations : Datatypes.list (data operation)) :=
+  let params : data parameter_ty := ((counter, action), sigs) in
+  let storage : data storage_ty := (stored_counter, (threshold, keys)) in
+  counter = stored_counter /\
+  exists first_sigs remaining_sigs,
+    sigs = (first_sigs ++ remaining_sigs)%list /\
+    length first_sigs = length keys /\
+#+END_SRC
+** Mutlisig Specification
+:PROPERTIES:
+:BEAMER_OPT: plain,noframenumbering
+:END:
+
+#+BEGIN_SRC coq
+    check_all_signatures
+      first_sigs keys
+      (fun k sig =>
+         check_signature
+           env k sig
+           (pack env pack_ty ((chain_id_ env, address_ env ST.self_type (self env)),
+                             (counter, action)))) /\
+    (count_signatures first_sigs >= threshold)%N /\
+    new_stored_counter = (1 + stored_counter)%N /\
+#+END_SRC
+** Mutlisig Specification
+:PROPERTIES:
+:BEAMER_OPT: plain,noframenumbering
+:END:
+
+#+BEGIN_SRC coq
+    match action with
+    | inl (amout, contr) =>
+      new_threshold = threshold /\
+      new_keys = keys /\
+      returned_operations = (transfer_tokens env unit tt amout contr :: nil)%list
+    | inr (inl kh) =>
+      new_threshold = threshold /\
+      new_keys = keys /\
+      returned_operations = (set_delegate env kh :: nil)%list
+    | inr (inr (nt, nks)) =>
+      new_threshold = nt /\
+      new_keys = nks /\
+      returned_operations = nil
+    end.
+#+END_SRC
