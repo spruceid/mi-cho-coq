@@ -540,7 +540,7 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
     | S n => Return _ (DUP_Sn n)
     | O => Failed _ (Expansion b e)
     end
-  | Mk_loc_micheline ((b, e), PRIM (_, String "D" (String "U" (String "U" s))) (a :: nil)) =>
+  | Mk_loc_micheline ((b, e), PRIM (_, String "D" (String "U" (String "U" s))) nil) =>
     let is_duup := fix is_duup s :=
                      match s with
                      | "P" => true
