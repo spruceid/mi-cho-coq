@@ -288,7 +288,7 @@ Proof.
   intro Hfuel.
   rewrite eval_precond_correct.
   repeat more_fuel.
-  simplify_instruction.
+  simpl.
   destruct sigs as [|[sig|] sigs].
   - reflexivity.
   - case (check_signature env k sig packed).
@@ -327,7 +327,7 @@ Proof.
   induction keys as [|key keys]; intros n sigs packed fuel Hfuel.
   - simpl in Hfuel.
     more_fuel.
-    simplify_instruction.
+    simpl.
     split.
     + intro H.
       exists nil.
@@ -345,7 +345,7 @@ Proof.
     more_fuel.
     change (13 + (length keys * 14 + 1) <= fuel) in Hfuel.
     assert (length keys * 14 + 1 <= fuel) as Hfuel2 by (transitivity (13 + (length keys * 14 + 1)); [repeat constructor| apply Hfuel]).
-    simplify_instruction.
+    simpl.
     rewrite <- eval_precond_correct.
     rewrite multisig_iter_body_correct.
     + destruct sigs as [|[sig|] sigs].
@@ -469,31 +469,18 @@ Proof.
   change (data (list key)) in keys.
   rewrite eval_precond_correct.
   unfold multisig_tail.
-  do 4 more_fuel.
-  simplify_instruction.
-  case_eq (BinInt.Z.leb (comparison_to_int (threshold ?= n)%N) Z0).
-  - intro Hle.
-    rewrite (leb_le nat) in Hle.
-    unfold lt, lt_comp, compare in Hle.
-    rewrite N.compare_lt_iff in Hle.
-    rewrite <- N.le_lteq in Hle.
-    apply (and_right Hle).
-    repeat more_fuel.
-    simplify_instruction.
-    destruct action as [(amount, contract)|[delegate_key_hash|(new_threshold, new_keys)]];
-      repeat more_fuel; reflexivity.
-  - repeat more_fuel.
-    simplify_instruction.
-    intro Hle.
-    apply (leb_gt nat) in Hle.
-    rename Hle into Hgt.
-    unfold gt, gt_comp, compare in Hgt.
-    rewrite N.compare_gt_iff in Hgt.
-    split.
-    + intro H; inversion H.
-    + intros (Hle, _).
-      apply N.lt_nge in Hgt.
-      contradiction.
+  do 6 more_fuel.
+  simpl.
+  rewrite if_false_is_and.
+  rewrite (leb_le nat).
+  unfold lt, lt_comp, compare, simple_compare.
+  rewrite N.compare_lt_iff.
+  rewrite <- N.le_lteq.
+  apply and_both.
+  repeat more_fuel.
+  simpl.
+  destruct action as [(amount, contract)|[delegate_key_hash|(new_threshold, new_keys)]];
+      reflexivity.
 Qed.
 
 Lemma multisig_correct
@@ -529,20 +516,20 @@ Proof.
     clear params.
     unfold eval.
     rewrite eval_precond_correct.
-    more_fuel; simplify_instruction.
+    more_fuel; simpl.
     match goal with
     | |- eval_precond fuel env ?i ?t ?st <-> ?r =>
       pose (t) as then_; change (eval_precond fuel env i then_ st <-> r)
     end.
-    more_fuel; simplify_instruction.
-    more_fuel; simplify_instruction.
-    more_fuel; simplify_instruction.
-    simplify_instruction.
+    more_fuel; simpl.
+    more_fuel; simpl.
+    more_fuel; simpl.
+    simpl.
     match goal with
     | |- eval_precond fuel env ?i ?t ?st <-> ?r =>
       pose (t) as iter; change (eval_precond fuel env i iter st <-> r)
     end.
-    more_fuel. simplify_instruction.
+    more_fuel. simpl.
     subst iter.
     rewrite <- eval_precond_correct.
     rewrite multisig_iter_correct.

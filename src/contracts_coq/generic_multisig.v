@@ -251,11 +251,11 @@ Proof.
   intros params storage fuel Hfuel.
   unfold multisig_head.
   unfold "+", params, storage, multisig_head_spec.
-  do 9 (more_fuel; simplify_instruction).
+  do 9 (more_fuel; simpl).
   rewrite if_false_is_and.
   rewrite (eqb_eq mutez).
   apply and_both.
-  repeat simplify_instruction.
+  repeat simpl.
   rewrite if_false_is_and.
   rewrite (eqb_eq nat).
   rewrite (eq_sym_iff counter stored_counter).
@@ -304,7 +304,7 @@ Lemma multisig_iter_body_correct k n sigs packed
 Proof.
   intro Hfuel.
   repeat more_fuel.
-  simplify_instruction.
+  simpl.
   destruct sigs as [|[sig|] sigs].
   - reflexivity.
   - case (check_signature env k sig packed).
@@ -339,7 +339,7 @@ Proof.
   induction keys as [|key keys]; intros n sigs packed fuel Hfuel.
   - simpl in Hfuel.
     more_fuel.
-    simplify_instruction.
+    simpl.
     split.
     + intro H.
       exists nil.
@@ -357,7 +357,7 @@ Proof.
     more_fuel.
     change (16 + (length keys * 17 + 1) <= fuel) in Hfuel.
     assert (length keys * 17 + 1 <= fuel) as Hfuel2 by (transitivity (16 + (length keys * 17 + 1)); [repeat constructor| apply Hfuel]).
-    simplify_instruction.
+    simpl.
     rewrite multisig_iter_body_correct.
     + destruct sigs as [|[sig|] sigs].
       * split; [intro H; inversion H|].
@@ -490,7 +490,7 @@ Proof.
   rewrite eval_precond_correct.
   unfold multisig_tail.
   change (10 + fuel) with (S (S (S (S (6 + fuel))))).
-  simplify_instruction.
+  simpl eval_precond.
   case sigs.
   - case_eq (BinInt.Z.leb (comparison_to_int (threshold ?= n)%N) Z0).
     + intro Hle.
@@ -503,7 +503,6 @@ Proof.
       destruct action as [(tff, lam)|(new_threshold, new_keys)].
       * do 2 fold_eval_precond.
         rewrite <- eval_precond_correct.
-        unfold precond.
         change (2 + fuel) with (S (S fuel)).
         case (semantics.eval _ lam (S (S fuel)) (tt, tt)).
         -- intro; split; intro H; inversion H.
@@ -554,9 +553,7 @@ Proof.
   - remember multisig_head as mh.
     remember multisig_iter as mi.
     change (23 + fuel) with (S (S (21 + fuel))).
-    simplify_instruction_light.
-    simplify_instruction.
-    simplify_instruction.
+    simpl.
     repeat fold_eval_precond.
     subst mh.
     unfold multisig_spec.
@@ -567,8 +564,7 @@ Proof.
     apply and_both_2.
     intro; subst counter.
     remember multisig_tail as mt.
-    simplify_instruction_light.
-    simplify_instruction.
+    simpl.
     do 8 fold_eval_precond.
     subst mi.
     rewrite multisig_iter_correct; [|rewrite Nat.mul_comm; generalize Hfuel; simpl; lia].

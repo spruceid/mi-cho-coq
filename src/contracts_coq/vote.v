@@ -97,7 +97,7 @@ Proof.
   unfold eval.
   rewrite return_precond.
   rewrite eval_precond_correct.
-  do 15 (more_fuel; simplify_instruction).
+  do 15 (more_fuel; simpl).
   rewrite if_false_not.
   apply and_both_0.
   - change (tez.compare (5000000 ~Mutez) (amount env)) with
@@ -108,7 +108,7 @@ Proof.
   - (* Enough tez sent to contract *)
     destruct (map.get str Z string_compare param storage) eqn:mapget.
     + (* Key is in the map *)
-      more_fuel; simplify_instruction.
+      more_fuel; simpl.
       split; intros.
       * (* ->  *)
         simpl in *.
@@ -135,7 +135,7 @@ Proof.
            rewrite mapget2. reflexivity. intro contra. subst; contradiction.
            constructor.
       * (* <- *)
-        repeat simplify_instruction.
+        repeat simpl.
         destruct H as [H1 [H2 [H3 [H4 H5]]]].
         repeat f_equal.
         -- symmetry. assumption.
@@ -162,7 +162,7 @@ Proof.
               rewrite <- H2 in get2. apply map.map_memget in get2. destruct get2 as [v get2].
               rewrite get2 in get1. discriminate get1.
   + (* Key is not in the map *)
-    more_fuel; simplify_instruction.
+    more_fuel; simpl.
                split; intros.
       * (* -> *)
         inversion H.

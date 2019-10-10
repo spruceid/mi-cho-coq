@@ -152,14 +152,14 @@ Proof.
   rewrite return_precond.
   rewrite eval_precond_correct.
   unfold manager_spec.
-  do 5 (more_fuel; simplify_instruction).
+  do 5 (more_fuel; simpl).
   destruct param as [(tff, lam)|[]].
-  - do 5 (more_fuel; simplify_instruction).
-    simplify_instruction.
+  - do 5 (more_fuel; simpl).
+    simpl.
     rewrite if_false_is_and.
     rewrite (eqb_eq mutez).
     apply and_both.
-    do 5 (more_fuel; simplify_instruction).
+    do 5 (more_fuel; simpl).
     rewrite if_false_is_and.
     rewrite (eqb_eq address).
     apply and_both.

@@ -1209,29 +1209,4 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     - reflexivity.
   Qed.
 
-Ltac simplify_instruction :=
-  match goal with
-    |- ?g =>
-    match g with
-    | context c[eval_precond (S ?n) ?i ?psi] =>
-      is_var i ||
-             (let simplified := (eval simpl in (eval_precond (S n) i psi)) in
-              let full := context c[simplified] in
-              let final := eval cbv beta zeta iota in full in
-              change final)
-    end
-  end.
-
-(* essentially the same as simplify_instruction but reduces only one step *)
-Ltac simplify_instruction_light :=
-  match goal with
-  | |- context c[eval_precond (S ?n) ?i ?psi] =>
-    is_var i ||
-           ( let rem_fuel := fresh "fuel" in
-             remember n as rem_fuel;
-             let simplified := (eval simpl in (eval_precond (S rem_fuel) i psi)) in
-             change (eval_precond (S rem_fuel) i psi) with simplified;
-             subst rem_fuel)
-  end.
-
 End Semantics.

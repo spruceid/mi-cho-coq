@@ -95,27 +95,27 @@ Proof.
   unfold eval.
   rewrite eval_precond_correct.
   unfold ">=" in Hfuel.
-  do 8 (more_fuel ; simplify_instruction).
+  do 8 (more_fuel ; simpl).
   fold (simple_compare mutez).
   fold (compare mutez).
   case_eq ((comparison_to_int (compare mutez (0 ~Mutez) (amount env)) =? 0)%Z).
   - (* true *)
     intro Heq.
     rewrite eqb_eq in Heq.
-    do 1 (more_fuel ; simplify_instruction).
+    do 1 (more_fuel ; simpl).
     split.
     + intro Hops.
       injection Hops.
       intro; subst ops.
       intuition.
     + intros [(Hl, Hops)|(Hr, _)].
-      * simplify_instruction.
+      * simpl.
         subst; reflexivity.
       * symmetry in Heq.
         contradiction.
   - intro Hneq.
     rewrite eqb_neq in Hneq.
-    do 7 (more_fuel ; simplify_instruction).
+    do 7 (more_fuel ; simpl).
     destruct (contract_ env unit (source env)).
     + (* Some *)
       split.
@@ -127,7 +127,7 @@ Proof.
         -- congruence.
         -- injection He; intro; subst d; subst ops; reflexivity.
     + (* None *)
-      simplify_instruction. split.
+      simpl. split.
       * intro H; inversion H.
       * intros [(Habs, _)|(ctr, (He, (Hops, _)))].
         -- congruence.
