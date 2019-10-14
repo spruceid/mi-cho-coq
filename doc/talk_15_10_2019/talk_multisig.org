@@ -1,0 +1,407 @@
+* Options                                                         :noexport:
+#+OPTIONS: H:2 texht:t toc:nil
+#+DATE: Tezos Meet-up @ Ledger \newline October 15, 2019
+#+Title: Verified Multisig Contract
+#+Author:Raphaël Cauderlier
+#+LaTeX_Header: \institute{Nomadic Labs}
+** Beamer
+#+STARTUP: beamer
+#+BEAMER_COLOR_THEME: default
+#+BEAMER_FONT_THEME:
+#+LaTeX_header: \usepackage{ wasysym }
+#+LaTeX_header: \mode<beamer>{\usetheme{Darmstadt}}
+#+BEAMER_HEADER: \setbeamertemplate{navigation symbols}{}
+#+BEAMER_HEADER: \setbeamertemplate{footline}[frame number]
+#+BEAMER_HEADER: \usetikzlibrary{svg.path}
+#+BEAMER_INNER_THEME:
+#+BEAMER_OUTER_THEME:
+#+LATEX_CLASS: beamer
+#+LATEX_CLASS_OPTIONS:
+
+** XeLaTeX
+#+LATEX_HEADER: \usepackage{fontspec} \setmainfont{FreeSerif}
+** Code Listing
+#+LaTeX_Header: \usepackage{listings}
+#+LaTeX_Header: \usepackage{color}
+#+LaTeX_Header: \lstset{basicstyle={\ttfamily\small},keywordstyle={\color{blue}}}
+*** Dedukti
+#+LaTeX_Header: \lstdefinelanguage{Dedukti}{alsoletter={=->:},keywords={def,Type,-->,->,=>,:=,:,.},moredelim=[s][\color{brown}]{\[}{\]},moredelim=[s][\color{red}]{(;}{;)}}
+#+LaTeX_Header: \lstnewenvironment{dedukticode}
+#+LaTeX_Header: {\lstset{language={Dedukti}}}{}
+*** Coq
+#+LaTeX_Header: \lstdefinelanguage{Coq}{backgroundcolor=\color{orange!20},alsoletter={=->:},keywords={Definition,Type,Set,Prop,Parameter,Check,Ltac,Defined,Qed,Print,Theorem,Lemma,Proof,Inductive,fun,forall,exists,let,Fixpoint,struct,match,with,in,return,Module,Record,Class,Structure,End,Canonical,if,then,else,Coercion,end},moredelim=[s][\color{red}]{(*}{*)}}
+#+LaTeX_Header: \lstnewenvironment{coqcode}
+#+LaTeX_Header: {\lstset{language={Coq}}}{}
+*** OCaml
+#+LaTeX_Header: \lstdefinelanguage{Camligo}[Objective]{Caml}{backgroundcolor=\color{yellow!50}}
+*** Michelson
+#+LaTeX_Header: \lstdefinelanguage{Michelson}{}
+#+LaTeX_Header: \lstnewenvironment{michelsoncode}
+#+LaTeX_Header: {\lstset{language={Michelson}}}{}
+
+** Busproof
+#+LaTeX_Header: \usepackage{setspace}
+#+LaTeX_header: \usepackage{bussproofs}
+#+LaTeX_header: \newcommand{\myUIC}[2]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#1}
+#+LaTeX_header:      \UnaryInfC{#2}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\myBIC}[3]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#1}
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \BinaryInfC{#3}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\myTIC}[4]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#1}
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \AxiomC{#3}
+#+LaTeX_header:      \TrinaryInfC{#4}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\mylUIC}[3]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \RightLabel{\scriptsize(#1)}
+#+LaTeX_header:      \UnaryInfC{#3}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\mylBIC}[4]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \AxiomC{#3}
+#+LaTeX_header:      \RightLabel{\scriptsize(#1)}
+#+LaTeX_header:      \BinaryInfC{#4}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\mylTIC}[5]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \AxiomC{#3}
+#+LaTeX_header:      \AxiomC{#4}
+#+LaTeX_header:      \RightLabel{\scriptsize(#1)}
+#+LaTeX_header:      \TrinaryInfC{#5}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newenvironment{infset}
+#+LaTeX_header:   {\begin{center} \setstretch{2.5}}
+#+LaTeX_header:   {\end{center}}
+
+** Arrays
+#+LaTeX_Header: \newenvironment{leftarray}{\begin{array}{l}}{\end{array}}
+#+LaTeX_Header: \newenvironment{leftleftarray}{\begin{array}{ll}}{\end{array}}
+#+LaTeX_Header: \newenvironment{leftleftleftarray}{\begin{array}{lll}}{\end{array}}
+#+LaTeX_Header: \newenvironment{leftleftxleftarray}{\begin{array}{ll@{}l}}{\end{array}}
+#+LaTeX_Header: \newenvironment{leftreducearray}{\begin{array}{l@{~}l@{ }r@{}l}}{\end{array}}
+
+** Tikz
+#+LaTeX_header: \usepackage{tikz}
+** Background
+
+#+BEGIN_EXPORT latex
+\usebackgroundtemplate{\parbox[c][11cm][c]{\paperwidth}{\centering\begin{tikzpicture}[opacity=0.1]\input{../logo_tezos.tikz}\end{tikzpicture}}}
+#+END_EXPORT
+
+* Introduction
+
+** Introduction
+
+- Raphaël Cauderlier
+- Nomadic Labs
+- Verification of Tezos Smart Contracts in Coq
+
+#+LaTeX:  \end{frame}
+#+LaTeX:  \begin{frame}[noframenumbering,plain]
+#+LaTeX:  \frametitle{Outline}
+#+LaTeX:  \tableofcontents
+
+* Formal Methods for smart contracts
+
+** Motivation
+
+- Smart contracts manipulate money (sometimes a lot)
+
+- They are here to stay: in case of bug, they are hard to update
+
+- Security: bugs may become exploits
+
+Before uploading them, we want to be sure there is no bug in them!
+
+- \pause infinitely-many possible input values
+  so testing cannot be exhaustive
+
+** Definition
+
+Formal methods: methods for mathematically reasoning about programs
+
+- \pause Semantics: Description of the meaning of all instructions of the programming language
+- \pause Specification: Formula in some logic describing the expected behaviour of the program
+- \pause Goal: verify that the program satisfies the specification
+  + Mathematical proof, more or less automatized
+
+** Approaches
+
+- Model Checking
+
+  Abstract the program into a state automaton called the /model/ that
+  can be checked on all inputs.
+
+- Abstract Interpretation
+
+  Abstract the values as /domains/ (for example intervals). Refine the
+  abstraction when needed.
+
+- Deductive Verification
+
+  Reduce to the /theorem proving/ problem.
+
+** Model Checking
+
+  Abstract the program into a state automaton called the /model/ that
+  can be checked on all inputs.
+
+- Specifications:
+  + Safety
+    No bad state can be reached
+
+  + Liveness
+    Good states are reached infinitely often
+
+  + Temporal properties
+
+- Problem:
+  + Finding the model
+
+  + Linking it to the concrete program
+
+** Abstract Interpretation
+
+  Abstract the values as /domains/ (for example intervals). Refine the
+  abstraction when needed.
+
+- Specifications:
+  + Safety
+  + Arithmetic
+
+- Problem
+  + False alarms
+
+** Deductive Verification
+
+  Reduce to the /theorem proving/ problem.
+
+- Specifications:
+  + /Functional/ properties
+    ={ precondition } Program { postcondition }=
+
+  + Very rich logics
+
+- Problem
+  + Requires a lot of user interaction
+
+
+** Michelson design
+
+Michelson has been designed to ease formal methods
+  + Static typing
+  + Explicit failure
+  + No overflow nor division by zero
+  + Clear documented semantics
+
+Michelson contracts are necessarily small and simple
+
+** Formal methods for Michelson
+
+- Model Checking:
+  + Example: auction
+  + Spec: Anybody either win the auction or lose no money
+  + Tool: Cubicle Model-Checker
+
+- Abstract Interpretation:
+  + Bound on gas
+  + Token freeze
+
+- Deductive Verification:
+  + Example: multisig
+  + Spec: multisig succeeds IFF enough valid signatures
+  + Tool: Mi-Cho-Coq
+
+* Multisig Contracts
+
+** The multisig contract
+
+- $n$ persons share the ownership of the contract.
+
+- they agree on a threshold $t$ (an integer).
+
+- to do anything with the contract, at least $t$ owners must agree.
+
+- possible actions:
+  + list of operations (to be run atomically)
+  + changing the list of owners and the threshold
+
+** The multisig contract
+
+- Michelson implementation:
+
+https://github.com/murbard/smart-contracts/blob/master/multisig/michelson/generic.tz
+
+- \pause Integrated in the =tezos-client=
+
+  + =tezos-client deploy multisig …=
+  + =tezos-client sign multisig transaction …=
+  + =tezos-client from multisig contract … transfer …=
+
+** Multisig anti-replay
+
+- Multisig uses cryptographic signatures to
+  + authenticate the owners
+  + ensure they agree to perform the specific action
+
+- \pause But each signature should be usable only once
+  + Once in the lifetime of the contract
+  + On no other contract
+
+- \pause Signed data = (action, counter, multisig address)
+
+  Counter incremented at each successful run
+
+** Multisig storage
+
+We need to store
+- the keys
+- the threshold
+- the anti-replay counter
+
+#+BEGIN_SRC michelson
+storage
+  (pair (nat %stored_counter)
+        (pair (nat %threshold)
+              (list %keys key))) ;
+#+END_SRC
+
+** Multisig parameter
+
+Two entrypoints
+- Default: take my tokens (by anybody)
+- Main: Perform an action (requires enough signatures)
+
+#+BEGIN_SRC michelson
+  parameter
+    (or (unit %default)
+        (pair %main
+          (pair :payload
+             (nat %counter)
+             (or :action
+                (lambda %operation unit (list operation))
+                (pair %change_keys
+                   (nat %threshold)
+                   (list %keys key))))
+          (list %sigs (option signature))));
+#+END_SRC
+
+** Multisig code
+
+https://github.com/murbard/smart-contracts/blob/master/multisig/michelson/generic.tz
+
+* Mi-Cho-Coq
+
+** The Coq interactive theorem prover
+
+- Developped for more than 30 years
+- Non-trivial mathematical theorems: 4-color, odd-order
+- CompCert: certified C compiler
+
+** Coq: Dependent Types
+
+#+BEGIN_SRC coq
+  Parameter A : Type.
+#+END_SRC
+
+\pause
+#+BEGIN_SRC coq
+  Parameter a : A.
+#+END_SRC
+
+\pause
+#+BEGIN_SRC coq
+  Parameter B : A -> Prop.
+#+END_SRC
+
+\pause
+#+BEGIN_SRC coq
+  Parameter f : forall x : A, B x.
+#+END_SRC
+
+\pause
+#+BEGIN_SRC coq
+  Check f a.  (* Answer: f a : B a *)
+#+END_SRC
+
+** Coq: Implicit arguments
+
+Explicit polymorphism: Types are regular terms
+#+BEGIN_SRC coq
+  Definition identity (A : Type) (a : A) := a.
+#+END_SRC
+
+\pause Inference of first argument
+#+BEGIN_SRC coq
+  Lemma identity_2 : identity _ 2 = 2.
+  Proof. reflexivity. Qed.
+#+END_SRC
+
+\pause Implicit argument
+#+BEGIN_SRC coq
+  Definition id {A : Type} (a : A) := a.
+
+  Lemma id_2 : id 2 = 2.
+  Proof. reflexivity. Qed.
+#+END_SRC
+
+** Coq: Inductive Types
+
+Generalisation of ADT to dependent types:
+
+#+BEGIN_SRC Coq
+Inductive vector (A : Type) : nat -> Type :=
+  | Nil : vector A 0
+  | Cons n : A -> vector A n -> vector A (1 + n).
+#+END_SRC
+
+
+** Mi-Cho-Coq
+
+   Coq formalisation of Michelson
+   - syntax
+   - semantics
+   - typing
+
+   Functional verification of a few contracts
+
+** Verification of the Multisig
+
+   - Proven:
+
+     Characterisation of the relation between input and output:
+     =eval multisig input = Success output <-> R input output=
+
+   - Not proven:
+
+     Security property:
+     + signatures cannot be forged
+     + signatures sent to a multisig cannot be replayed
+
+** Future work
+
+   - Prove more contracts
+   - Improve automation
+   - Formalise more of Michelson (gas, contract life, security)
+   - Higher-level languages with certified compilers
+   - Extract the Coq interpreter
+
+* Conclusion
+
+** Conclusion
+
+   - Formal methods are complementary.
+
+   - Language design matters.
