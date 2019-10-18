@@ -1,6 +1,9 @@
 Require Import Ascii String List.
 Require Import untyped_syntax micheline_syntax error location.
 Require Import syntax_type.
+Require Import Lia.
+Require Coq.Program.Wf.
+
 
 Open Scope string.
 
@@ -209,6 +212,177 @@ Fixpoint micheline2michelson_map_cadr (x : cadr) (code : instruction) : instruct
     DUP ;; DIP 1 (CDR;; micheline2michelson_map_cadr x code) ;; CAR ;; PAIR
   | Cadr_nil => code (* Should not happen *)
   end.
+
+(* PAPAIR stuff *)
+
+Inductive direction := Left | Right.
+
+Inductive papair_token := token_P | token_A | token_I.
+
+Fixpoint lex_papair (s : String.string) (fail : exception) :
+  M (Datatypes.list papair_token) :=
+  match s with
+  | String "P" s =>
+    bind (fun l => Return _ (cons token_P l)) (lex_papair s fail)
+  | String "A" s =>
+    bind (fun l => Return _ (cons token_A l)) (lex_papair s fail)
+  | String "I" s =>
+    bind (fun l => Return _ (cons token_I l)) (lex_papair s fail)
+  | "R"%string => Return _ nil
+  | _ => Failed _ fail
+  end.
+
+Inductive papair_d : direction -> Set :=
+| Papair_d_P d : papair_d Left -> papair_d Right -> papair_d d
+| Papair_d_A : papair_d Left
+| Papair_d_I : papair_d Right.
+
+Fixpoint parse_papair (d : direction) (s : Datatypes.list papair_token) (fail : exception)
+         (fuel : Datatypes.nat) (Hs : List.length s < fuel) {struct fuel} :
+  M (papair_d d * { r : Datatypes.list papair_token | List.length r < List.length s}).
+Proof.
+  destruct fuel.
+  - destruct (PeanoNat.Nat.nlt_0_r _ Hs).
+  - destruct s as [|c s].
+    + exact (Failed _ fail).
+    + refine (match c, d
+              return M (papair_d d *
+                        { r : Datatypes.list papair_token | List.length r < S (List.length s)})
+              with
+              | token_P, d1 =>
+                bind
+                  (fun '(l, exist _ s1 Hl) =>
+                     bind (fun '(r, exist _ s2 Hr) =>
+                             (Return _ (Papair_d_P d l r, exist _ s2 _)))
+                          (parse_papair Right s1 fail fuel _))
+                  (parse_papair Left s fail fuel _)
+              | token_A, Left => Return _ (Papair_d_A, exist _ s _)
+              | token_I, Right => Return _ (Papair_d_I, exist _ s _)
+              | _, _ => Failed _ fail
+              end); simpl in *; lia.
+Defined.
+
+Inductive papair_left : Set :=
+| Papair_l_P : papair_left -> papair_right -> papair_left
+| Papair_l_A : papair_left
+with papair_right : Set :=
+| Papair_r_P : papair_left -> papair_right -> papair_right
+| Papair_r_I : papair_right.
+
+Fixpoint papair_l_of_papair_d (x : papair_d Left) : papair_left :=
+  match x in papair_d Left return papair_left with
+  | Papair_d_A => Papair_l_A
+  | Papair_d_P Left l r =>
+    Papair_l_P (papair_l_of_papair_d l) (papair_r_of_papair_d r)
+  end
+with
+papair_r_of_papair_d (x : papair_d Right) : papair_right :=
+  match x in papair_d Right return papair_right with
+  | Papair_d_I => Papair_r_I
+  | Papair_d_P Right l r =>
+    Papair_r_P (papair_l_of_papair_d l) (papair_r_of_papair_d r)
+  end.
+
+Fixpoint size_l (x : papair_left) :=
+  match x with
+  | Papair_l_A => 0
+  | Papair_l_P l r => 1 + size_l l + size_r r
+  end
+with
+size_r (y : papair_right) :=
+  match y with
+  | Papair_r_I => 0
+  | Papair_r_P l r => 1 + size_l l + size_r r
+  end.
+
+Inductive papair : Set :=
+| Papair_PAIR : papair
+| Papair_A : papair -> papair
+| Papair_I : papair -> papair
+| Papair_P : papair -> papair -> papair.
+
+Program Fixpoint papair_of_l_r (x : papair_left) (y : papair_right) {measure (size_l x + size_r y)}: papair :=
+  match x, y with
+  | Papair_l_A, Papair_r_I => Papair_PAIR
+  | Papair_l_A, Papair_r_P l r =>
+    Papair_A (papair_of_l_r l r)
+  | Papair_l_P l r, Papair_r_I =>
+    Papair_I (papair_of_l_r l r)
+  | Papair_l_P xl xr, Papair_r_P yl yr =>
+    Papair_P (papair_of_l_r xl xr) (papair_of_l_r yl yr)
+  end.
+Next Obligation.
+  simpl.
+  lia.
+Defined.
+Next Obligation.
+  simpl.
+  lia.
+Defined.
+Next Obligation.
+  simpl.
+  lia.
+Defined.
+
+Fixpoint micheline2michelson_papair (x : papair) : instruction :=
+  match x with
+  | Papair_PAIR => PAIR
+  | Papair_A y => DIP 1 (micheline2michelson_papair y) ;; PAIR
+  | Papair_I x => micheline2michelson_papair x ;; PAIR
+  | Papair_P x y => micheline2michelson_papair x ;;
+                    DIP 1 (micheline2michelson_papair y) ;;
+                    PAIR
+  end.
+
+Definition UNPAIR := DUP ;; CAR ;; DIP 1 CDR.
+
+Fixpoint micheline2michelson_unpapair (x : papair) : instruction :=
+  match x with
+  | Papair_PAIR => UNPAIR
+  | Papair_A y => UNPAIR ;; DIP 1 (micheline2michelson_unpapair y)
+  | Papair_I x => UNPAIR ;; micheline2michelson_unpapair x
+  | Papair_P x y => UNPAIR ;;
+                    DIP 1 (micheline2michelson_unpapair y) ;;
+                    micheline2michelson_unpapair x
+  end.
+
+Definition parse_papair_full (s : String.string) (fail : exception): M instruction :=
+  bind (fun toks : Datatypes.list papair_token =>
+          bind (fun '(l, exist _ toks2 Htoks2) =>
+                  bind (fun '(r, exist _ toks3 Htoks3) =>
+                          match toks3 with
+                          | nil => Return _
+                                          (micheline2michelson_papair
+                                             (papair_of_l_r
+                                                (papair_l_of_papair_d l)
+                                                (papair_r_of_papair_d r)))
+                          | _ => Failed _ fail
+                          end
+                       )
+                       (parse_papair Right toks2 fail (S (List.length toks2)) ltac:(simpl; lia))
+               )
+               (parse_papair Left toks fail (S (List.length toks)) ltac:(simpl; lia))
+       )
+       (lex_papair s fail).
+
+Definition parse_unpapair_full (s : String.string) (fail : exception): M instruction :=
+  bind (fun toks : Datatypes.list papair_token =>
+          bind (fun '(l, exist _ toks2 Htoks2) =>
+                  bind (fun '(r, exist _ toks3 Htoks3) =>
+                          match toks3 with
+                          | nil => Return _
+                                          (micheline2michelson_unpapair
+                                             (papair_of_l_r
+                                                (papair_l_of_papair_d l)
+                                                (papair_r_of_papair_d r)))
+                          | _ => Failed _ fail
+                          end
+                       )
+                       (parse_papair Right toks2 fail (S (List.length toks2)) ltac:(simpl; lia))
+               )
+               (parse_papair Left toks fail (S (List.length toks)) ltac:(simpl; lia))
+       )
+       (lex_papair s fail).
 
 Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
   match m with
@@ -523,8 +697,6 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
                  (micheline2michelson_instruction a))
          (get_cadr s)
 
-  | Mk_loc_micheline (_, PRIM (_, "UNPAIR") nil) => (* TODO: PAPAIR and UNPAPAIR *)
-    Return _ (DUP ;; CAR ;; DIP 1 CDR)
   | Mk_loc_micheline ((b, e), PRIM (_, String "D" (String "I" s)) (a :: nil)) =>
     let is_diip := fix is_diip s :=
                      match s with
@@ -549,6 +721,18 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
                      end in
     if is_duup s then Return _ (DUP_Sn (String.length s))
     else Failed _ (Expansion_prim b e (String "D" (String "U" (String "U" s))))
+
+  (* PAPAIR *)
+  | Mk_loc_micheline ((b, e), PRIM (_, String "P" s) nil) =>
+    let prim := String "P" s in
+    let fail := Expansion_prim b e prim in
+    parse_papair_full s fail
+
+  (* UNPAPAIR *)
+  | Mk_loc_micheline ((b, e), PRIM (_, String "U" (String "N" (String "P" s))) nil) =>
+    let prim := String "U" (String "N" (String "P" s)) in
+    let fail := Expansion_prim b e prim in
+    parse_unpapair_full s fail
 
   (* Unknown case *)
   | Mk_loc_micheline ((b, e), PRIM (_, s) _) => Failed _ (Expansion_prim b e s)
