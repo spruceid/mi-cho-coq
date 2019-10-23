@@ -13,7 +13,7 @@ The simplest way to install the project is to use the OPAM package manager:
 opam repo add coq-released https://coq.inria.fr/opam/released
 
 # Install mi-cho-coq and its dependencies (coq, ott, and coq-ott)
-opam pin add -k git mi-cho-coq ./
+opam pin add -k path coq-mi-cho-coq ./
 
 #+END_SRC
 
