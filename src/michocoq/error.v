@@ -46,15 +46,19 @@ Definition bind {A B : Type} (f : A -> M B) (m : M A) :=
   | Return _ SB => f SB
   end.
 
-(** Notation for the bind with a typed answer. *)
-Notation "'let!' x : A ':=' X 'in' Y" :=
-  (bind (fun (x : A) => Y) X)
-  (at level 200, x ident, X at level 100, A at level 200, Y at level 200).
+Module Notations.
+  (** Notation for the bind with a typed answer. *)
+  Notation "'let!' x : A ':=' X 'in' Y" :=
+    (bind (fun (x : A) => Y) X)
+    (at level 200, x ident, X at level 100, A at level 200, Y at level 200).
 
-(** Notation for the bind. *)
-Notation "'let!' x ':=' X 'in' Y" :=
-  (bind (fun x => Y) X)
-  (at level 200, x ident, X at level 100, Y at level 200).
+  (** Notation for the bind. *)
+  Notation "'let!' x ':=' X 'in' Y" :=
+    (bind (fun x => Y) X)
+    (at level 200, x ident, X at level 100, Y at level 200).
+End Notations.
+
+Import Notations.
 
 Fixpoint list_fold_left {A B : Set} (f : A -> B -> M A) (l : Datatypes.list B) (a : A) : M A :=
   match l with

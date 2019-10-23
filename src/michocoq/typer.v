@@ -1,6 +1,7 @@
 Require Import ZArith List Nat String.
 Require Import syntax semantics.
 Require Import untyped_syntax error.
+Import error.Notations.
 
 
 Lemma andb_and a b : (a && b)%bool <-> a /\ b.

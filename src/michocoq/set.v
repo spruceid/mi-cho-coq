@@ -24,6 +24,7 @@
 
 Require Sorted Eqdep_dec.
 Require Import error.
+Import error.Notations.
 
 Section definition.
 

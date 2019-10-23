@@ -3,7 +3,7 @@ Require Import untyped_syntax micheline_syntax error location.
 Require Import syntax_type.
 Require Import Lia.
 Require Coq.Program.Wf.
-
+Import error.Notations.
 
 Open Scope string.
 

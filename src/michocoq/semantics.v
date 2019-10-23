@@ -28,6 +28,7 @@ Require Import syntax macros.
 Require NPeano.
 
 Require Import comparable error.
+Import error.Notations.
 
 Module Type SelfType.
   Parameter self_type : type.
