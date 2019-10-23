@@ -3,6 +3,7 @@ Require Import syntax.
 Require Import untyped_syntax error.
 Require typer.
 Require Eqdep_dec.
+Import error.Notations.
 
 (* Not really needed but eases reading of proof states. *)
 Require Import String.
@@ -579,13 +580,10 @@ Module Untyper(C:ContractContext).
                    match L with
                    | nil => Return _ nil
                    | cons (Elt x y) l =>
-                     bind (fun x =>
-                             bind (fun y =>
-                                     bind (fun l =>
-                                             Return _ (cons (syntax.Elt _ _ x y) l))
-                                          (type_data_list l))
-                                  (type_data y b))
-                          (type_data x a)
+                    let! x := type_data x a in
+                    let! y := type_data y b in
+                    let! l := type_data_list l in
+                    Return _ (cons (syntax.Elt _ _ x y) l)
                    | _ => Failed _ (Typing _ (untype_data (syntax.Concrete_map l), (map a b)))
                    end) as type_data_map.
         assert (forall l, type_data_map (List.map (fun '(syntax.Elt _ _ x y) => Elt (untype_data x) (untype_data y)) l) = Return _ l).

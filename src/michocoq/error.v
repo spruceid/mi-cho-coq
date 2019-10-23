@@ -64,19 +64,17 @@ Fixpoint list_fold_left {A B : Set} (f : A -> B -> M A) (l : Datatypes.list B) (
   match l with
   | nil => Return _ a
   | cons x l =>
-    bind (list_fold_left f l)
-         (f a x)
+    let! a := f a x in
+    list_fold_left f l a
   end.
 
 Fixpoint list_map {A B : Set} (f : A -> M B) (l : Datatypes.list A) : M (Datatypes.list B) :=
   match l with
   | nil => Return _ nil
   | cons a l =>
-    bind (fun b =>
-            bind (fun l =>
-                    Return _ (cons b l))
-                 (list_map f l))
-         (f a)
+    let! b := f a in
+    let! l := list_map f l in
+    Return _ (cons b l)
   end.
 
 Definition try {A} (m1 m2 : M A) : M A :=

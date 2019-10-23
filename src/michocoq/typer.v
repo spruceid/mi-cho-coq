@@ -64,27 +64,24 @@ Module Typer(C:ContractContext).
                 forall (i : untyped_syntax.instruction) A,
                   M (typer_result A))
              i A B : M {b : Datatypes.bool & instruction self_type b A B} :=
-    bind (fun r1 =>
-            match r1 with
-            | Inferred_type _ B' i =>
-              bind (fun i =>
-                      Return _ (existT _ false i))
-                   (instruction_cast_range A B' B i)
-            | Any_type _ i => Return _ (existT _ true (i B))
-            end)
-         (type_instruction i A).
+    let! r1 := type_instruction i A in
+    match r1 with
+    | Inferred_type _ B' i =>
+      let! i := instruction_cast_range A B' B i in
+      Return _ (existT _ false i)
+    | Any_type _ i => Return _ (existT _ true (i B))
+    end.
 
   Definition type_check_instruction_no_tail_fail {self_type}
              (type_instruction :
                 forall (i : untyped_syntax.instruction) A,
                   M (typer_result A))
              i A B : M (instruction self_type Datatypes.false A B) :=
-    bind (fun r1 =>
-            match r1 with
-            | Inferred_type _ B' i => instruction_cast_range A B' B i
-            | Any_type _ i => Failed _ (Typing _ tt)
-            end)
-         (type_instruction i A).
+    let! r1 := type_instruction i A in
+    match r1 with
+    | Inferred_type _ B' i => instruction_cast_range A B' B i
+    | Any_type _ i => Failed _ (Typing _ tt)
+    end.
 
   Definition assert_not_tail_fail {self_type} A (r : typer_result A) :
     M {B & instruction self_type Datatypes.false A B} :=
@@ -98,8 +95,8 @@ Module Typer(C:ContractContext).
                 forall (i : untyped_syntax.instruction) A,
                   M (typer_result A))
              i A : M {B & instruction self_type Datatypes.false A B} :=
-    bind (assert_not_tail_fail A)
-         (type_instruction i A).
+    let! r := type_instruction i A in
+    assert_not_tail_fail A r.
 
   Definition type_branches {self_type}
              (type_instruction :
@@ -111,25 +108,22 @@ Module Typer(C:ContractContext).
                  instruction self_type tffb A2 B ->
                  instruction self_type (tffa && tffb) A B)
     : M (typer_result A) :=
-    bind (fun r1 =>
-            bind (fun r2 =>
-                    match r1, r2 with
-                    | Inferred_type _ B1 i1, Inferred_type _ B2 i2 =>
-                      bind (fun i2 =>
-                              Return _
-                                     (Inferred_type _ _
-                                                    (IF_instr B1 false false i1 i2)))
-                           (instruction_cast_range A2 B2 B1 i2)
-                    | Inferred_type _ B i1, Any_type _ i2 =>
-                      Return _ (Inferred_type _ _ (IF_instr B false true i1 (i2 B)))
-                    | Any_type _ i1, Inferred_type _ B i2 =>
-                      Return _ (Inferred_type _ _ (IF_instr B true false (i1 B) i2))
-                    | Any_type _ i1, Any_type _ i2 =>
-                      Return _ (Any_type _ (fun B =>
-                                              IF_instr B true true (i1 B) (i2 B)))
-                    end)
-                 (type_instruction i2 A2))
-         (type_instruction i1 A1).
+    let! r1 := type_instruction i1 A1 in
+    let! r2 := type_instruction i2 A2 in
+    match r1, r2 with
+    | Inferred_type _ B1 i1, Inferred_type _ B2 i2 =>
+      let! i2 := instruction_cast_range A2 B2 B1 i2 in
+      Return _
+              (Inferred_type _ _
+                            (IF_instr B1 false false i1 i2))
+    | Inferred_type _ B i1, Any_type _ i2 =>
+      Return _ (Inferred_type _ _ (IF_instr B false true i1 (i2 B)))
+    | Any_type _ i1, Inferred_type _ B i2 =>
+      Return _ (Inferred_type _ _ (IF_instr B true false (i1 B) i2))
+    | Any_type _ i1, Any_type _ i2 =>
+      Return _ (Any_type _ (fun B =>
+                              IF_instr B true true (i1 B) (i2 B)))
+    end.
 
   Definition take_one (S : stack_type) : M (type * stack_type) :=
     match S with
@@ -187,9 +181,8 @@ Module Typer(C:ContractContext).
     match a with
     | Comparable_type a => Return _ (Comparable_type_simple a)
     | pair (Comparable_type a) b =>
-      bind (fun b =>
-              Return _ (Cpair a b))
-           (as_comparable b)
+      let! b := as_comparable b in
+      Return _ (Cpair a b)
     | _ => Failed _ (Typing _ ("not a comparable type"%string, a))
     end.
 
@@ -226,9 +219,8 @@ Module Typer(C:ContractContext).
           if (z >=? 0)%Z then Return _ (syntax.Nat_constant (Z.to_N z))
           else Failed _ (Typing _ ("Negative value cannot be typed in nat"%string, d))
         | Comparable_type mutez =>
-          bind (fun m =>
-                  Return _ (syntax.Mutez_constant (Mk_mutez m)))
-               (tez.of_Z z)
+          let! m := tez.of_Z z in
+          Return _ (syntax.Mutez_constant (Mk_mutez m))
         | Comparable_type timestamp => Return _ (syntax.Timestamp_constant z)
         | _ => Failed _ (Typing _ (d, ty))
         end
@@ -274,38 +266,33 @@ Module Typer(C:ContractContext).
       fun ty =>
         match ty with
         | pair a b =>
-          bind (fun x =>
-                  bind (fun y =>
-                          Return _ (syntax.Pair x y))
-                       (type_data y b))
-               (type_data x a)
+          let! x := type_data x a in
+          let! y := type_data y b in
+          Return _ (syntax.Pair x y)
         | _ => Failed _ (Typing _ (d, ty))
         end
     | Left x =>
       fun ty =>
         match ty with
         | or a b =>
-          bind (fun x =>
-                  Return _ (syntax.Left x))
-               (type_data x a)
+          let! x := type_data x a in
+          Return _ (syntax.Left x)
         | _ => Failed _ (Typing _ (d, ty))
         end
     | Right y =>
       fun ty =>
         match ty with
         | or a b =>
-          bind (fun y =>
-                  Return _ (syntax.Right y))
-               (type_data y b)
+          let! y := type_data y b in
+          Return _ (syntax.Right y)
         | _ => Failed _ (Typing _ (d, ty))
         end
     | Some_ x =>
       fun ty =>
         match ty with
         | option a =>
-          bind (fun x =>
-                  Return _ (syntax.Some_ x))
-               (type_data x a)
+          let! x := type_data x a in
+          Return _ (syntax.Some_ x)
         | _ => Failed _ (Typing _ (d, ty))
         end
     | None_ =>
@@ -318,44 +305,43 @@ Module Typer(C:ContractContext).
       fun ty =>
         match ty with
         | list a =>
-          bind (fun l => Return _ (syntax.Concrete_list l))
-               ((fix type_data_list l :=
-                   match l with
-                   | nil => Return _ nil
-                   | cons x l =>
-                     bind (fun x =>
-                             bind (fun l =>
-                                     Return _ (cons x l))
-                                  (type_data_list l))
-                          (type_data x a)
-                   end) l)
+          let! l :=
+            (fix type_data_list l :=
+              match l with
+              | nil => Return _ nil
+              | cons x l =>
+                let! x := type_data x a in
+                let! l := type_data_list l in
+                Return _ (cons x l)
+              end
+            ) l in
+          Return _ (syntax.Concrete_list l)
         | set a =>
-          bind (fun l => Return _ (syntax.Concrete_set l))
-               ((fix type_data_list l :=
-                   match l with
-                   | nil => Return _ nil
-                   | cons x l =>
-                     bind (fun x =>
-                             bind (fun l =>
-                                     Return _ (cons x l))
-                                  (type_data_list l))
-                          (type_data x a)
-                   end) l)
+          let! l :=
+            (fix type_data_list l :=
+              match l with
+              | nil => Return _ nil
+              | cons x l =>
+                let! x := type_data x a in
+                let! l := type_data_list l in
+                Return _ (cons x l)
+              end
+            ) l in
+          Return _ (syntax.Concrete_set l)
         | map a b =>
-          bind (fun l => Return _ (syntax.Concrete_map l))
-               ((fix type_data_list l :=
-                   match l with
-                   | nil => Return _ nil
-                   | cons (Elt x y) l =>
-                     bind (fun x =>
-                             bind (fun y =>
-                                     bind (fun l =>
-                                             Return _ (cons (syntax.Elt _ _ x y) l))
-                                          (type_data_list l))
-                                  (type_data y b))
-                          (type_data x a)
-                   | _ => Failed _ (Typing _ (d, ty))
-                   end) l)
+          let! l :=
+            (fix type_data_list l :=
+              match l with
+              | nil => Return _ nil
+              | cons (Elt x y) l =>
+                let! x := type_data x a in
+                let! y := type_data y b in
+                let! l := type_data_list l in
+                Return _ (cons (syntax.Elt _ _ x y) l)
+              | _ => Failed _ (Typing _ (d, ty))
+              end
+            ) l in
+          Return _ (syntax.Concrete_map l)
         | _ => Failed _ (Typing _ (d, ty))
         end
     | Instruction i =>
@@ -397,33 +383,33 @@ Module Typer(C:ContractContext).
     | IF_CONS i1 i2, list a :: A =>
       type_branches type_instruction i1 i2 _ _ _ (fun B tffa tffb => syntax.IF_CONS)
     | LOOP i, Comparable_type bool :: A =>
-      bind (fun i => Return _ (Inferred_type _ _ (syntax.LOOP i)))
-           (type_check_instruction_no_tail_fail
-              type_instruction i A (bool ::: A))
+      let! i := type_check_instruction_no_tail_fail
+        type_instruction i A (bool ::: A) in
+      Return _ (Inferred_type _ _ (syntax.LOOP i))
     | LOOP_LEFT i, or a b :: A =>
-      bind (fun i => Return _ (Inferred_type _ _ (syntax.LOOP_LEFT i)))
-           (type_check_instruction_no_tail_fail
-              type_instruction i (a :: A) (or a b :: A))
+      let! i := type_check_instruction_no_tail_fail
+        type_instruction i (a :: A) (or a b :: A) in
+      Return _ (Inferred_type _ _ (syntax.LOOP_LEFT i))
     | EXEC, a :: lambda a' b :: B =>
       let A := a :: lambda a' b :: B in
       let A' := a :: lambda a b :: B in
-      bind (fun i => Return _ (Inferred_type _ _ i))
-           (instruction_cast_domain A' A _ syntax.EXEC)
+      let! i := instruction_cast_domain A' A _ syntax.EXEC in
+      Return _ (Inferred_type _ _ i)
     | APPLY, a :: lambda (pair a' b) c :: B =>
       let A := a :: lambda (pair a' b) c :: B in
       let A' := a :: lambda (pair a b) c :: B in
       (if is_packable a as b return is_packable a = b -> _
        then fun i =>
-              bind (fun i => Return _ (Inferred_type _ _ i))
-                   (instruction_cast_domain A' A _ (@syntax.APPLY _ _ _ _ _ (IT_eq_rev _ i)))
+        let! i := instruction_cast_domain A' A _ (@syntax.APPLY _ _ _ _ _ (IT_eq_rev _ i)) in
+        Return _ (Inferred_type _ _ i)
        else fun _ => Failed _ (Typing _ "APPLY"%string)) eq_refl
     | DUP, a :: A =>
       Return _ (Inferred_type _ _ syntax.DUP)
     | SWAP, a :: b :: A =>
       Return _ (Inferred_type _ _ syntax.SWAP)
     | PUSH a v, A =>
-      bind (fun d => Return _ (Inferred_type _ _ (syntax.PUSH a d)))
-           (type_data v a)
+      let! d := type_data v a in
+      Return _ (Inferred_type _ _ (syntax.PUSH a d))
     | UNIT, A => Return _ (Inferred_type _ _ syntax.UNIT)
     | LAMBDA a b i, A =>
       bind (fun '(existT _ tff i) =>
@@ -528,14 +514,11 @@ Module Typer(C:ContractContext).
       Return _ (Inferred_type _ _ syntax.LSR)
     | COMPARE, a :: a' :: B =>
       let A := a ::: a' ::: B in
-      bind (fun a : comparable_type =>
-              bind (fun a' : comparable_type =>
-                      let A' := a ::: a ::: B in
-                      bind (fun i => Return _ (Inferred_type _ _ i))
-                           (instruction_cast_domain
-                              A' A (int ::: B) (syntax.COMPARE (a := a))))
-                   (as_comparable a'))
-           (as_comparable a)
+      let! a : comparable_type := as_comparable a in
+      let! a' : comparable_type := as_comparable a' in
+      let A' := a ::: a ::: B in
+      let! i := instruction_cast_domain A' A (int ::: B) (syntax.COMPARE (a := a)) in
+      Return _ (Inferred_type _ _ i)
     | CONCAT, Comparable_type string :: Comparable_type string :: B =>
       Return _ (Inferred_type _ _ (@syntax.CONCAT _ _ stringlike_string _))
     | CONCAT, Comparable_type bytes :: Comparable_type bytes :: B =>
@@ -569,48 +552,48 @@ Module Typer(C:ContractContext).
     | MEM, elt' :: set elt :: B =>
       let A := elt' :: set elt :: B in
       let A' := elt ::: set elt :: B in
-      bind (fun i => Return _ (Inferred_type _ _ i))
-           (instruction_cast_domain
-              A' A _ (@syntax.MEM _ _ _ (mem_set elt) _))
+      let! i := instruction_cast_domain
+        A' A _ (@syntax.MEM _ _ _ (mem_set elt) _) in
+      Return _ (Inferred_type _ _ i)
     | MEM, kty' :: map kty vty :: B =>
       let A := kty' :: map kty vty :: B in
       let A' := kty ::: map kty vty :: B in
-      bind (fun i => Return _ (Inferred_type _ _ i))
-           (instruction_cast_domain
-              A' A _ (@syntax.MEM _ _ _ (mem_map kty vty) _))
+      let! i := instruction_cast_domain
+        A' A _ (@syntax.MEM _ _ _ (mem_map kty vty) _) in
+      Return _ (Inferred_type _ _ i)
     | MEM, kty' :: big_map kty vty :: B =>
       let A := kty' :: big_map kty vty :: B in
       let A' := kty ::: big_map kty vty :: B in
-      bind (fun i => Return _ (Inferred_type _ _ i))
-           (instruction_cast_domain
-              A' A _ (@syntax.MEM _ _ _ (mem_bigmap kty vty) _))
+      let! i := instruction_cast_domain
+        A' A _ (@syntax.MEM _ _ _ (mem_bigmap kty vty) _) in
+      Return _ (Inferred_type _ _ i)
     | UPDATE, elt' :: Comparable_type bool :: set elt :: B =>
       let A := elt' ::: bool ::: set elt :: B in
       let A' := elt ::: bool ::: set elt :: B in
-      bind (fun i => Return _ (Inferred_type _ _ i))
-           (instruction_cast_domain
-              A' A _ (@syntax.UPDATE _ _ _ _ (update_set elt) _))
+      let! i := instruction_cast_domain
+        A' A _ (@syntax.UPDATE _ _ _ _ (update_set elt) _) in
+      Return _ (Inferred_type _ _ i)
     | UPDATE, kty' :: option vty' :: map kty vty :: B =>
       let A := kty' ::: option vty' ::: map kty vty :: B in
       let A' := kty ::: option vty ::: map kty vty :: B in
-      bind (fun i => Return _ (Inferred_type _ _ i))
-           (instruction_cast_domain
-              A' A _ (@syntax.UPDATE _ _ _ _ (update_map kty vty) _))
+      let! i := instruction_cast_domain
+        A' A _ (@syntax.UPDATE _ _ _ _ (update_map kty vty) _) in
+      Return _ (Inferred_type _ _ i)
     | UPDATE, kty' :: option vty' :: big_map kty vty :: B =>
       let A := kty' ::: option vty' ::: big_map kty vty :: B in
       let A' := kty ::: option vty ::: big_map kty vty :: B in
-      bind (fun i => Return _ (Inferred_type _ _ i))
-           (instruction_cast_domain
-              A' A _ (@syntax.UPDATE _ _ _ _ (update_bigmap kty vty) _))
+      let! i := instruction_cast_domain
+        A' A _ (@syntax.UPDATE _ _ _ _ (update_bigmap kty vty) _) in
+      Return _ (Inferred_type _ _ i)
     | ITER i, list a :: A =>
-      bind (fun i => Return _ (Inferred_type _ _ (syntax.ITER i)))
-           (type_check_instruction_no_tail_fail type_instruction i (a :: A) A)
+      let! i := type_check_instruction_no_tail_fail type_instruction i (a :: A) A in
+      Return _ (Inferred_type _ _ (syntax.ITER i))
     | ITER i, set a :: A =>
-      bind (fun i => Return _ (Inferred_type _ _ (syntax.ITER i)))
-           (type_check_instruction_no_tail_fail type_instruction i (a ::: A) A)
+      let! i := type_check_instruction_no_tail_fail type_instruction i (a ::: A) A in
+      Return _ (Inferred_type _ _ (syntax.ITER i))
     | ITER i, map kty vty :: A =>
-      bind (fun i => Return _ (Inferred_type _ _ (syntax.ITER i)))
-           (type_check_instruction_no_tail_fail type_instruction i (pair kty vty :: A) A)
+      let! i := type_check_instruction_no_tail_fail type_instruction i (pair kty vty :: A) A in
+      Return _ (Inferred_type _ _ (syntax.ITER i))
     | EMPTY_MAP kty vty, A =>
       Return _ (Inferred_type _ _ (syntax.EMPTY_MAP kty vty))
     | EMPTY_BIG_MAP kty vty, A =>
@@ -618,33 +601,31 @@ Module Typer(C:ContractContext).
     | GET, kty' :: map kty vty :: B =>
       let A := kty' :: map kty vty :: B in
       let A' := kty ::: map kty vty :: B in
-      bind (fun i => Return _ (Inferred_type _ _ i))
-           (instruction_cast_domain
-              A' A _ (@syntax.GET _ _ _ (get_map kty vty) _))
+      let! i := instruction_cast_domain
+        A' A _ (@syntax.GET _ _ _ (get_map kty vty) _) in
+      Return _ (Inferred_type _ _ i)
     | GET, kty' :: big_map kty vty :: B =>
       let A := kty' :: big_map kty vty :: B in
       let A' := kty ::: big_map kty vty :: B in
-      bind (fun i => Return _ (Inferred_type _ _ i))
-           (instruction_cast_domain
-              A' A _ (@syntax.GET _ _ _ (get_bigmap kty vty) _))
+      let! i := instruction_cast_domain
+        A' A _ (@syntax.GET _ _ _ (get_bigmap kty vty) _) in
+      Return _ (Inferred_type _ _ i)
     | MAP i, list a :: A =>
-      bind (fun r =>
-              match r with
-              | existT _ (b :: A') i =>
-                bind (fun i => Return _ (Inferred_type _ _ (syntax.MAP i)))
-                     (instruction_cast_range (a :: A) (b :: A') (b :: A) i)
-              | _ => Failed _ (Typing _ tt)
-              end)
-           (type_instruction_no_tail_fail type_instruction i (a :: A))
+      let! r := type_instruction_no_tail_fail type_instruction i (a :: A) in
+      match r with
+      | existT _ (b :: A') i =>
+        let! i := instruction_cast_range (a :: A) (b :: A') (b :: A) i in
+        Return _ (Inferred_type _ _ (syntax.MAP i))
+      | _ => Failed _ (Typing _ tt)
+      end
     | MAP i, map kty vty :: A =>
-      bind (fun r =>
-              match r with
-              | existT _ (b :: A') i =>
-                bind (fun i => Return _ (Inferred_type _ _ (syntax.MAP i)))
-                     (instruction_cast_range (pair kty vty :: A) (b :: A') (b :: A) i)
-              | _ => Failed _ (Typing _ tt)
-              end)
-           (type_instruction_no_tail_fail type_instruction i (pair kty vty ::: A))
+      let! r := type_instruction_no_tail_fail type_instruction i (pair kty vty ::: A) in
+      match r with
+      | existT _ (b :: A') i =>
+        let! i := instruction_cast_range (pair kty vty :: A) (b :: A') (b :: A) i in
+        Return _ (Inferred_type _ _ (syntax.MAP i))
+      | _ => Failed _ (Typing _ tt)
+      end
     | SOME, a :: A => Return _ (Inferred_type _ _ syntax.SOME)
     | NONE a, A => Return _ (Inferred_type _ _ (syntax.NONE a))
     | LEFT b, a :: A => Return _ (Inferred_type _ _ (syntax.LEFT b))
@@ -652,8 +633,8 @@ Module Typer(C:ContractContext).
     | CONS, a' :: list a :: B =>
       let A := a' :: list a :: B in
       let A' := a :: list a :: B in
-      bind (fun i => Return _ (Inferred_type _ _ i))
-           (instruction_cast_domain A' A _ (syntax.CONS))
+      let! i := instruction_cast_domain A' A _ (syntax.CONS) in
+      Return _ (Inferred_type _ _ i)
     | NIL a, A => Return _ (Inferred_type _ _ (syntax.NIL a))
     | CREATE_CONTRACT g p i,
       option (Comparable_type key_hash) :: Comparable_type mutez :: g2 :: B =>
@@ -668,8 +649,8 @@ Module Typer(C:ContractContext).
     | TRANSFER_TOKENS, p1 :: Comparable_type mutez :: contract p2 :: B =>
       let A := p1 ::: mutez ::: contract p2 ::: B in
       let A' := p1 ::: mutez ::: contract p1 ::: B in
-      bind (fun i => Return _ (Inferred_type _ _ i))
-           (instruction_cast_domain A' A _ syntax.TRANSFER_TOKENS)
+      let! i := instruction_cast_domain A' A _ syntax.TRANSFER_TOKENS in
+      Return _ (Inferred_type _ _ i)
     | SET_DELEGATE, option (Comparable_type key_hash) :: A =>
       Return _ (Inferred_type _ _ syntax.SET_DELEGATE)
     | BALANCE, A =>

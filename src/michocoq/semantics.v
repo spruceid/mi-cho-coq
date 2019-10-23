@@ -20,7 +20,7 @@
 (* DEALINGS IN THE SOFTWARE. *)
 
 
-(* Oprational semantics of the Michelson language *)
+(* Operational semantics of the Michelson language *)
 
 Require Import ZArith.
 Require Import String.
@@ -570,7 +570,8 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
 
       | NOOP, SA, _ => Return _ SA
       | SEQ B C, SA, env =>
-        bind (eval env C n) (eval env B n SA)
+        let! r := eval env B n SA in
+        eval env C n r
       | IF_ bt bf, (b, SA), env =>
         if b then eval env bt n SA else eval env bf n SA
       | LOOP body, (b, SA), env =>
@@ -610,14 +611,14 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         Return _ (if (x >=? 0)%Z then (Some (Z.to_N x), SA) else (None, SA))
       | INT, (x, SA), _ => Return _ (Z.of_N x, SA)
       | @ADD _ _ _ s, (x, (y, SA)), _ =>
-        bind (fun r => Return _ (r, SA))
-             (add _ _ _ (add_variant_field _ _ s) x y)
+        let! r := add _ _ _ (add_variant_field _ _ s) x y in
+        Return _ (r, SA)
       | @SUB _ _ _ s, (x, (y, SA)), _ =>
-        bind (fun r => Return _ (r, SA))
-             (sub _ _ _ (sub_variant_field _ _ s) x y)
+        let! r := sub _ _ _ (sub_variant_field _ _ s) x y in
+        Return _ (r, SA)
       | @MUL _ _ _ s, (x, (y, SA)), _ =>
-        bind (fun r => Return _ (r, SA))
-             (mul _ _ _ (mul_variant_field _ _ s) x y)
+        let! r := mul _ _ _ (mul_variant_field _ _ s) x y in
+        Return _ (r, SA)
       | @EDIV _ _ _ s, (x, (y, SA)), _ =>
         Return _ (ediv _ _ _ _ (ediv_variant_field _ _ s) x y, SA)
       | LSL, (x, (y, SA)), _ => Return _ (N.shiftl x y, SA)
@@ -648,9 +649,8 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         match iter_destruct _ _ (iter_variant_field _ s) x with
         | None => Return _ SA
         | Some (a, y) =>
-          bind (fun SB =>
-                  eval env (ITER body) n (y, SB))
-               (eval env body n (a, SA))
+          let! SB := eval env body n (a, SA) in
+          eval env (ITER body) n (y, SB)
         end
       | @SIZE _ _ s, (x, SA), _ =>
         Return _ (N.of_nat (size _ (size_variant_field _ s) x), SA)
@@ -728,9 +728,8 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       | DUG n Hlen, SA, _ => Return _ (stack_dug SA)
       | DIP nl Hlen i, SA, env =>
         let (S1, S2) := stack_split SA in
-        bind (fun S3 =>
-                Return _ (stack_app S1 S3))
-             (eval env i n S2)
+        let! S3 := eval env i n S2 in
+        Return _ (stack_app S1 S3)
       | DROP n Hlen, SA, _ =>
         let (S1, S2) := stack_split SA in Return _ S2
       | CHAIN_ID, SA, env => Return _ (chain_id_ env, SA)

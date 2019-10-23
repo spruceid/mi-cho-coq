@@ -5,6 +5,7 @@ Require syntax.
 Require Import syntax_type.
 Require dummy_contract_context.
 Require error_pp.
+Import error.Notations.
 
 Module syntax := syntax.Syntax(dummy_contract_context).
 Module typer := typer.Typer(dummy_contract_context).
@@ -27,46 +28,37 @@ Definition wrap_parser_result {A} r : error.M A :=
 Definition lexed_M := micheline_lexer.lex_micheline_to_parser input.
 
 Definition parsed_M :=
-  error.bind
-    (fun x => wrap_parser_result (micheline_parser.seq_file fuel x))
-    lexed_M.
+  let! x := lexed_M in
+  wrap_parser_result (micheline_parser.seq_file fuel x).
 
 Definition michelson_M :=
-  error.bind
-    micheline2michelson.micheline2michelson_file
-    parsed_M.
+  let! x := parsed_M in
+  micheline2michelson.micheline2michelson_file x.
 
 Definition self_type_M :=
-  error.bind
-    (fun a => error.Return _ a.(micheline2michelson.parameter))
-    michelson_M.
+  let! a := michelson_M in
+  error.Return _ a.(micheline2michelson.parameter).
 
 Definition storage_type_M :=
-  error.bind
-    (fun a => error.Return _ a.(micheline2michelson.storage))
-    michelson_M.
+  let! a := michelson_M in
+  error.Return _ a.(micheline2michelson.storage).
 
 Definition contract_file_M : error.M syntax.contract_file :=
+  let! self_type := self_type_M in
+  let! storage_type := storage_type_M in
   error.bind
-    (fun self_type =>
-       error.bind
-         (fun storage_type =>
-            error.bind
-              (fun '(existT _ tff code) =>
-                 error.Return
-                   _
-                   {| contract_file_parameter := self_type;
-                      contract_file_storage := storage_type;
-                      contract_tff := tff;
-                      contract_file_code := code; |})
-              (error.bind
-                 (fun i =>
-                    typer.type_check_instruction typer.type_instruction i _ _)
-                 (error.bind
-                    (fun a => error.Return _ a.(micheline2michelson.code))
-                    michelson_M)))
-         storage_type_M)
-    self_type_M.
+    (fun '(existT _ tff code) =>
+        error.Return
+          _
+          {| contract_file_parameter := self_type;
+            contract_file_storage := storage_type;
+            contract_tff := tff;
+            contract_file_code := code; |})
+    (
+      let! a := michelson_M in
+      let i := a.(micheline2michelson.code) in
+      typer.type_check_instruction typer.type_instruction i _ _
+    ).
 
 Definition is_lexed := error_pp.m_pp lexed_M.
 

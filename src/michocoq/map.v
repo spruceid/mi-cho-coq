@@ -24,6 +24,7 @@
 
 Require set.
 Require Import error.
+Import error.Notations.
 
 Section map.
 
@@ -686,15 +687,15 @@ Fixpoint list_map (B B' : Set) (f : B -> M B') (l : list B) : M (list B') :=
   match l with
   | nil => Return _ nil
   | cons x l =>
-    error.bind (fun b' =>
-    error.bind (fun l' =>
-    Return _ (cons b' l')) (list_map _ _ f l)) (f x)
+    let! b' := f x in
+    let! l' := list_map _ _ f l in
+    Return _ (cons b' l')
   end.
 
 Definition list_map_pair (A B B' : Set) (f : (A * B) -> M B') :
   list (A * B) -> M (list (A * B')) :=
   list_map (A * B) (A * B')
-           (fun ab => error.bind (fun b' => Return _ (fst ab, b')) (f ab)).
+           (fun ab => let! b' := f ab in Return _ (fst ab, b')).
 
 Lemma list_map_fst A B B' f l l' :
   list_map_pair A B B' f l = Return _ l' ->
@@ -715,7 +716,7 @@ Proof.
     case_eq (f (x, v)); simpl; try congruence.
     intros b' He.
     case_eq (list_map (A * B) (A * B') (fun ab : A * B =>
-        error.bind (fun b'0 : B' => Return (A * B') (fst ab, b'0)) (f ab)) l); simpl; try congruence.
+        let! b'0 : B' := f ab in Return (A * B') (fst ab, b'0)) l); simpl; try congruence.
     intros l'' He2.
     specialize (IHl l'').
     intro H3.

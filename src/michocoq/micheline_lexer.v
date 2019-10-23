@@ -1,6 +1,7 @@
 Require Import List String Ascii ZArith.
 Require error micheline_parser.
 Require Import micheline_tokens location.
+Import error.Notations.
 
 Definition char_is_num (c : ascii) :=
   match c with
@@ -77,25 +78,20 @@ Fixpoint lex_micheline (input : string) (loc : location) : error.M (list (locati
     let nloc := location_incr loc in
     match first_char with
     | "{"%char =>
-      error.bind
-        (fun l => error.Return _ (cons (loc, nloc, LBRACE) l))
-        (lex_micheline input loc)
+      let! l := lex_micheline input loc in
+      error.Return _ (cons (loc, nloc, LBRACE) l)
     | "}"%char =>
-      error.bind
-        (fun l => error.Return _ (cons (loc, nloc, RBRACE) l))
-        (lex_micheline input loc)
+      let! l := lex_micheline input loc in
+      error.Return _ (cons (loc, nloc, RBRACE) l)
     | "("%char =>
-      error.bind
-        (fun l => error.Return _ (cons (loc, nloc, LPAREN) l))
-        (lex_micheline input loc)
+      let! l := lex_micheline input loc in
+      error.Return _ (cons (loc, nloc, LPAREN) l)
     | ")"%char =>
-      error.bind
-        (fun l => error.Return _ (cons (loc, nloc, RPAREN) l))
-        (lex_micheline input loc)
+      let! l := lex_micheline input loc in
+      error.Return _ (cons (loc, nloc, RPAREN) l)
     | ";"%char =>
-      error.bind
-        (fun l => error.Return _ (cons (loc, nloc, SEMICOLON) l))
-        (lex_micheline input loc)
+      let! l := lex_micheline input loc in
+      error.Return _ (cons (loc, nloc, SEMICOLON) l)
     | """"%char =>
       lex_micheline_string input ""%string loc nloc
     | "#"%char =>
@@ -120,9 +116,8 @@ Fixpoint lex_micheline (input : string) (loc : location) : error.M (list (locati
              let loc := location_incr loc in
              lex_micheline_number s (Z_of_char c acc) start loc
            else
-             (error.bind (fun l =>
-                            error.Return _ (cons (start, loc, NUMBER (- acc)%Z) l))
-                         (lex_micheline input loc))
+            let! l := lex_micheline input loc in
+            error.Return _ (cons (start, loc, NUMBER (- acc)%Z) l)
          | EmptyString => error.Return _ (cons (start, loc, NUMBER (- acc)%Z) nil)
          end) input 0%Z loc loc
     | "0"%char =>
@@ -135,16 +130,15 @@ Fixpoint lex_micheline (input : string) (loc : location) : error.M (list (locati
                let loc := location_incr loc in
                lex_micheline_bytes s (string_snoc acc c) start loc
              else
-               (error.bind (fun l => error.Return _ (cons (start, loc, BYTES acc) l))
-                           (lex_micheline input loc))
+              let! l := lex_micheline input loc in
+              error.Return _ (cons (start, loc, BYTES acc) l)
            | EmptyString => error.Return _ (cons (start, loc, BYTES acc) nil)
            end) s EmptyString loc (location_incr (location_incr loc))
       | String c s =>
         if char_is_num c then error.Failed _ (error.Lexing loc)
         else
-          (error.bind (fun l =>
-                         error.Return _ (cons (loc, location_incr loc, NUMBER 0%Z) l))
-                      (lex_micheline input loc))
+          let! l := lex_micheline input loc in
+          error.Return _ (cons (loc, location_incr loc, NUMBER 0%Z) l)
       | EmptyString => error.Return _ (cons (loc, location_incr loc, NUMBER 0%Z) nil)
       end
     | c =>
@@ -156,9 +150,8 @@ Fixpoint lex_micheline (input : string) (loc : location) : error.M (list (locati
                let loc := location_incr loc in
                lex_micheline_number s (Z_of_char c acc) start loc
              else
-               (error.bind (fun l =>
-                              error.Return _ (cons (start, loc, NUMBER acc) l))
-                           (lex_micheline input loc))
+              let! l := lex_micheline input loc in
+              error.Return _ (cons (start, loc, NUMBER acc) l)
            | EmptyString => error.Return _ (cons (start, loc, NUMBER acc) nil)
            end) input (Z_of_char c 0%Z) loc loc
       else
@@ -170,8 +163,8 @@ Fixpoint lex_micheline (input : string) (loc : location) : error.M (list (locati
                  let loc := location_incr loc in
                  lex_micheline_prim s (string_snoc acc c) start loc
                else
-                 (error.bind (fun l => error.Return _ (cons (start, loc, PRIM acc) l))
-                             (lex_micheline input loc))
+                let! l := lex_micheline input loc in
+                error.Return _ (cons (start, loc, PRIM acc) l)
              | EmptyString => error.Return _ (cons (start, loc, PRIM acc) nil)
              end) input (String c ""%string) loc loc
         else
@@ -199,9 +192,8 @@ lex_micheline_string (input : string) (acc : string) start loc :=
   match input with
   | String """"%char s =>
     let loc := location_incr loc in
-    error.bind
-      (fun l => error.Return _ (cons (start, loc, STR acc) l))
-      (lex_micheline s loc)
+    let! l := lex_micheline s loc in
+    error.Return _ (cons (start, loc, STR acc) l)
   | String c s =>
     let loc := location_incr loc in
     lex_micheline_string s (string_snoc acc c) start loc
@@ -240,14 +232,14 @@ Fixpoint tokens_to_parser (ts : list (location * location * token)) : error.M mi
   match ts with
   | nil => error.Return _ (const_buffer (token_to_parser (location_start, location_start, EOF)))
   | cons t ts =>
-    error.bind
-      (fun s => error.Return _ (micheline_parser.MenhirLibParser.Inter.Buf_cons (token_to_parser t) s))
-      (tokens_to_parser ts)
+    let! s := tokens_to_parser ts in
+    error.Return _ (micheline_parser.MenhirLibParser.Inter.Buf_cons (token_to_parser t) s)
   end.
 
 Definition lex_micheline_to_parser (input : string)
   : error.M micheline_parser.MenhirLibParser.Inter.buffer :=
-  error.bind tokens_to_parser (lex_micheline input location_start).
+  let! ts := lex_micheline input location_start in
+  tokens_to_parser ts.
 
 (* Some interesting lemmas *)
 
