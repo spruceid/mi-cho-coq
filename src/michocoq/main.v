@@ -46,19 +46,16 @@ Definition storage_type_M :=
 Definition contract_file_M : error.M syntax.contract_file :=
   let! self_type := self_type_M in
   let! storage_type := storage_type_M in
-  error.bind
-    (fun '(existT _ tff code) =>
-        error.Return
-          _
-          {| contract_file_parameter := self_type;
-            contract_file_storage := storage_type;
-            contract_tff := tff;
-            contract_file_code := code; |})
-    (
-      let! a := michelson_M in
-      let i := a.(micheline2michelson.code) in
-      typer.type_check_instruction typer.type_instruction i _ _
-    ).
+  let! existT _ tff code :=
+    let! a := michelson_M in
+    let i := a.(micheline2michelson.code) in
+    typer.type_check_instruction typer.type_instruction i _ _ in
+  error.Return
+    _
+    {| contract_file_parameter := self_type;
+      contract_file_storage := storage_type;
+      contract_tff := tff;
+      contract_file_code := code; |}.
 
 Definition is_lexed := error_pp.m_pp lexed_M.
 

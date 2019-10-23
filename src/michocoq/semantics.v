@@ -582,7 +582,8 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         | inr y => Return _ (y, SA)
         end
       | EXEC, (x, (existT _ tff f, SA)), env =>
-        bind (fun '(y, tt) => Return _ (y, SA)) (eval (no_self env) f n (x, tt))
+        let! (y, tt) := eval (no_self env) f n (x, tt) in
+        Return _ (y, SA)
       | @APPLY _ a b c D i, (x, (existT _ _ f, SA)), env =>
         Return _ (existT
                     _ _
@@ -668,12 +669,9 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         match map_destruct _ _ _ _ v x with
         | None => Return _ (map_empty _ _ _ _ v, SA)
         | Some (a, y) =>
-          bind (fun '(b, SB) =>
-                  bind (fun '(c, SC) =>
-                          Return _ (map_insert _ _ _ _ v a b c,
-                                    SC))
-                       (eval env (MAP body) n (y, SB)))
-               (eval env body n (a, SA))
+          let! (b, SB) := eval env body n (a, SA) in
+          let! (c, SC) := eval env (MAP body) n (y, SB) in
+          Return _ (map_insert _ _ _ _ v a b c, SC)
         end
       | SOME, (x, SA), _ => Return _ (Some x, SA)
       | NONE _, SA, _ => Return _ (None, SA)

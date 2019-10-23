@@ -50,12 +50,12 @@ Module Notations.
   (** Notation for the bind with a typed answer. *)
   Notation "'let!' x : A ':=' X 'in' Y" :=
     (bind (fun (x : A) => Y) X)
-    (at level 200, x ident, X at level 100, A at level 200, Y at level 200).
+    (at level 200, x pattern, X at level 100, A at level 200, Y at level 200).
 
   (** Notation for the bind. *)
   Notation "'let!' x ':=' X 'in' Y" :=
     (bind (fun x => Y) X)
-    (at level 200, x ident, X at level 100, Y at level 200).
+    (at level 200, x pattern, X at level 100, Y at level 200).
 End Notations.
 
 Import Notations.
@@ -137,7 +137,7 @@ Definition IT_if {A : Type} (b : Datatypes.bool) (th : b -> A) (els : A) : A :=
    else fun _ => els) eq_refl.
 
 Lemma success_bind {A B : Set} (f : A -> M B) m :
-  success (bind f m) ->
+  success (let! x := m in f x) ->
   exists x, m = Return _ x /\ success (f x).
 Proof.
   destruct m.
@@ -156,7 +156,7 @@ Proof.
 Qed.
 
 Lemma success_bind_arg {A B : Set} (f : A -> M B) m :
-  success (bind f m) ->
+  success (let! x := m in f x) ->
   success m.
 Proof.
   intro H.
@@ -176,7 +176,7 @@ Proof.
 Qed.
 
 Lemma bind_eq_return {A B : Set} f m b :
-  bind f m = Return B b ->
+  (let! x := m in f x) = Return B b ->
   exists a : A, m = Return A a /\ f a = Return B b.
 Proof.
   destruct m.
@@ -215,7 +215,7 @@ Proof.
 Qed.
 
 Lemma precond_bind {A B : Set} (f : A -> M B) m p :
-  precond (bind f m) p = precond m (fun a => precond (f a) p).
+  precond (let! x := m in f x) p = precond m (fun a => precond (f a) p).
 Proof.
   destruct m; reflexivity.
 Qed.

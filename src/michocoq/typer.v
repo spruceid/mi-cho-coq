@@ -135,11 +135,9 @@ Module Typer(C:ContractContext).
     match n as n return M ({B | List.length B = n} * stack_type) with
     | 0 => Return ({B | List.length B = 0} * stack_type) (exist (fun B => List.length B = 0) nil eq_refl, A)
     | S n =>
-      bind (fun '(a, A) =>
-              bind (fun '(exist _ B H, C) =>
-                      Return _ (exist _ (cons a B) (f_equal S H), C))
-                   (take_n A n))
-           (take_one A)
+      let! (a, A) := take_one A in
+      let! (exist _ B H, C) := take_n A n in
+      Return _ (exist _ (cons a B) (f_equal S H), C)
     end.
 
   Lemma take_n_length n S1 S2 H1 : take_n (S1 ++ S2) n = Return _ (exist _ S1 H1, S2).
@@ -162,20 +160,16 @@ Module Typer(C:ContractContext).
   Qed.
 
   Definition type_check_dig {self_type} n (S:stack_type) : M (typer_result (self_type := self_type) S) :=
-    bind (fun '((exist _ S1 H1), tS2) =>
-            bind (fun '(t, S2) =>
-                    bind (fun i => Return _ (Inferred_type S (t ::: S1 +++ S2) i))
-                         (instruction_cast_domain (S1 +++ t ::: S2) S _ (syntax.DIG n H1)))
-                 (take_one tS2))
-         (take_n S n).
+    let! (exist _ S1 H1, tS2) := take_n S n in
+    let! (t, S2) := take_one tS2 in
+    let! i := instruction_cast_domain (S1 +++ t ::: S2) S _ (syntax.DIG n H1) in
+    Return _ (Inferred_type S (t ::: S1 +++ S2) i).
 
   Definition type_check_dug {self_type} n (S:stack_type) : M (typer_result (self_type := self_type) S) :=
-    bind (fun '(t, S12) =>
-            bind (fun '((exist _ S1 H1), S2) =>
-                    bind (fun i => Return _ (Inferred_type S (S1 +++ t ::: S2) i))
-                         (instruction_cast_domain (t ::: S1 +++ S2) S _ (syntax.DUG n H1)))
-                 (take_n S12 n))
-         (take_one S).
+    let! (t, S12) := take_one S in
+    let! (exist _ S1 H1, S2) := take_n S12 n in
+    let! i := instruction_cast_domain (t ::: S1 +++ S2) S _ (syntax.DUG n H1) in
+    Return _ (Inferred_type S (S1 +++ t ::: S2) i).
 
   Fixpoint as_comparable (a : type) : M comparable_type :=
     match a with
@@ -348,9 +342,8 @@ Module Typer(C:ContractContext).
       fun ty =>
         match ty with
         | lambda a b =>
-          bind
-            (fun '(existT _ tff i) => Return _ (syntax.Instruction _ i))
-            (type_check_instruction type_instruction i (cons a nil) (cons b nil))
+          let! existT _ tff i := type_check_instruction type_instruction i (cons a nil) (cons b nil) in
+          Return _ (syntax.Instruction _ i)
         | _ => Failed _ (Typing _ (d, ty))
         end
     | d => fun ty => Failed _ (Typing _ (d, ty))
@@ -362,16 +355,14 @@ Module Typer(C:ContractContext).
     | NOOP, A => Return _ (Inferred_type _ _ syntax.NOOP)
     | FAILWITH, a :: A => Return _ (Any_type _ (fun B => syntax.FAILWITH))
     | SEQ i1 i2, A =>
-      bind (fun '(existT _ B i1) =>
-              bind (fun r2 =>
-                      match r2 with
-                      | Inferred_type _ C i2 =>
-                        Return _ (Inferred_type _ _ (syntax.SEQ i1 i2))
-                      | Any_type _ i2 =>
-                        Return _ (Any_type _ (fun C => syntax.SEQ i1 (i2 C)))
-                      end)
-                   (type_instruction i2 B))
-           (type_instruction_no_tail_fail type_instruction i1 A)
+      let! existT _ B i1 := type_instruction_no_tail_fail type_instruction i1 A in
+      let! r2 := type_instruction i2 B in
+      match r2 with
+      | Inferred_type _ C i2 =>
+        Return _ (Inferred_type _ _ (syntax.SEQ i1 i2))
+      | Any_type _ i2 =>
+        Return _ (Any_type _ (fun C => syntax.SEQ i1 (i2 C)))
+      end
     | IF_ i1 i2, Comparable_type bool :: A =>
       type_branches type_instruction i1 i2 _ _ _ (fun B tffa tffb => syntax.IF_)
     | IF_NONE i1 i2, option a :: A =>
@@ -412,10 +403,9 @@ Module Typer(C:ContractContext).
       Return _ (Inferred_type _ _ (syntax.PUSH a d))
     | UNIT, A => Return _ (Inferred_type _ _ syntax.UNIT)
     | LAMBDA a b i, A =>
-      bind (fun '(existT _ tff i) =>
-              Return _ (Inferred_type _ _ (syntax.LAMBDA a b i)))
-           (type_check_instruction
-              type_instruction i (a :: nil) (b :: nil))
+      let! existT _ tff i :=
+        type_check_instruction type_instruction i (a :: nil) (b :: nil) in
+      Return _ (Inferred_type _ _ (syntax.LAMBDA a b i))
     | EQ, Comparable_type int :: A =>
       Return _ (Inferred_type _ _ syntax.EQ)
     | NEQ, Comparable_type int :: A =>
@@ -642,10 +632,10 @@ Module Typer(C:ContractContext).
           option key_hash ::: mutez ::: g2 :: B in
       let A' :=
           option key_hash ::: mutez ::: g ::: B in
-      bind (fun '(existT _ tff i) =>
-              bind (fun i => Return _ (Inferred_type _ _ i))
-                   (instruction_cast_domain A' A _ (syntax.CREATE_CONTRACT g p i)))
-           (type_check_instruction (self_type := Some p) type_instruction i (pair p g :: nil) (pair (list operation) g :: nil))
+      let! existT _ tff i :=
+        type_check_instruction (self_type := Some p) type_instruction i (pair p g :: nil) (pair (list operation) g :: nil) in
+      let! i := instruction_cast_domain A' A _ (syntax.CREATE_CONTRACT g p i) in
+      Return _ (Inferred_type _ _ i)
     | TRANSFER_TOKENS, p1 :: Comparable_type mutez :: contract p2 :: B =>
       let A := p1 ::: mutez ::: contract p2 ::: B in
       let A' := p1 ::: mutez ::: contract p1 ::: B in
@@ -691,17 +681,14 @@ Module Typer(C:ContractContext).
     | DIG n, A => type_check_dig n _
     | DUG n, A => type_check_dug n _
     | DIP n i, S12 =>
-      bind (fun '((exist _ S1 H1), S2) =>
-              bind (fun '(existT _ B i) =>
-                      bind (fun i => Return _ (Inferred_type S12 (S1 +++ B) i))
-                           (instruction_cast_domain (S1 +++ S2) S12 _ (syntax.DIP n H1 i)))
-                   (type_instruction_no_tail_fail type_instruction i S2))
-           (take_n S12 n)
+      let! (exist _ S1 H1, S2) := take_n S12 n in
+      let! existT _ B i := type_instruction_no_tail_fail type_instruction i S2 in
+      let! i := instruction_cast_domain (S1 +++ S2) S12 _ (syntax.DIP n H1 i) in
+      Return _ (Inferred_type S12 (S1 +++ B) i)
     | DROP n, S12 =>
-      bind (fun '((exist _ S1 H1), S2) =>
-                      bind (fun i => Return _ (Inferred_type S12 S2 i))
-                           (instruction_cast_domain (S1 +++ S2) S12 _ (syntax.DROP n H1)))
-           (take_n S12 n)
+      let! (exist _ S1 H1, S2) := take_n S12 n in
+      let! i := instruction_cast_domain (S1 +++ S2) S12 _ (syntax.DROP n H1) in
+      Return _ (Inferred_type S12 S2 i)
     | CHAIN_ID, _ =>
       Return _ (Inferred_type _ _ syntax.CHAIN_ID)
     | _, _ => Failed _ (Typing _ (i, A))
