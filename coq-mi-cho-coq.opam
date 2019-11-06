@@ -31,7 +31,6 @@ depends: [
   "zarith"
 ]
 
-synopsis: "A specification of Michelson in Coq to prove properties about smart contracts in Tezos"
 description: """
 Michelson is a language for writing smart contracts on the Tezos blockchain.
 This package provides a Coq encoding of the syntax and semantics of Michelson,
