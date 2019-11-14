@@ -40,7 +40,7 @@ Inductive M (A : Type) : Type :=
 | Failed : exception -> M A
 | Return : A -> M A.
 
-Definition bind {A B : Type} (f : A -> M B) (m : M A) :=
+Definition bind {A B : Type} (m : M A) (f : A -> M B) :=
   match m with
   | Failed _ e => Failed B e
   | Return _ SB => f SB
@@ -49,12 +49,12 @@ Definition bind {A B : Type} (f : A -> M B) (m : M A) :=
 Module Notations.
   (** Notation for the bind with a typed answer. *)
   Notation "'let!' x : A ':=' X 'in' Y" :=
-    (bind (fun (x : A) => Y) X)
+    (bind X (fun (x : A) => Y))
     (at level 200, x pattern, X at level 100, A at level 200, Y at level 200).
 
   (** Notation for the bind. *)
   Notation "'let!' x ':=' X 'in' Y" :=
-    (bind (fun x => Y) X)
+    (bind X (fun x => Y))
     (at level 200, x pattern, X at level 100, Y at level 200).
 End Notations.
 
