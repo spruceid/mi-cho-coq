@@ -277,7 +277,7 @@ Section definition.
 
   Fixpoint list_reduce (B : Set) (f : (A * B) -> M B) (b : B) (l : list A) : M B :=
     match l with
-    | nil => Return _ b
+    | nil => Return b
     | cons x l =>
       let! b := f (x, b) in
       list_reduce B f b l

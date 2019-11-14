@@ -339,7 +339,7 @@ Module Untyper(C:ContractContext).
 
   Definition untype_type_spec {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :=
     typer.type_instruction (untype_instruction i) A =
-    Return _ ((if tffi return syntax.instruction self_type tffi A B -> typer.typer_result A
+    Return ((if tffi return syntax.instruction self_type tffi A B -> typer.typer_result A
                then
                  fun i =>
                    typer.Any_type _ (fun B' => tail_fail_change_range A B B' i)
@@ -347,7 +347,7 @@ Module Untyper(C:ContractContext).
                  typer.Inferred_type _ B) i).
 
   Lemma instruction_cast_same {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :
-    typer.instruction_cast A A B B i = Return _ i.
+    typer.instruction_cast A A B B i = Return i.
   Proof.
     unfold typer.instruction_cast.
     rewrite stype_dec_same.
@@ -356,13 +356,13 @@ Module Untyper(C:ContractContext).
   Qed.
 
   Lemma instruction_cast_range_same {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :
-    typer.instruction_cast_range A B B i = Return _ i.
+    typer.instruction_cast_range A B B i = Return i.
   Proof.
     apply instruction_cast_same.
   Qed.
 
   Lemma instruction_cast_domain_same {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :
-    typer.instruction_cast_domain A A B i = Return _ i.
+    typer.instruction_cast_domain A A B i = Return i.
   Proof.
     apply instruction_cast_same.
   Qed.
@@ -370,7 +370,7 @@ Module Untyper(C:ContractContext).
   Lemma untype_type_check_instruction {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :
     untype_type_spec _ _ _ i ->
     typer.type_check_instruction typer.type_instruction (untype_instruction i) A B =
-    Return _ (existT _ tffi i).
+    Return (existT _ tffi i).
   Proof.
     intro IH.
     unfold typer.type_check_instruction.
@@ -386,7 +386,7 @@ Module Untyper(C:ContractContext).
   Lemma untype_type_check_instruction_no_tail_fail {self_type} A B (i : syntax.instruction self_type false A B) :
     untype_type_spec _ _ _ i ->
     typer.type_check_instruction_no_tail_fail typer.type_instruction (untype_instruction i) A B =
-    Return _ i.
+    Return i.
   Proof.
     intro IH.
     unfold typer.type_check_instruction_no_tail_fail.
@@ -397,7 +397,7 @@ Module Untyper(C:ContractContext).
 
   Lemma untype_type_instruction_no_tail_fail {self_type} A B (i : syntax.instruction self_type false A B) :
     untype_type_spec _ _ _ i ->
-    typer.type_instruction_no_tail_fail typer.type_instruction (untype_instruction i) A = Return _ (existT _ _ i).
+    typer.type_instruction_no_tail_fail typer.type_instruction (untype_instruction i) A = Return (existT _ _ i).
   Proof.
     intro IH.
     unfold typer.type_instruction_no_tail_fail.
@@ -433,7 +433,7 @@ Module Untyper(C:ContractContext).
                         (untype_instruction i1)
                         (untype_instruction i2)
                         A1 A2 A (IF_instruction_to_instruction A1 A2 A IF_instr) =
-    Return _ ((if (tff1 && tff2)%bool
+    Return ((if (tff1 && tff2)%bool
                  as b return syntax.instruction self_type b A B -> typer.typer_result A
                then
                  fun i =>
@@ -476,7 +476,7 @@ Module Untyper(C:ContractContext).
   Qed.
 
   Fixpoint untype_type_data a (d : syntax.concrete_data a) :
-    typer.type_data (untype_data d) a = Return _ d
+    typer.type_data (untype_data d) a = Return d
   with
   untype_type_instruction {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :
     untype_type_spec _ _ _ i.
@@ -492,7 +492,7 @@ Module Untyper(C:ContractContext).
         destruct m.
         trans_refl (
           let! m := tez.of_Z (tez.to_Z m) in
-          Return _ (syntax.Mutez_constant (Mk_mutez m))
+          Return (syntax.Mutez_constant (Mk_mutez m))
         ).
         rewrite tez.of_Z_to_Z.
         reflexivity.
@@ -505,7 +505,7 @@ Module Untyper(C:ContractContext).
         simpl.
         unfold type_contract_data.
         cut (forall tyopt H, type_contract_data_aux (Mk_contract s) a tyopt H =
-                             Return _ (Contract_constant (Mk_contract s) e)).
+                             Return (Contract_constant (Mk_contract s) e)).
         * intro H. apply H.
         * intros tyopt H.
           destruct tyopt.
@@ -521,38 +521,38 @@ Module Untyper(C:ContractContext).
         trans_refl (
           let! x := typer.type_data (untype_data d1) a in
           let! y := typer.type_data (untype_data d2) b in
-          Return _ (@syntax.Pair a b x y)
+          Return (@syntax.Pair a b x y)
         ).
         rewrite (untype_type_data _ d1).
         rewrite (untype_type_data _ d2).
         reflexivity.
       + trans_refl (
           let! x := typer.type_data (untype_data d) a in
-          Return _ (@syntax.Left a b x)
+          Return (@syntax.Left a b x)
         ).
         rewrite (untype_type_data _ d).
         reflexivity.
       + trans_refl (
           let! x := typer.type_data (untype_data d) b in
-          Return _ (@syntax.Right a b x)
+          Return (@syntax.Right a b x)
         ).
         rewrite (untype_type_data _ d).
         reflexivity.
       + trans_refl (
           let! x := typer.type_data (untype_data d) a in
-          Return _ (@syntax.Some_ a x)
+          Return (@syntax.Some_ a x)
         ).
         rewrite (untype_type_data _ d).
         reflexivity.
       + pose (fix type_data_list (l : Datatypes.list concrete_data) :=
                 match l with
-                | nil => Return _ nil
+                | nil => Return nil
                 | cons x l =>
                   let! x := typer.type_data x a in
                   let! l := type_data_list l in
-                  Return (Datatypes.list (@syntax.concrete_data a)) (cons x l)
+                  Return (cons x l)
                 end) as type_data_list.
-        assert (forall l, type_data_list (List.map (fun x => untype_data x) l) = Return _ l).
+        assert (forall l, type_data_list (List.map (fun x => untype_data x) l) = Return l).
         * clear l.
           intro l; induction l.
           -- reflexivity.
@@ -562,19 +562,19 @@ Module Untyper(C:ContractContext).
              reflexivity.
         * trans_refl (
             let! l := type_data_list (List.map (fun x => untype_data x) l) in
-            Return _ (@syntax.Concrete_list a l)
+            Return (@syntax.Concrete_list a l)
           ).
           rewrite H.
           reflexivity.
       + pose (fix type_data_set (l : Datatypes.list concrete_data) :=
                 match l with
-                | nil => Return _ nil
+                | nil => Return nil
                 | cons x l =>
                   let! x := typer.type_data x a in
                   let! l := type_data_set l in
-                  Return (Datatypes.list (@syntax.concrete_data a)) (cons x l)
+                  Return (cons x l)
                 end) as type_data_set.
-        assert (forall l, type_data_set (List.map (fun x => untype_data x) l) = Return _ l).
+        assert (forall l, type_data_set (List.map (fun x => untype_data x) l) = Return l).
         * clear l.
           intro l; induction l.
           -- reflexivity.
@@ -584,21 +584,21 @@ Module Untyper(C:ContractContext).
              reflexivity.
         * trans_refl (
             let! l := type_data_set (List.map (fun x => untype_data x) l) in
-            Return _ (@syntax.Concrete_set a l)
+            Return (@syntax.Concrete_set a l)
           ).
           rewrite H.
           reflexivity.
       + pose (fix type_data_list L :=
                    match L with
-                   | nil => Return _ nil
+                   | nil => Return nil
                    | cons (Elt x y) l =>
                     let! x := type_data x a in
                     let! y := type_data y b in
                     let! l := type_data_list l in
-                    Return _ (cons (syntax.Elt _ _ x y) l)
+                    Return (cons (syntax.Elt _ _ x y) l)
                    | _ => Failed _ (Typing _ (untype_data (syntax.Concrete_map l), (map a b)))
                    end) as type_data_map.
-        assert (forall l, type_data_map (List.map (fun '(syntax.Elt _ _ x y) => Elt (untype_data x) (untype_data y)) l) = Return _ l).
+        assert (forall l, type_data_map (List.map (fun '(syntax.Elt _ _ x y) => Elt (untype_data x) (untype_data y)) l) = Return l).
         * intro L; induction L.
           -- reflexivity.
           -- simpl.
@@ -609,7 +609,7 @@ Module Untyper(C:ContractContext).
              reflexivity.
         * trans_refl (
             let! l := type_data_map (List.map (fun '(syntax.Elt _ _ x y) => Elt (untype_data x) (untype_data y)) l) in
-            Return _ (@syntax.Concrete_map a b l)
+            Return (@syntax.Concrete_map a b l)
           ).
           rewrite H.
           reflexivity.
@@ -627,9 +627,9 @@ Module Untyper(C:ContractContext).
           let! r2 := typer.type_instruction (untype_instruction i2) B in
           match r2 with
           | typer.Inferred_type _ C i2 =>
-            Return _ (typer.Inferred_type _ _ (syntax.SEQ (i1 : syntax.instruction self_type _ _ _) i2))
+            Return (typer.Inferred_type _ _ (syntax.SEQ (i1 : syntax.instruction self_type _ _ _) i2))
           | typer.Any_type _ i2 =>
-            Return _ (typer.Any_type _ (fun C => syntax.SEQ i1 (i2 C)))
+            Return (typer.Any_type _ (fun C => syntax.SEQ i1 (i2 C)))
           end
         ).
         rewrite untype_type_instruction_no_tail_fail.
@@ -648,13 +648,13 @@ Module Untyper(C:ContractContext).
       + trans_refl (
           let! i := typer.type_check_instruction_no_tail_fail
             typer.type_instruction (untype_instruction i0) A (bool ::: A) in
-          Return _ (@typer.Inferred_type self_type _ _ (syntax.LOOP i))
+          Return (@typer.Inferred_type self_type _ _ (syntax.LOOP i))
         ).
         rewrite untype_type_check_instruction_no_tail_fail; auto.
       + trans_refl (
           let! i := typer.type_check_instruction_no_tail_fail
             typer.type_instruction (untype_instruction i0) _ (or a b ::: A) in
-          Return _ (@typer.Inferred_type self_type _ _ (syntax.LOOP_LEFT i))
+          Return (@typer.Inferred_type self_type _ _ (syntax.LOOP_LEFT i))
         ).
         rewrite untype_type_check_instruction_no_tail_fail; auto.
       + unfold untype_type_spec.
@@ -668,9 +668,9 @@ Module Untyper(C:ContractContext).
                    (if b return is_packable a = b -> _
                     then fun i =>
                       let! i := instruction_cast_domain A A _ (@syntax.APPLY self_type _ _ _ _ (IT_eq_rev _ i)) in
-                      Return _ (Inferred_type _ _ i)
+                      Return (Inferred_type _ _ i)
                     else fun _ => Failed _ (Typing _ "APPLY"%string)) i1
-                   = Return _ (Inferred_type A _ (@syntax.APPLY _ _ _ _ _ i0))).
+                   = Return (Inferred_type A _ (@syntax.APPLY _ _ _ _ _ i0))).
         * intros b0 i1.
           destruct b0.
           -- rewrite instruction_cast_domain_same.
@@ -683,7 +683,7 @@ Module Untyper(C:ContractContext).
         * apply H.
       + trans_refl (
           let! d := typer.type_data (untype_data x) a in
-          Return _ (@typer.Inferred_type self_type A _ (syntax.PUSH a d))
+          Return (@typer.Inferred_type self_type A _ (syntax.PUSH a d))
         ).
         rewrite untype_type_data.
         reflexivity.
@@ -691,7 +691,7 @@ Module Untyper(C:ContractContext).
           let! existT _ tff i :=
             typer.type_check_instruction
               typer.type_instruction (untype_instruction i0) (a :: nil) (b :: nil) in
-          Return _ (@typer.Inferred_type self_type _ (lambda a b ::: A) (syntax.LAMBDA a b i))
+          Return (@typer.Inferred_type self_type _ (lambda a b ::: A) (syntax.LAMBDA a b i))
         ).
         rewrite untype_type_check_instruction; auto.
       + destruct s as [v]; destruct v; reflexivity.

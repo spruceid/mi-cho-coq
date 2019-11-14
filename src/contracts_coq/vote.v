@@ -90,7 +90,7 @@ Theorem vote_correct
       (returned_operations : data (list operation))
       (fuel : Datatypes.nat) :
   fuel >= 42 ->
-  eval env vote fuel ((param, storage), tt) = Return _ ((returned_operations, new_storage), tt)
+  eval env vote fuel ((param, storage), tt) = Return ((returned_operations, new_storage), tt)
   <-> vote_spec storage param new_storage returned_operations.
 Proof.
   intro Hfuel. unfold ">=" in Hfuel.

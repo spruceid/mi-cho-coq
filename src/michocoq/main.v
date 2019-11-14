@@ -22,7 +22,7 @@ Definition wrap_parser_result {A} r : error.M A :=
   | micheline_parser.MenhirLibParser.Inter.Timeout_pr =>
     error.Failed _ error.Parsing_Out_of_Fuel
   | micheline_parser.MenhirLibParser.Inter.Parsed_pr m _ =>
-    error.Return _ m
+    error.Return m
   end.
 
 Definition lexed_M := micheline_lexer.lex_micheline_to_parser input.
@@ -37,11 +37,11 @@ Definition michelson_M :=
 
 Definition self_type_M :=
   let! a := michelson_M in
-  error.Return _ a.(micheline2michelson.parameter).
+  error.Return a.(micheline2michelson.parameter).
 
 Definition storage_type_M :=
   let! a := michelson_M in
-  error.Return _ a.(micheline2michelson.storage).
+  error.Return a.(micheline2michelson.storage).
 
 Definition contract_file_M : error.M syntax.contract_file :=
   let! self_type := self_type_M in
@@ -51,7 +51,6 @@ Definition contract_file_M : error.M syntax.contract_file :=
     let i := a.(micheline2michelson.code) in
     typer.type_check_instruction typer.type_instruction i _ _ in
   error.Return
-    _
     {| contract_file_parameter := self_type;
       contract_file_storage := storage_type;
       contract_tff := tff;

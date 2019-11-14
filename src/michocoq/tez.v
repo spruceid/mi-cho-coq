@@ -54,16 +54,16 @@ Definition of_int64_aux (t : int64bv.int64) (sign : bool) :
   int64bv.sign t = sign -> error.M mutez :=
   if sign return int64bv.sign t = sign -> error.M mutez
   then fun _ => error.Failed _ error.Overflow
-  else fun H => error.Return mutez (exist _ t H).
+  else fun H => error.Return (exist _ t H).
 
 Definition of_int64 (t : int64bv.int64) : error.M mutez :=
   of_int64_aux t (int64bv.sign t) eq_refl.
 
 Lemma of_int64_return (t : int64bv.int64) (H : int64bv.sign t = false) :
-  of_int64 t = error.Return mutez (exist _ t H).
+  of_int64 t = error.Return (exist _ t H).
 Proof.
   unfold of_int64.
-  cut (forall b H', of_int64_aux t b H' = error.Return mutez (exist _ t H)).
+  cut (forall b H', of_int64_aux t b H' = error.Return (exist _ t H)).
   - intro Hl.
     apply Hl.
   - intros b H'.
@@ -78,7 +78,7 @@ Qed.
 Definition of_Z (t : Z) : error.M mutez :=
   of_int64 (int64bv.of_Z t).
 
-Lemma of_Z_to_Z (t : mutez) : of_Z (to_Z t) = error.Return _ t.
+Lemma of_Z_to_Z (t : mutez) : of_Z (to_Z t) = error.Return t.
 Proof.
   unfold of_Z, to_Z.
   rewrite int64bv.of_Z_to_Z.

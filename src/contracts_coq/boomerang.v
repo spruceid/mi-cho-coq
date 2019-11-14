@@ -82,7 +82,7 @@ Qed.
 Lemma boomerang_correct :
   forall (ops : data (list operation)) (fuel : Datatypes.nat),
   fuel >= 42 ->
-  eval env boomerang fuel ((tt, tt), tt) = Return _ ((ops, tt), tt)
+  eval env boomerang fuel ((tt, tt), tt) = Return ((ops, tt), tt)
   <->
   (amount env = (0 ~Mutez) /\ ops = nil) \/
   (amount env <> (0 ~Mutez) /\

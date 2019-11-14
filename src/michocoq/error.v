@@ -40,10 +40,12 @@ Inductive M (A : Type) : Type :=
 | Failed : exception -> M A
 | Return : A -> M A.
 
+Arguments Return {_} _.
+
 Definition bind {A B : Type} (m : M A) (f : A -> M B) :=
   match m with
   | Failed _ e => Failed B e
-  | Return _ SB => f SB
+  | Return SB => f SB
   end.
 
 Module Notations.
@@ -62,7 +64,7 @@ Import Notations.
 
 Fixpoint list_fold_left {A B : Set} (f : A -> B -> M A) (l : Datatypes.list B) (a : A) : M A :=
   match l with
-  | nil => Return _ a
+  | nil => Return a
   | cons x l =>
     let! a := f a x in
     list_fold_left f l a
@@ -70,23 +72,23 @@ Fixpoint list_fold_left {A B : Set} (f : A -> B -> M A) (l : Datatypes.list B) (
 
 Fixpoint list_map {A B : Set} (f : A -> M B) (l : Datatypes.list A) : M (Datatypes.list B) :=
   match l with
-  | nil => Return _ nil
+  | nil => Return nil
   | cons a l =>
     let! b := f a in
     let! l := list_map f l in
-    Return _ (cons b l)
+    Return (cons b l)
   end.
 
 Definition try {A} (m1 m2 : M A) : M A :=
   match m1 with
   | Failed _ _ => m2
-  | Return _ _ => m1
+  | Return _ => m1
   end.
 
 Definition success {A} (m : M A) :=
   match m with
   | Failed _ _ => false
-  | Return _ _ => true
+  | Return _ => true
   end.
 
 Definition Is_true := Bool.Is_true.
@@ -127,7 +129,7 @@ Proof.
 Qed.
 Definition extract {A : Type} (m : M A) : success m -> A :=
   match m with
-  | Return _ x => fun 'I => x
+  | Return x => fun 'I => x
   | Failed _ _ => fun H => match H with end
   end.
 
@@ -138,7 +140,7 @@ Definition IT_if {A : Type} (b : Datatypes.bool) (th : b -> A) (els : A) : A :=
 
 Lemma success_bind {A B : Set} (f : A -> M B) m :
   success (let! x := m in f x) ->
-  exists x, m = Return _ x /\ success (f x).
+  exists x, m = Return x /\ success (f x).
 Proof.
   destruct m.
   - contradiction.
@@ -147,8 +149,8 @@ Proof.
     auto.
 Qed.
 
-Lemma success_eq_return A x m :
-  m = Return A x -> success m.
+Lemma success_eq_return A (x : A) m :
+  m = Return x -> success m.
 Proof.
   intro He.
   rewrite He.
@@ -166,8 +168,8 @@ Proof.
   exact H.
 Qed.
 
-Lemma success_eq_return_rev A m :
-  success m -> exists x, m = Return A x.
+Lemma success_eq_return_rev A (m : M A) :
+  success m -> exists x, m = Return x.
 Proof.
   destruct m.
   - contradiction.
@@ -175,9 +177,9 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma bind_eq_return {A B : Set} f m b :
-  (let! x := m in f x) = Return B b ->
-  exists a : A, m = Return A a /\ f a = Return B b.
+Lemma bind_eq_return {A B : Set} f (m : M A) (b : M B) :
+  (let! x := m in f x) = Return b ->
+  exists a : A, m = Return a /\ f a = Return b.
 Proof.
   destruct m.
   - discriminate.
@@ -190,7 +192,7 @@ Qed.
 Definition precond {A} (m : M A) p :=
   match m with
   | Failed _ _ => is_true false
-  | Return _ a => p a
+  | Return a => p a
   end.
 
 Lemma success_precond {A} (m : M A) : is_true (success m) = precond m (fun _ => is_true true).
@@ -198,7 +200,7 @@ Proof.
   destruct m; reflexivity.
 Qed.
 
-Definition precond_ex {A} (m : M A) p := exists a, m = Return _ a /\ p a.
+Definition precond_ex {A} (m : M A) p := exists a, m = Return a /\ p a.
 
 Lemma precond_exists {A} (m : M A) p : precond m p <-> precond_ex m p.
 Proof.
@@ -221,7 +223,7 @@ Proof.
 Qed.
 
 Lemma return_precond {A} (m : M A) a :
-  m = Return A a <-> precond m (fun x => x = a).
+  m = Return a <-> precond m (fun x => x = a).
 Proof.
   destruct m; simpl; split.
   - discriminate.

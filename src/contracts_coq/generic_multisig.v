@@ -162,7 +162,7 @@ Definition multisig_spec
     match action with
     | inl (existT _ _ lam) =>
       match (eval (no_self env) lam fuel (tt, tt)) with
-      | Return _ (operations, tt) =>
+      | Return (operations, tt) =>
         new_threshold = threshold /\
         new_keys = keys /\
         returned_operations = operations
@@ -478,7 +478,7 @@ Lemma multisig_tail_correct
    match action with
    | inl (existT _ _ lam) =>
      match eval (no_self env) lam (2 + fuel) (tt, tt) with
-     | Return _ (operations, tt) =>
+     | Return (operations, tt) =>
        psi ((operations, ((1 + counter)%N, (threshold, keys))), tt)
      | _ => False
      end
@@ -536,7 +536,7 @@ Lemma multisig_correct
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
   let new_storage : data storage_ty := (new_stored_counter, (new_threshold, new_keys)) in
   17 * length keys + 14 <= fuel ->
-  eval env multisig (23 + fuel) ((params, storage), tt) = Return _ ((returned_operations, new_storage), tt) <->
+  eval env multisig (23 + fuel) ((params, storage), tt) = Return ((returned_operations, new_storage), tt) <->
   multisig_spec params stored_counter threshold keys new_stored_counter new_threshold new_keys returned_operations fuel.
 Proof.
   intros storage new_storage Hfuel.

@@ -21,6 +21,6 @@ Definition exception_pp (e : exception) : string :=
 
 Definition m_pp {A} (m : M A) : string :=
   match m with
-  | Return _ _ => "OK"
+  | Return _ => "OK"
   | Failed _ e => exception_pp e
   end.

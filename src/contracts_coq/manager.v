@@ -85,7 +85,7 @@ Definition manager_spec
     amount env = (0 ~Mutez) /\
     sender env = address_ env unit (implicit_account env storage) /\
     new_storage = storage /\
-    eval (no_self env) lam fuel (tt, tt) = Return _ (returned_operations, tt)
+    eval (no_self env) lam fuel (tt, tt) = Return (returned_operations, tt)
   end.
 
 Lemma eqb_eq a c1 c2 :
@@ -143,7 +143,7 @@ Lemma manager_correct
       (returned_operations : data (list operation))
       (fuel : Datatypes.nat) :
   fuel >= 42 ->
-  eval env manager (13 + fuel) ((param, storage), tt) = Return _ ((returned_operations, new_storage), tt)
+  eval env manager (13 + fuel) ((param, storage), tt) = Return ((returned_operations, new_storage), tt)
   <-> manager_spec storage param new_storage returned_operations fuel.
 Proof.
   intro Hfuel.

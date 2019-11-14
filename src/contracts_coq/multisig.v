@@ -499,7 +499,7 @@ Lemma multisig_correct
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
   let new_storage : data storage_ty := (new_stored_counter, (new_threshold, new_keys)) in
   14 * length keys + 37 <= fuel ->
-  eval env multisig fuel ((params, storage), tt) = Return _ ((returned_operations, new_storage), tt) <->
+  eval env multisig fuel ((params, storage), tt) = Return ((returned_operations, new_storage), tt) <->
   multisig_spec counter action sigs stored_counter threshold keys new_stored_counter new_threshold new_keys returned_operations.
 Proof.
   intros params storage new_storage Hfuel.

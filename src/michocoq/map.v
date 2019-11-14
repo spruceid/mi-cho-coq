@@ -685,20 +685,20 @@ End map.
 
 Fixpoint list_map (B B' : Set) (f : B -> M B') (l : list B) : M (list B') :=
   match l with
-  | nil => Return _ nil
+  | nil => Return nil
   | cons x l =>
     let! b' := f x in
     let! l' := list_map _ _ f l in
-    Return _ (cons b' l')
+    Return (cons b' l')
   end.
 
 Definition list_map_pair (A B B' : Set) (f : (A * B) -> M B') :
   list (A * B) -> M (list (A * B')) :=
   list_map (A * B) (A * B')
-           (fun ab => let! b' := f ab in Return _ (fst ab, b')).
+           (fun ab => let! b' := f ab in Return (fst ab, b')).
 
 Lemma list_map_fst A B B' f l l' :
-  list_map_pair A B B' f l = Return _ l' ->
+  list_map_pair A B B' f l = Return l' ->
   List.map fst l = List.map fst l'.
 Proof.
   generalize l'. clear l'.
@@ -716,7 +716,7 @@ Proof.
     case_eq (f (x, v)); simpl; try congruence.
     intros b' He.
     case_eq (list_map (A * B) (A * B') (fun ab : A * B =>
-        let! b'0 : B' := f ab in Return (A * B') (fst ab, b'0)) l); simpl; try congruence.
+        let! b'0 : B' := f ab in Return (fst ab, b'0)) l); simpl; try congruence.
     intros l'' He2.
     specialize (IHl l'').
     intro H3.
@@ -732,7 +732,7 @@ Qed.
 Program Definition map_fun_aux (A B B' : Set) compare (f : A * B -> M B') (l : list (A * B))
         (H : Sorted.StronglySorted (fun x y => map_compare _ _ compare x y = Lt) l): M (map A B' compare) :=
   match (list_map_pair _ _ _ f l) with
-  | Return _ l' => Return _ (exist _ l' _)
+  | Return l' => Return (exist _ l' _)
   | Failed _ e => Failed _ e
   end.
 Next Obligation.

@@ -357,33 +357,33 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
 
   Definition add a b c (v : add_variant a b c) : data a -> data b -> M (data c) :=
     match v with
-    | Add_variant_nat_nat => fun x y => Return _ (x + y)%N
-    | Add_variant_nat_int => fun x y => Return _ (Z.of_N x + y)%Z
-    | Add_variant_int_nat => fun x y => Return _ (x + Z.of_N y)%Z
-    | Add_variant_int_int => fun x y => Return _ (x + y)%Z
-    | Add_variant_timestamp_int => fun x y => Return _ (x + y)%Z
-    | Add_variant_int_timestamp => fun x y => Return _ (x + y)%Z
+    | Add_variant_nat_nat => fun x y => Return (x + y)%N
+    | Add_variant_nat_int => fun x y => Return (Z.of_N x + y)%Z
+    | Add_variant_int_nat => fun x y => Return (x + Z.of_N y)%Z
+    | Add_variant_int_int => fun x y => Return (x + y)%Z
+    | Add_variant_timestamp_int => fun x y => Return (x + y)%Z
+    | Add_variant_int_timestamp => fun x y => Return (x + y)%Z
     | Add_variant_tez_tez =>
       fun x y => tez.of_Z (tez.to_Z x + tez.to_Z y)
     end.
 
   Definition sub a b c (v : sub_variant a b c) : data a -> data b -> M (data c) :=
     match v with
-    | Sub_variant_nat_nat => fun x y => Return _ (Z.of_N x - Z.of_N y)%Z
-    | Sub_variant_nat_int => fun x y => Return _ (Z.of_N x - y)%Z
-    | Sub_variant_int_nat => fun x y => Return _ (x - Z.of_N y)%Z
-    | Sub_variant_int_int => fun x y => Return _ (x - y)%Z
-    | Sub_variant_timestamp_int => fun x y => Return _ (x - y)%Z
-    | Sub_variant_timestamp_timestamp => fun x y => Return _ (x - y)%Z
+    | Sub_variant_nat_nat => fun x y => Return (Z.of_N x - Z.of_N y)%Z
+    | Sub_variant_nat_int => fun x y => Return (Z.of_N x - y)%Z
+    | Sub_variant_int_nat => fun x y => Return (x - Z.of_N y)%Z
+    | Sub_variant_int_int => fun x y => Return (x - y)%Z
+    | Sub_variant_timestamp_int => fun x y => Return (x - y)%Z
+    | Sub_variant_timestamp_timestamp => fun x y => Return (x - y)%Z
     | Sub_variant_tez_tez => fun x y => tez.of_Z (tez.to_Z x - tez.to_Z y)
     end.
 
   Definition mul a b c (v : mul_variant a b c) : data a -> data b -> M (data c) :=
     match v with
-    | Mul_variant_nat_nat => fun x y => Return _ (x * y)%N
-    | Mul_variant_nat_int => fun x y => Return _ (Z.of_N x * y)%Z
-    | Mul_variant_int_nat => fun x y => Return _ (x * Z.of_N y)%Z
-    | Mul_variant_int_int => fun x y => Return _ (x * y)%Z
+    | Mul_variant_nat_nat => fun x y => Return (x * y)%N
+    | Mul_variant_nat_int => fun x y => Return (Z.of_N x * y)%Z
+    | Mul_variant_int_nat => fun x y => Return (x * Z.of_N y)%Z
+    | Mul_variant_int_int => fun x y => Return (x * y)%Z
     | Mul_variant_tez_nat => fun x y => tez.of_Z (tez.to_Z x * Z.of_N y)
     | Mul_variant_nat_tez => fun x y => tez.of_Z (Z.of_N x * tez.to_Z y)
     end.
@@ -405,7 +405,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         | None => None
         | Some (quo, rem) =>
           match tez.of_Z quo, tez.of_Z (Z.of_N rem) with
-          | Return _ quo, Return _ rem => Some (quo, rem)
+          | Return quo, Return rem => Some (quo, rem)
           | _, _ => None
           end
         end
@@ -415,7 +415,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         | None => None
         | Some (quo, rem) =>
           match tez.of_Z (Z.of_N rem) with
-          | Return _ rem => Some (Z.to_N quo, rem)
+          | Return rem => Some (Z.to_N quo, rem)
           | _ => None
           end
         end
@@ -568,120 +568,120 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
          whole point of this instruction (compared to the FAIL macro)
          is to report the argument to the user. *)
 
-      | NOOP, SA, _ => Return _ SA
+      | NOOP, SA, _ => Return SA
       | SEQ B C, SA, env =>
         let! r := eval env B n SA in
         eval env C n r
       | IF_ bt bf, (b, SA), env =>
         if b then eval env bt n SA else eval env bf n SA
       | LOOP body, (b, SA), env =>
-        if b then eval env (body;; (LOOP body)) n SA else Return _ SA
+        if b then eval env (body;; (LOOP body)) n SA else Return SA
       | LOOP_LEFT body, (ab, SA), env =>
         match ab with
         | inl x => eval env (body;; LOOP_LEFT body) n (x, SA)
-        | inr y => Return _ (y, SA)
+        | inr y => Return (y, SA)
         end
       | EXEC, (x, (existT _ tff f, SA)), env =>
         let! (y, tt) := eval (no_self env) f n (x, tt) in
-        Return _ (y, SA)
+        Return (y, SA)
       | @APPLY _ a b c D i, (x, (existT _ _ f, SA)), env =>
-        Return _ (existT
+        Return (existT
                     _ _
                     (PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f), SA)
-      | DUP, (x, SA), _ => Return _ (x, (x, SA))
-      | SWAP, (x, (y, SA)), _ => Return _ (y, (x, SA))
-      | PUSH a x, SA, _ => Return _ (concrete_data_to_data _ x, SA)
-      | UNIT, SA, _ => Return _ (tt, SA)
-      | LAMBDA a b code, SA, _ => Return _ (existT _ _ code, SA)
-      | EQ, (x, SA), _ => Return _ ((x =? 0)%Z, SA)
-      | NEQ, (x, SA), _ => Return _ (negb (x =? 0)%Z, SA)
-      | LT, (x, SA), _ => Return _ ((x <? 0)%Z, SA)
-      | GT, (x, SA), _ => Return _ ((x >? 0)%Z, SA)
-      | LE, (x, SA), _ => Return _ ((x <=? 0)%Z, SA)
-      | GE, (x, SA), _ => Return _ ((x >=? 0)%Z, SA)
+      | DUP, (x, SA), _ => Return (x, (x, SA))
+      | SWAP, (x, (y, SA)), _ => Return (y, (x, SA))
+      | PUSH a x, SA, _ => Return (concrete_data_to_data _ x, SA)
+      | UNIT, SA, _ => Return (tt, SA)
+      | LAMBDA a b code, SA, _ => Return (existT _ _ code, SA)
+      | EQ, (x, SA), _ => Return ((x =? 0)%Z, SA)
+      | NEQ, (x, SA), _ => Return (negb (x =? 0)%Z, SA)
+      | LT, (x, SA), _ => Return ((x <? 0)%Z, SA)
+      | GT, (x, SA), _ => Return ((x >? 0)%Z, SA)
+      | LE, (x, SA), _ => Return ((x <=? 0)%Z, SA)
+      | GE, (x, SA), _ => Return ((x >=? 0)%Z, SA)
       | @OR _ _ s, (x, (y, SA)), _ =>
-        Return _ (or_fun _ (bitwise_variant_field _ s) x y, SA)
+        Return (or_fun _ (bitwise_variant_field _ s) x y, SA)
       | @AND _ _ s, (x, (y, SA)), _ =>
-        Return _ (and _ (bitwise_variant_field _ s) x y, SA)
+        Return (and _ (bitwise_variant_field _ s) x y, SA)
       | @XOR _ _ s, (x, (y, SA)), _ =>
-        Return _ (xor _ (bitwise_variant_field _ s) x y, SA)
-      | @NOT _ _ s, (x, SA), _ => Return _ (not _ _ (not_variant_field _ s) x, SA)
-      | @NEG _ _ s, (x, SA), _ => Return _ (neg _ (neg_variant_field _ s) x, SA)
-      | ABS, (x, SA), _ => Return _ (Z.abs_N x, SA)
+        Return (xor _ (bitwise_variant_field _ s) x y, SA)
+      | @NOT _ _ s, (x, SA), _ => Return (not _ _ (not_variant_field _ s) x, SA)
+      | @NEG _ _ s, (x, SA), _ => Return (neg _ (neg_variant_field _ s) x, SA)
+      | ABS, (x, SA), _ => Return (Z.abs_N x, SA)
       | ISNAT, (x, SA), _ =>
-        Return _ (if (x >=? 0)%Z then (Some (Z.to_N x), SA) else (None, SA))
-      | INT, (x, SA), _ => Return _ (Z.of_N x, SA)
+        Return (if (x >=? 0)%Z then (Some (Z.to_N x), SA) else (None, SA))
+      | INT, (x, SA), _ => Return (Z.of_N x, SA)
       | @ADD _ _ _ s, (x, (y, SA)), _ =>
         let! r := add _ _ _ (add_variant_field _ _ s) x y in
-        Return _ (r, SA)
+        Return (r, SA)
       | @SUB _ _ _ s, (x, (y, SA)), _ =>
         let! r := sub _ _ _ (sub_variant_field _ _ s) x y in
-        Return _ (r, SA)
+        Return (r, SA)
       | @MUL _ _ _ s, (x, (y, SA)), _ =>
         let! r := mul _ _ _ (mul_variant_field _ _ s) x y in
-        Return _ (r, SA)
+        Return (r, SA)
       | @EDIV _ _ _ s, (x, (y, SA)), _ =>
-        Return _ (ediv _ _ _ _ (ediv_variant_field _ _ s) x y, SA)
-      | LSL, (x, (y, SA)), _ => Return _ (N.shiftl x y, SA)
-      | LSR, (x, (y, SA)), _ => Return _ (N.shiftr x y, SA)
+        Return (ediv _ _ _ _ (ediv_variant_field _ _ s) x y, SA)
+      | LSL, (x, (y, SA)), _ => Return (N.shiftl x y, SA)
+      | LSR, (x, (y, SA)), _ => Return (N.shiftr x y, SA)
       | COMPARE, (x, (y, SA)), _ =>
-        Return _ (comparison_to_int
+        Return (comparison_to_int
                     (compare _
                              (data_to_comparable_data _ x)
                              (data_to_comparable_data _ y)), SA)
       | @CONCAT _ _ s _, (x, (y, SA)), _ =>
-        Return _ (concat _ (stringlike_variant_field _ s) x y, SA)
+        Return (concat _ (stringlike_variant_field _ s) x y, SA)
       | @CONCAT_list _ _ s _, (l, SA), _ =>
-        Return _ (concat_list _ (stringlike_variant_field _ s) l, SA)
+        Return (concat_list _ (stringlike_variant_field _ s) l, SA)
       | @SLICE _ _ i, (n1, (n2, (s, SA))), _ =>
-        Return _ (slice _ (stringlike_variant_field _ i) n1 n2 s, SA)
-      | PAIR, (x, (y, SA)), _ => Return _ ((x, y), SA)
-      | CAR, ((x, y), SA), _ => Return _ (x, SA)
-      | CDR, ((x, y), SA), _ => Return _ (y, SA)
-      | EMPTY_SET a, SA, _ => Return _ (set.empty _ (compare a), SA)
+        Return (slice _ (stringlike_variant_field _ i) n1 n2 s, SA)
+      | PAIR, (x, (y, SA)), _ => Return ((x, y), SA)
+      | CAR, ((x, y), SA), _ => Return (x, SA)
+      | CDR, ((x, y), SA), _ => Return (y, SA)
+      | EMPTY_SET a, SA, _ => Return (set.empty _ (compare a), SA)
       | @MEM _ _ _ s _, (x, (y, SA)), _ =>
-        Return _ (mem _ _
+        Return (mem _ _
                       (mem_variant_field _ _ s)
                       (data_to_comparable_data _ x)
                       y, SA)
       | @UPDATE _ _ _ _ s _, (x, (y, (z, SA))), _ =>
-        Return _ (update _ _ _ (update_variant_field _ _ _ s) (data_to_comparable_data _ x) y z, SA)
+        Return (update _ _ _ (update_variant_field _ _ _ s) (data_to_comparable_data _ x) y z, SA)
       | @ITER _ _ s _ body, (x, SA), env =>
         match iter_destruct _ _ (iter_variant_field _ s) x with
-        | None => Return _ SA
+        | None => Return SA
         | Some (a, y) =>
           let! SB := eval env body n (a, SA) in
           eval env (ITER body) n (y, SB)
         end
       | @SIZE _ _ s, (x, SA), _ =>
-        Return _ (N.of_nat (size _ (size_variant_field _ s) x), SA)
+        Return (N.of_nat (size _ (size_variant_field _ s) x), SA)
       | EMPTY_MAP k val, SA, _ =>
-        Return _ (map.empty (comparable_data k) (data val) _, SA)
+        Return (map.empty (comparable_data k) (data val) _, SA)
       | EMPTY_BIG_MAP k val, SA, _ =>
-        Return _ (map.empty (comparable_data k) (data val) _, SA)
+        Return (map.empty (comparable_data k) (data val) _, SA)
       | @GET _ _ _ s _, (x, (y, SA)), _ =>
-        Return _ (get _ _ _
+        Return (get _ _ _
                       (get_variant_field _ _ s)
                       (data_to_comparable_data _ x)
                       y, SA)
       | @MAP _ _ _ s _ body, (x, SA), env =>
         let v := (map_variant_field _ _ s) in
         match map_destruct _ _ _ _ v x with
-        | None => Return _ (map_empty _ _ _ _ v, SA)
+        | None => Return (map_empty _ _ _ _ v, SA)
         | Some (a, y) =>
           let! (b, SB) := eval env body n (a, SA) in
           let! (c, SC) := eval env (MAP body) n (y, SB) in
-          Return _ (map_insert _ _ _ _ v a b c, SC)
+          Return (map_insert _ _ _ _ v a b c, SC)
         end
-      | SOME, (x, SA), _ => Return _ (Some x, SA)
-      | NONE _, SA, _ => Return _ (None, SA)
+      | SOME, (x, SA), _ => Return (Some x, SA)
+      | NONE _, SA, _ => Return (None, SA)
       | IF_NONE bt bf, (b, SA), env =>
         match b with
         | None => eval env bt n SA
         | Some b => eval env bf n (b, SA)
         end
-      | LEFT _, (x, SA), _ => Return _ (inl x, SA)
-      | RIGHT _, (x, SA), _ => Return _ (inr x, SA)
+      | LEFT _, (x, SA), _ => Return (inl x, SA)
+      | RIGHT _, (x, SA), _ => Return (inr x, SA)
       | IF_LEFT bt bf, (b, SA), env =>
         match b with
         | inl a => eval env bt n (a, SA)
@@ -692,8 +692,8 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         | inl a => eval env bf n (a, SA)
         | inr b => eval env bt n (b, SA)
         end
-      | CONS, (x, (y, SA)), _ => Return _ (cons x y, SA)
-      | NIL _, SA, _ => Return _ (nil, SA)
+      | CONS, (x, (y, SA)), _ => Return (cons x y, SA)
+      | NIL _, SA, _ => Return (nil, SA)
       | IF_CONS bt bf, (l, SA), env =>
         match l with
         | cons a b => eval env bt n (a, (b, SA))
@@ -701,36 +701,36 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         end
       | CREATE_CONTRACT _ _ f, (a, (b, (c, SA))), env =>
         let (oper, addr) := create_contract env _ _ _ a b f c in
-        Return _ (oper, (addr, SA))
+        Return (oper, (addr, SA))
       | TRANSFER_TOKENS, (a, (b, (c, SA))), env =>
-        Return _ (transfer_tokens env _ a b c, SA)
-      | SET_DELEGATE, (x, SA), env => Return _ (set_delegate env x, SA)
-      | BALANCE, SA, env => Return _ (balance env, SA)
-      | ADDRESS, (x, SA), env => Return _ (address_ env _ x, SA)
-      | CONTRACT _, (x, SA), env => Return _ (contract_ env _ x, SA)
-      | SOURCE, SA, env => Return _ (source env, SA)
-      | SENDER, SA, env => Return _ (sender env, SA)
-      | SELF, SA, env => Return _ (self env, SA)
-      | AMOUNT, SA, env => Return _ (amount env, SA)
-      | IMPLICIT_ACCOUNT, (x, SA), env => Return _ (implicit_account env x, SA)
-      | NOW, SA, env => Return _ (now env, SA)
-      | PACK, (x, SA), env => Return _ (pack env _ x, SA)
-      | UNPACK ty, (x, SA), env => Return _ (unpack env ty x, SA)
-      | HASH_KEY, (x, SA), env => Return _ (hash_key env x, SA)
-      | BLAKE2B, (x, SA), env => Return _ (blake2b env x, SA)
-      | SHA256, (x, SA), env => Return _ (sha256 env x, SA)
-      | SHA512, (x, SA), env => Return _ (sha512 env x, SA)
+        Return (transfer_tokens env _ a b c, SA)
+      | SET_DELEGATE, (x, SA), env => Return (set_delegate env x, SA)
+      | BALANCE, SA, env => Return (balance env, SA)
+      | ADDRESS, (x, SA), env => Return (address_ env _ x, SA)
+      | CONTRACT _, (x, SA), env => Return (contract_ env _ x, SA)
+      | SOURCE, SA, env => Return (source env, SA)
+      | SENDER, SA, env => Return (sender env, SA)
+      | SELF, SA, env => Return (self env, SA)
+      | AMOUNT, SA, env => Return (amount env, SA)
+      | IMPLICIT_ACCOUNT, (x, SA), env => Return (implicit_account env x, SA)
+      | NOW, SA, env => Return (now env, SA)
+      | PACK, (x, SA), env => Return (pack env _ x, SA)
+      | UNPACK ty, (x, SA), env => Return (unpack env ty x, SA)
+      | HASH_KEY, (x, SA), env => Return (hash_key env x, SA)
+      | BLAKE2B, (x, SA), env => Return (blake2b env x, SA)
+      | SHA256, (x, SA), env => Return (sha256 env x, SA)
+      | SHA512, (x, SA), env => Return (sha512 env x, SA)
       | CHECK_SIGNATURE, (x, (y, (z, SA))), env =>
-        Return _ (check_signature env x y z, SA)
-      | DIG n Hlen, SA, _ => Return _ (stack_dig SA)
-      | DUG n Hlen, SA, _ => Return _ (stack_dug SA)
+        Return (check_signature env x y z, SA)
+      | DIG n Hlen, SA, _ => Return (stack_dig SA)
+      | DUG n Hlen, SA, _ => Return (stack_dug SA)
       | DIP nl Hlen i, SA, env =>
         let (S1, S2) := stack_split SA in
         let! S3 := eval env i n S2 in
-        Return _ (stack_app S1 S3)
+        Return (stack_app S1 S3)
       | DROP n Hlen, SA, _ =>
-        let (S1, S2) := stack_split SA in Return _ S2
-      | CHAIN_ID, SA, env => Return _ (chain_id_ env, SA)
+        let (S1, S2) := stack_split SA in Return S2
+      | CHAIN_ID, SA, env => Return (chain_id_ env, SA)
       end
     end.
 
