@@ -15,25 +15,54 @@ Fixpoint make_string (a:ascii) (n:nat) :=
 Definition lf := (String "010" EmptyString).
 
 Open Scope string_scope.
+
+(* Length taken by a Micheline expression when printed on a single line *)
+(* TODO: avoid computing Z.to_int twice for each number litteral *)
+Fixpoint micheline_length (mich:loc_micheline) (in_seq:bool):=
+  let '(Mk_loc_micheline (_, _, m)) := mich in
+  match m with
+  | NUMBER z => String.length (string_of_Z z)
+  | STR s => 2 + String.length s
+  | BYTES s => 2 + String.length s
+  | SEQ nil => 2
+  | SEQ es => fold_left (fun acc m => 2 + micheline_length m true + acc) es 0
+  | PRIM (_, _, s) nil => String.length s
+  | PRIM (_, _, s) es =>
+    (if in_seq then 0 else 2) + String.length s +
+    fold_left (fun acc m => 1 + micheline_length m false + acc) es 0
+  end.
+
+Fixpoint micheline_pp_single_line (mich:loc_micheline) (in_seq:bool) :=
+  let '(Mk_loc_micheline (_, _, m)) := mich in
+  match m with
+  | NUMBER z => string_of_Z z
+  | STR s => """" ++ s ++ """"
+  | BYTES s => "0x" ++ s
+  | SEQ es => "{" ++ String.concat "; " (map (fun m => micheline_pp_single_line m true) es) ++ "}"
+  | PRIM (_, _, s) nil => s
+  | PRIM (_, _, s) es =>
+    let res := s ++ " " ++ String.concat " " (map (fun m => micheline_pp_single_line m false) es) in
+    (if in_seq then res else "(" ++ res ++")")
+  end.
+
 Fixpoint micheline_pp (mich:loc_micheline) (indent:nat) (in_seq:bool) (seq_lf:bool) :=
+  if (micheline_length mich in_seq) + indent <? 80 then
+    micheline_pp_single_line mich in_seq
+  else
   match mich with
   | Mk_loc_micheline (_, _, NUMBER z) => (string_of_Z z)
   | Mk_loc_micheline (_, _, STR s) => """"++s++""""
   | Mk_loc_micheline (_, _, BYTES s) => "0x"++s
-  | Mk_loc_micheline (_, _, SEQ es) => "{ "
-                                        ++(String.concat
-                                             ((if seq_lf then (String ";" lf)++(make_string " " (indent+2)) else ";"))
-                                             (map (fun m => micheline_pp m (indent+2) true seq_lf) es))
-                                        ++(if seq_lf then lf else "")++(make_string " " indent)++"}"
+  | Mk_loc_micheline (_, _, SEQ es) =>
+    let indent_space := (make_string " " indent) in
+    let separator := (";"  ++ lf ++ indent_space ++ "  ") in
+    "{ " ++(String.concat separator
+                          (map (fun m => micheline_pp m (indent+2) true seq_lf) es))
+         ++ lf ++ indent_space ++ "}"
   | Mk_loc_micheline (_, _, PRIM (_, _, s) nil) => s
   | Mk_loc_micheline (_, _, PRIM (_, _, s) es) =>
-    let newIndent := indent+String.length (s++" ") in
-    let separator := if (eqb_string s "IF")
-                        || (eqb_string s "IF_NONE")
-                        || (eqb_string s "IF_LEFT")
-                        || (eqb_string s "IF_RIGHT")
-                        || (eqb_string s "IF_CONS")
-                     then lf++(make_string " " newIndent) else " " in
+    let newIndent := indent + 1 + String.length s in
+    let separator := lf++(make_string " " newIndent) in
     let res := s++" "++(String.concat separator (map (fun m => micheline_pp m newIndent false (negb (eqb_string s "PUSH"))) es)) in
-    if (in_seq) then res else "("++res++")"
+    if in_seq then res else "("++res++")"
   end.
