@@ -518,7 +518,7 @@ Section map.
     induction l.
     - (* nil *)
       simpl in H. inversion H.
-    - (* h::t *)
+    - (* h :: t *)
       simpl. simpl in H.
       destruct a as [k' v']. destruct (compare k k').
       + (* Eq *) constructor.
@@ -534,7 +534,7 @@ Section map.
     induction l.
     - (* nil *)
       exfalso. simpl in H. inversion H.
-    - (* h::t *)
+    - (* h :: t *)
       inversion s; subst.
       specialize (IHl H2).
       simpl in H. simpl.
@@ -546,7 +546,7 @@ Section map.
         exists v''. assumption.
   Qed.
 
-  Lemma map_updateeq: forall k m v,
+  Lemma map_updateeq : forall k m v,
       get k (update k (Some v) m) = (Some v).
   Proof.
     intros.
@@ -555,7 +555,7 @@ Section map.
     induction l.
     - (* nil *)
       simpl. rewrite Hkk. reflexivity.
-    - (* h::t *)
+    - (* h :: t *)
       simpl. inversion s; subst.
       specialize (IHl H1). simpl in IHl.
       destruct a as [k' v'].
@@ -565,7 +565,7 @@ Section map.
       + (* Gt *) rewrite Hkk'. assumption.
   Qed.
 
-  Lemma map_updateneq: forall k k' m v,
+  Lemma map_updateneq : forall k k' m v,
       k <> k' ->
       get k' (update k (Some v) m) =
       get k' m.
@@ -576,7 +576,7 @@ Section map.
     - (* nil *)
       destruct (compare k' k) eqn:Hcp; try reflexivity.
       apply compare_eq_iff in Hcp. symmetry in Hcp. contradiction.
-    - (* h::t *)
+    - (* h :: t *)
       inversion s; subst.
       specialize (IHl H2). simpl in IHl.
       destruct a as [k'' v''].
@@ -634,7 +634,7 @@ Section map.
     destruct m as [l]. unfold get, update. simpl. simpl in H.
     induction l; simpl; simpl in H.
     - (* nil *) inversion H.
-    - (* h::t *)
+    - (* h :: t *)
       inversion s; subst. specialize (IHl H2).
       destruct a as [k'' v''].
       destruct (compare k k'') eqn:Hkk''; destruct (compare k' k'') eqn:Hk'k'';
@@ -673,7 +673,7 @@ Section map.
       + congruence.
       + inversion Hmem.
       + inversion Hmem.
-    - (* h::t *)
+    - (* h :: t *)
       comparison_case k' k'' Hk'k'' Hmem;
         [ subst k'' | comparison_case k k'' Hkk'' Hmem | comparison_case k k'' Hkk'' Hmem ]; simpl in Hmem; comparison_case k k' Hckk' Hmem;
           try constructor; simpl in *; try (exact Hmem); try (destruct Hmem);

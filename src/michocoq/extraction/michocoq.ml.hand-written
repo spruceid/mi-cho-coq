@@ -1,6 +1,6 @@
 (* Conversion functions between Coq and OCaml strings, taken from CompCert. *)
 
-let camlstring_of_coqstring (s: char list) =
+let camlstring_of_coqstring (s : char list) =
   let r = Bytes.create (Stdlib.List.length s) in
   let rec fill pos = function
     | [] -> r

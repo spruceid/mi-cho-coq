@@ -285,7 +285,7 @@ Module Type ContractContext.
   Parameter get_contract_type : contract_constant -> Datatypes.option type.
 End ContractContext.
 
-Module Syntax(C:ContractContext).
+Module Syntax(C : ContractContext).
 
 Inductive elt_pair (a b : Set) : Set :=
 | Elt : a -> b -> elt_pair a b.

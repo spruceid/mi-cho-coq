@@ -34,7 +34,7 @@ Module Type SelfType.
   Parameter self_type : type.
 End SelfType.
 
-Module EnvDef(C:ContractContext).
+Module EnvDef(C : ContractContext).
   Export C.
   Module macros := Macros(C). Export macros.
   Fixpoint data (a : type) {struct a} : Set :=
@@ -125,7 +125,7 @@ End EnvDef.
 
 Module Type Env(ST : SelfType)(C:ContractContext).
   Include EnvDef C.
-  Parameter env:(@proto_env (Some ST.self_type)).
+  Parameter env : @proto_env (Some ST.self_type).
 End Env.
 
 Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).

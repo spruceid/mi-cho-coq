@@ -264,7 +264,7 @@ Inductive char_not_in_string : ascii -> string -> Prop :=
 
 Lemma lex_string_end : forall s start loc,
     lex_micheline_string """" s start loc =
-    error.Return ((start, location_incr loc, (micheline_tokens.STR s))::nil).
+    error.Return ((start, location_incr loc, (micheline_tokens.STR s)) :: nil).
 Proof.
   intros s start loc.
   reflexivity.
@@ -291,11 +291,12 @@ Proof. reflexivity. Qed.
 Lemma lex_string_aux : forall s2 start loc,
     char_not_in_string """" s2 ->
     forall s1, lex_micheline_string (s2++"""") s1 start loc =
-    error.Return ((start, location_add loc ((String.length s2)+1), (micheline_tokens.STR (s1++s2)))::nil).
+               error.Return ((start, location_add loc ((String.length s2)+1),
+                              (micheline_tokens.STR (s1++s2))) :: nil).
 Proof.
   induction s2; intros.
   - (* Empty string *) simpl. rewrite append_empty_right. reflexivity.
-  - (* c::s *)
+  - (* c :: s *)
     simpl. inversion H; subst.
     specialize (IHs2 start (location_incr loc) H4 (string_snoc s1 a)).
     unfold string_snoc in *. rewrite IHs2. simpl.
@@ -309,7 +310,8 @@ Qed.
 Corollary lex_string : forall s start,
     char_not_in_string """" s ->
     lex_micheline (""""++s++"""") start =
-    error.Return ((start, location_add start ((String.length s)+2), (micheline_tokens.STR s))::nil).
+    error.Return ((start, location_add start ((String.length s)+2),
+                   (micheline_tokens.STR s)) :: nil).
 Proof.
   intros. simpl.
   specialize (lex_string_aux s start (location_incr start) H "").

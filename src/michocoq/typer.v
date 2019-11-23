@@ -11,7 +11,7 @@ Proof.
   - apply Bool.andb_prop_intro.
 Qed.
 
-Module Typer(C:ContractContext).
+Module Typer(C : ContractContext).
 
   Module syntax := Syntax C.
   Import syntax. Import untyped_syntax.

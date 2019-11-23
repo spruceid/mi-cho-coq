@@ -480,11 +480,9 @@ Proof.
     + exact (simple_compare_eq_iff a).
 Qed.
 
-Lemma compare_diff:
-  forall (K:comparable_type) (k1:comparable_data K) (k2: comparable_data K),
-    compare K k1 k2 = Lt \/ compare K k1 k2 = Gt <-> k1 <> k2.
+Lemma compare_diff (K : comparable_type) (k1 k2 : comparable_data K) :
+  compare K k1 k2 = Lt \/ compare K k1 k2 = Gt <-> k1 <> k2.
 Proof.
-  intros.
   apply map.compare_diff.
   apply compare_eq_iff.
 Qed.

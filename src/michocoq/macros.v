@@ -22,7 +22,7 @@
 Require Import syntax syntax_type.
 Require Import comparable.
 
-Module Macros(C:ContractContext).
+Module Macros(C : ContractContext).
 
 Module syntax := Syntax C.
 Export syntax.

@@ -8,7 +8,7 @@ Import error.Notations.
 (* Not really needed but eases reading of proof states. *)
 Require Import String.
 
-Module Untyper(C:ContractContext).
+Module Untyper(C : ContractContext).
 
   Module syntax := Syntax C.
   Module typer := typer.Typer C.
