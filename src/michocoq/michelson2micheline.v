@@ -178,9 +178,6 @@ Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
   | IF_LEFT i1 i2 =>
     dummy_prim "IF_LEFT" [dummy_seq (michelson2micheline_ins i1);
                             dummy_seq (michelson2micheline_ins i2)]
-  | IF_RIGHT i1 i2 =>
-    dummy_prim "IF_RIGHT" [dummy_seq (michelson2micheline_ins i1);
-                             dummy_seq (michelson2micheline_ins i2)]
   | IF_CONS i1 i2 =>
     dummy_prim "IF_CONS" [dummy_seq (michelson2micheline_ins i1);
                             dummy_seq (michelson2micheline_ins i2)]

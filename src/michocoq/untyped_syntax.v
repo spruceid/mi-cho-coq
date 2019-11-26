@@ -58,7 +58,6 @@ Inductive instruction : Set :=
 | LEFT : type -> instruction
 | RIGHT : type -> instruction
 | IF_LEFT : instruction -> instruction -> instruction
-| IF_RIGHT : instruction -> instruction -> instruction
 | CONS : instruction
 | NIL : type -> instruction
 | IF_CONS : instruction -> instruction -> instruction

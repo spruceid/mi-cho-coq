@@ -105,7 +105,6 @@ Module Untyper(C : ContractContext).
     | syntax.LEFT b => LEFT b
     | syntax.RIGHT a => RIGHT a
     | syntax.IF_LEFT i1 i2 => IF_LEFT (untype_instruction i1) (untype_instruction i2)
-    | syntax.IF_RIGHT i1 i2 => IF_RIGHT (untype_instruction i1) (untype_instruction i2)
     | syntax.CONS => CONS
     | syntax.NIL a => NIL a
     | syntax.IF_CONS i1 i2 => IF_CONS (untype_instruction i1) (untype_instruction i2)
@@ -174,10 +173,6 @@ Module Untyper(C : ContractContext).
             P st (a ::: A) B i1 ->
             P st (b ::: A) B i2 ->
             P st (or a b ::: A) B (syntax.IF_LEFT i1 i2))
-        (HIF_RIGHT : forall st a b A B i1 i2,
-            P st (b ::: A) B i1 ->
-            P st (a ::: A) B i2 ->
-            P st (or a b ::: A) B (syntax.IF_RIGHT i1 i2))
         (HIF_CONS : forall st a A B i1 i2,
             P st (a ::: list a ::: A) B i1 ->
             P st A B i2 ->
@@ -198,7 +193,7 @@ Module Untyper(C : ContractContext).
        then
          fun i2 =>
            HSEQ _ _ _ _ i1 i2
-                (tail_fail_induction _ B C i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
+                (tail_fail_induction _ B C i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
        else fun i2 => I)
         i2
     | @syntax.IF_ _ A B tffa tffb i1 i2 =>
@@ -212,8 +207,8 @@ Module Untyper(C : ContractContext).
             then
               fun i2 =>
                 HIF _ _ _ i1 i2
-                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
-                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
+                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
+                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
             else
               fun _ => I) i2
        else
@@ -229,8 +224,8 @@ Module Untyper(C : ContractContext).
             then
               fun i2 =>
                 HIF_NONE _ _ _ _ i1 i2
-                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
-                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
+                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
+                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
             else
               fun _ => I) i2
        else
@@ -246,25 +241,8 @@ Module Untyper(C : ContractContext).
             then
               fun i2 =>
                 HIF_LEFT _ _ _ _ _ i1 i2
-                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
-                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
-            else
-              fun _ => I) i2
-       else
-         fun _ => I) i1
-    | @syntax.IF_RIGHT _ a b A B tffa tffb i1 i2 =>
-      (if tffa as tffa return
-          forall i1, P' _ (tffa && tffb)%bool _ _ (syntax.IF_RIGHT i1 i2)
-       then
-         fun i1 =>
-           (if tffb return
-               forall i2,
-                 P' _ tffb _ _ (syntax.IF_RIGHT i1 i2)
-            then
-              fun i2 =>
-                HIF_RIGHT _ _ _ _ _ i1 i2
-                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
-                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
+                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
+                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
             else
               fun _ => I) i2
        else
@@ -280,8 +258,8 @@ Module Untyper(C : ContractContext).
             then
               fun i2 =>
                 HIF_CONS _ _ _ _ i1 i2
-                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
-                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_RIGHT HIF_CONS)
+                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
+                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
             else
               fun _ => I) i2
        else
@@ -323,8 +301,6 @@ Module Untyper(C : ContractContext).
       apply (syntax.IF_NONE i1 i2).
     - intros st a b A B _ _ i1 i2.
       apply (syntax.IF_LEFT i1 i2).
-    - intros st a b A B _ _ i1 i2.
-      apply (syntax.IF_RIGHT i1 i2).
     - intros st a A B _ _ i1 i2.
       apply (syntax.IF_CONS i1 i2).
   Defined.
@@ -409,7 +385,6 @@ Module Untyper(C : ContractContext).
   | IF_i A : IF_instruction A A (bool ::: A)
   | IF_NONE_i a A : IF_instruction A (a ::: A) (option a ::: A)
   | IF_LEFT_i a b A : IF_instruction (a ::: A) (b ::: A) (or a b ::: A)
-  | IF_RIGHT_i a b A : IF_instruction (b ::: A) (a ::: A) (or a b ::: A)
   | IF_CONS_i a A : IF_instruction (a ::: list a ::: A) A (list a ::: A).
 
   Definition IF_instruction_to_instruction {self_type} A1 A2 A (IFi : IF_instruction A1 A2 A) :
@@ -420,7 +395,6 @@ Module Untyper(C : ContractContext).
     | IF_i A => fun B ttffa tffb i1 i2 => syntax.IF_ i1 i2
     | IF_NONE_i a A => fun B ttffa tffb i1 i2 => syntax.IF_NONE i1 i2
     | IF_LEFT_i a b A => fun B ttffa tffb i1 i2 => syntax.IF_LEFT i1 i2
-    | IF_RIGHT_i a b A => fun B ttffa tffb i1 i2 => syntax.IF_RIGHT i1 i2
     | IF_CONS_i a A => fun B ttffa tffb i1 i2 => syntax.IF_CONS i1 i2
     end.
 
@@ -776,13 +750,6 @@ Module Untyper(C : ContractContext).
              (untype_instruction i1)
              (untype_instruction i2) _ _ _
              (IF_instruction_to_instruction _ _ _ (IF_LEFT_i a b A))).
-        rewrite untype_type_branches; auto.
-      + trans_refl
-          (@typer.type_branches self_type
-             typer.type_instruction
-             (untype_instruction i1)
-             (untype_instruction i2) _ _ _
-             (IF_instruction_to_instruction _ _ _ (IF_RIGHT_i a b A))).
         rewrite untype_type_branches; auto.
       + unfold untype_type_spec; simpl.
         rewrite instruction_cast_domain_same.

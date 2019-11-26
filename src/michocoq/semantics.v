@@ -687,11 +687,6 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
         | inl a => eval env bt n (a, SA)
         | inr b => eval env bf n (b, SA)
         end
-      | IF_RIGHT bt bf, (b, SA), env =>
-        match b with
-        | inl a => eval env bf n (a, SA)
-        | inr b => eval env bt n (b, SA)
-        end
       | CONS, (x, (y, SA)), _ => Return (cons x y, SA)
       | NIL _, SA, _ => Return (nil, SA)
       | IF_CONS bt bf, (l, SA), env =>
@@ -813,11 +808,6 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
              ++ apply success_bind_arg in Hsucc.
                 assumption.
           -- reflexivity.
-        * destruct st as ([|], SA); rewrite IHfuel1.
-          -- reflexivity.
-          -- exact Hsucc.
-          -- reflexivity.
-          -- exact Hsucc.
         * destruct st as ([|], SA); rewrite IHfuel1.
           -- reflexivity.
           -- exact Hsucc.
@@ -970,11 +960,6 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
       | inl a => eval_precond_n env bt psi (a, SA)
       | inr b => eval_precond_n env bf psi (b, SA)
       end
-    | IF_RIGHT bt bf, env, psi, (b, SA) =>
-      match b with
-      | inl a => eval_precond_n env bf psi (a, SA)
-      | inr b => eval_precond_n env bt psi (b, SA)
-      end
     | CONS, env, psi, (x, (y, SA)) => psi (cons x y, SA)
     | NIL _, env, psi, SA => psi (nil, SA)
     | IF_CONS bt bf, env, psi, (l, SA) =>
@@ -1121,7 +1106,6 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     - destruct st as ([|], st); apply IHn.
     - destruct st; reflexivity.
     - destruct st; reflexivity.
-    - destruct st as ([|], st); apply IHn.
     - destruct st as ([|], st); apply IHn.
     - destruct st as (x, (y, st)); reflexivity.
     - reflexivity.

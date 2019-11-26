@@ -369,8 +369,6 @@ Module Typer(C : ContractContext).
       type_branches type_instruction i1 i2 _ _ _ (fun B tffa tffb => syntax.IF_NONE)
     | IF_LEFT i1 i2, or a b :: A =>
       type_branches type_instruction i1 i2 _ _ _ (fun B tffa tffb => syntax.IF_LEFT)
-    | IF_RIGHT i1 i2, or a b :: A =>
-      type_branches type_instruction i1 i2 _ _ _ (fun B tffa tffb => syntax.IF_RIGHT)
     | IF_CONS i1 i2, list a :: A =>
       type_branches type_instruction i1 i2 _ _ _ (fun B tffa tffb => syntax.IF_CONS)
     | LOOP i, Comparable_type bool :: A =>

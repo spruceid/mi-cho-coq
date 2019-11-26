@@ -377,10 +377,6 @@ this constructor "IF" but we can make a notation for it. *)
     instruction self_type tffa (a :: A) B ->
     instruction self_type tffb (b :: A) B ->
     instruction self_type (tffa && tffb) (or a b :: A) B
-| IF_RIGHT {self_type a b A B tffa tffb} :
-    instruction self_type tffa (b :: A) B ->
-    instruction self_type tffb (a :: A) B ->
-    instruction self_type (tffa && tffb) (or a b :: A) B
 | CONS {self_type a S} : instruction self_type Datatypes.false (a ::: list a ::: S) (list a :: S)
 | NIL (a : type) {self_type S} : instruction self_type Datatypes.false S (list a :: S)
 | IF_CONS {self_type a A B tffa tffb} :
