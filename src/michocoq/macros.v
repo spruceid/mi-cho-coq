@@ -146,6 +146,9 @@ Definition CDDR {a b c S} : instruction self_type Datatypes.false (pair a (pair 
 Definition IF_SOME {a SA SB tffa tffb} (bt : instruction self_type tffa _ _) (bf : instruction self_type tffb _ _) : instruction self_type _ (option a ::: SA) SB :=
   IF_NONE bf bt.
 
+Definition IF_RIGHT {a b SA SB tffa tffb} (bt : instruction self_type tffa _ _) (bf : instruction self_type tffb _ _) : instruction self_type _ (or a b ::: SA) SB :=
+  IF_LEFT bf bt.
+
 Definition SET_CAR {a b S} : instruction self_type Datatypes.false (pair a b ::: a ::: S) (pair a b ::: S) :=
   CDR ;; SWAP ;; PAIR.
 
