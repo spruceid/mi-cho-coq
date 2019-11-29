@@ -154,10 +154,12 @@ Proof.
   destruct param as [(tff, lam)|[]].
   - do 5 (more_fuel; simpl).
     simpl.
+    rewrite match_if_exchange.
     rewrite if_false_is_and.
     rewrite (eqb_eq mutez).
     apply and_both.
     do 5 (more_fuel; simpl).
+    rewrite match_if_exchange.
     rewrite if_false_is_and.
     rewrite (eqb_eq address).
     apply and_both.

@@ -77,6 +77,20 @@ Require Import String.
     | syntax.CHAIN_ID => CHAIN_ID
     end.
 
+  Definition untype_if_family {A B t} (f : syntax.if_family A B t) : if_family :=
+    match f with
+    | syntax.IF_bool => IF_bool
+    | syntax.IF_or _ _ _ _ => IF_or
+    | syntax.IF_option _ => IF_option
+    | syntax.IF_list _ => IF_list
+    end.
+
+  Definition untype_loop_family {A B t} (f : syntax.loop_family A B t) : loop_family :=
+    match f with
+    | syntax.LOOP_bool => LOOP_bool
+    | syntax.LOOP_or _ _ _ _ => LOOP_or
+    end.
+
   Fixpoint untype_data {a} (d : syntax.concrete_data a) : concrete_data :=
     match d with
     | syntax.Int_constant z => Int_constant z
@@ -112,18 +126,14 @@ Require Import String.
     | syntax.NOOP => NOOP
     | syntax.FAILWITH => FAILWITH
     | syntax.SEQ i1 i2 => SEQ (untype_instruction i1) (untype_instruction i2)
-    | syntax.IF_ i1 i2 => IF_ (untype_instruction i1) (untype_instruction i2)
-    | syntax.LOOP i => LOOP (untype_instruction i)
-    | syntax.LOOP_LEFT i => LOOP_LEFT (untype_instruction i)
+    | syntax.IF_ f i1 i2 => IF_ (untype_if_family f) (untype_instruction i1) (untype_instruction i2)
+    | syntax.LOOP_ f i => LOOP_ (untype_loop_family f) (untype_instruction i)
     | syntax.DIP n _ i => DIP n (untype_instruction i)
     | syntax.EXEC => EXEC
     | syntax.PUSH a x => PUSH a (untype_data x)
     | syntax.LAMBDA a b i => LAMBDA a b (untype_instruction i)
     | syntax.ITER i => ITER (untype_instruction i)
     | syntax.MAP i => MAP (untype_instruction i)
-    | syntax.IF_NONE i1 i2 => IF_NONE (untype_instruction i1) (untype_instruction i2)
-    | syntax.IF_LEFT i1 i2 => IF_LEFT (untype_instruction i1) (untype_instruction i2)
-    | syntax.IF_CONS i1 i2 => IF_CONS (untype_instruction i1) (untype_instruction i2)
     | syntax.CREATE_CONTRACT g p an i => CREATE_CONTRACT g p an (untype_instruction i)
     | syntax.SELF an _ => SELF an
     | syntax.Instruction_opcode o => instruction_opcode (untype_opcode o)
@@ -158,22 +168,10 @@ Require Import String.
         (HSEQ : forall st A B C i1 i2,
             P st B C i2 ->
             P st A C (i1;; i2))
-        (HIF : forall st A B i1 i2,
-            P st A B i1 ->
-            P st A B i2 ->
-            P st (bool ::: A) B (syntax.IF_ i1 i2))
-        (HIF_NONE : forall st a A B i1 i2,
-            P st A B i1 ->
-            P st (a ::: A) B i2 ->
-            P st (option a ::: A) B (syntax.IF_NONE i1 i2))
-        (HIF_LEFT : forall st a b an bn A B i1 i2,
-            P st (a ::: A) B i1 ->
-            P st (b ::: A) B i2 ->
-            P st (or a an b bn ::: A) B (syntax.IF_LEFT i1 i2))
-        (HIF_CONS : forall st a A B i1 i2,
-            P st (a ::: list a ::: A) B i1 ->
-            P st A B i2 ->
-            P st (list a ::: A) B (syntax.IF_CONS i1 i2))
+        (HIF : forall st A B C1 C2 t (f : syntax.if_family C1 C2 t) i1 i2,
+            P st (C1 ++ A) B i1 ->
+            P st (C2 ++ A) B i2 ->
+            P st (t ::: A) B (syntax.IF_ f i1 i2))
     : P self_type A B i :=
     let P' st b A B : syntax.instruction st b A B -> Type :=
         if b return syntax.instruction st b A B -> Type
@@ -190,73 +188,22 @@ Require Import String.
        then
          fun i2 =>
            HSEQ _ _ _ _ i1 i2
-                (tail_fail_induction _ B C i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
+                (tail_fail_induction _ B C i2 P HFAILWITH HSEQ HIF)
        else fun i2 => I)
         i2
-    | @syntax.IF_ _ A B tffa tffb i1 i2 =>
+    | @syntax.IF_ _ A B tffa tffb _ _ _ f i1 i2 =>
       (if tffa as tffa return
-          forall i1, P' _ (tffa && tffb)%bool _ _ (syntax.IF_ i1 i2)
+          forall i1, P' _ (tffa && tffb)%bool _ _ (syntax.IF_ f i1 i2)
        then
          fun i1 =>
            (if tffb return
                forall i2,
-                 P' _ tffb _ _ (syntax.IF_ i1 i2)
+                 P' _ tffb _ _ (syntax.IF_ f i1 i2)
             then
               fun i2 =>
-                HIF _ _ _ i1 i2
-                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
-                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
-            else
-              fun _ => I) i2
-       else
-         fun _ => I) i1
-    | @syntax.IF_NONE _ a A B tffa tffb i1 i2 =>
-      (if tffa as tffa return
-          forall i1, P' _ (tffa && tffb)%bool _ _ (syntax.IF_NONE i1 i2)
-       then
-         fun i1 =>
-           (if tffb return
-               forall i2,
-                 P' _ tffb _ _ (syntax.IF_NONE i1 i2)
-            then
-              fun i2 =>
-                HIF_NONE _ _ _ _ i1 i2
-                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
-                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
-            else
-              fun _ => I) i2
-       else
-         fun _ => I) i1
-    | @syntax.IF_LEFT _ a an b bn A B tffa tffb i1 i2 =>
-      (if tffa as tffa return
-          forall i1, P' _ (tffa && tffb)%bool _ _ (syntax.IF_LEFT i1 i2)
-       then
-         fun i1 =>
-           (if tffb return
-               forall i2,
-                 P' _ tffb _ _ (syntax.IF_LEFT i1 i2)
-            then
-              fun i2 =>
-                HIF_LEFT _ _ _ _ _ _ _ i1 i2
-                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
-                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
-            else
-              fun _ => I) i2
-       else
-         fun _ => I) i1
-    | @syntax.IF_CONS _ a A B tffa tffb i1 i2 =>
-      (if tffa as tffa return
-          forall i1, P' _ (tffa && tffb)%bool _ _ (syntax.IF_CONS i1 i2)
-       then
-         fun i1 =>
-           (if tffb return
-               forall i2,
-                 P' _ tffb _ _ (syntax.IF_CONS i1 i2)
-            then
-              fun i2 =>
-                HIF_CONS _ _ _ _ i1 i2
-                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
-                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF HIF_NONE HIF_LEFT HIF_CONS)
+                HIF _ _ _ _ _ _ f i1 i2
+                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF)
+                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF)
             else
               fun _ => I) i2
        else
@@ -292,14 +239,8 @@ Require Import String.
       apply syntax.FAILWITH.
     - intros st A B C i1 _ i2.
       apply (syntax.SEQ i1 i2).
-    - intros st A B _ _ i1 i2.
-      apply (syntax.IF_ i1 i2).
-    - intros st a A B _ _ i1 i2.
-      apply (syntax.IF_NONE i1 i2).
-    - intros st a b an bn A B _ _ i1 i2.
-      apply (syntax.IF_LEFT i1 i2).
-    - intros st a A B _ _ i1 i2.
-      apply (syntax.IF_CONS i1 i2).
+    - intros st A B C1 C2 t f _ _ i1 i2.
+      apply (syntax.IF_ f i1 i2).
   Defined.
 
 
@@ -392,57 +333,6 @@ Require Import String.
     unfold typer.type_instruction_no_tail_fail.
     rewrite IH.
     reflexivity.
-  Qed.
-
-  Inductive IF_instruction : forall (A1 A2 A : Datatypes.list type), Set :=
-  | IF_i A : IF_instruction A A (bool ::: A)
-  | IF_NONE_i a A : IF_instruction A (a ::: A) (option a ::: A)
-  | IF_LEFT_i a b an bn A : IF_instruction (a ::: A) (b ::: A) (or a an b bn ::: A)
-  | IF_CONS_i a A : IF_instruction (a ::: list a ::: A) A (list a ::: A).
-
-  Definition IF_instruction_to_instruction {self_type} A1 A2 A (IFi : IF_instruction A1 A2 A) :
-    forall B tffa tffb,
-      syntax.instruction self_type tffa A1 B ->
-      syntax.instruction self_type tffb A2 B -> syntax.instruction self_type (tffa && tffb) A B :=
-    match IFi with
-    | IF_i A => fun B ttffa tffb i1 i2 => syntax.IF_ i1 i2
-    | IF_NONE_i a A => fun B ttffa tffb i1 i2 => syntax.IF_NONE i1 i2
-    | IF_LEFT_i a b an bn A => fun B ttffa tffb i1 i2 => syntax.IF_LEFT i1 i2
-    | IF_CONS_i a A => fun B ttffa tffb i1 i2 => syntax.IF_CONS i1 i2
-    end.
-
-  Lemma untype_type_branches {self_type} tff1 tff2 A1 A2 A B
-        (i1 : syntax.instruction self_type tff1 A1 B)
-        (i2 : syntax.instruction self_type tff2 A2 B) IF_instr :
-    untype_type_spec _ _ _ i1 ->
-    untype_type_spec _ _ _ i2 ->
-    typer.type_branches typer.type_instruction
-                        (untype_instruction i1)
-                        (untype_instruction i2)
-                        A1 A2 A (IF_instruction_to_instruction A1 A2 A IF_instr) =
-    Return ((if (tff1 && tff2)%bool
-                 as b return syntax.instruction self_type b A B -> typer.typer_result A
-               then
-                 fun i =>
-                   typer.Any_type _ (fun B' => tail_fail_change_range A B B' i)
-               else
-                 typer.Inferred_type _ B) (IF_instruction_to_instruction A1 A2 A IF_instr B tff1 tff2 i1 i2)).
-  Proof.
-    intros IH1 IH2.
-    unfold typer.type_branches.
-    rewrite IH1.
-    rewrite IH2.
-    simpl.
-    destruct tff1; destruct tff2; simpl.
-    - f_equal.
-      f_equal.
-      destruct IF_instr; simpl; unfold tail_fail_change_range; reflexivity.
-    - rewrite tail_fail_change_range_same.
-      reflexivity.
-    - rewrite tail_fail_change_range_same.
-      reflexivity.
-    - rewrite instruction_cast_range_same.
-      reflexivity.
   Qed.
 
   Ltac trans_refl t := transitivity t; [reflexivity|].
@@ -662,26 +552,27 @@ Require Import String.
           rewrite untype_type_instruction.
           destruct tff; reflexivity.
         * auto.
-      + simpl.
-        trans_refl
-          (@typer.type_branches self_type
-             typer.type_instruction
-             (untype_instruction i1)
-             (untype_instruction i2) _ _ _
-             (IF_instruction_to_instruction _ _ _ (IF_i A))).
-        rewrite untype_type_branches; auto.
-      + trans_refl (
-          let! i := typer.type_check_instruction_no_tail_fail
-            typer.type_instruction (untype_instruction i) A (bool ::: A) in
-          Return (@typer.Inferred_type self_type _ _ (syntax.LOOP i))
-        ).
-        rewrite untype_type_check_instruction_no_tail_fail; auto.
-      + trans_refl (
-          let! i := typer.type_check_instruction_no_tail_fail
-            typer.type_instruction (untype_instruction i) _ (or a an b bn ::: A) in
-          Return (@typer.Inferred_type self_type _ _ (syntax.LOOP_LEFT i))
-        ).
-        rewrite untype_type_check_instruction_no_tail_fail; auto.
+      + unfold untype_type_spec.
+        simpl.
+        unfold type_branches.
+        assert (type_if_family (untype_if_family i1) t = Return (existT _ C1 (existT _ C2 i1))) as Hi1.
+        * destruct i1; reflexivity.
+        * rewrite Hi1.
+          simpl.
+          rewrite untype_type_instruction; simpl.
+          rewrite untype_type_instruction; simpl.
+          destruct tffa; destruct tffb;
+            try rewrite instruction_cast_range_same; simpl; repeat f_equal; apply tail_fail_change_range_same.
+      + unfold untype_type_spec.
+        simpl.
+        unfold type_loop.
+        assert (type_loop_family (untype_loop_family i) t = Return (existT _ C1 (existT _ C2 i))) as Hi.
+        * destruct i; reflexivity.
+        * rewrite Hi.
+          simpl.
+          rewrite untype_type_check_instruction_no_tail_fail.
+          -- reflexivity.
+          -- apply untype_type_instruction.
       + trans_refl (
           let! d := typer.type_data (untype_data x) a in
           Return (@typer.Inferred_type self_type A _ (syntax.PUSH a d))
@@ -715,27 +606,6 @@ Require Import String.
              rewrite instruction_cast_range_same.
              reflexivity.
           -- auto.
-      + trans_refl
-          (@typer.type_branches self_type
-             typer.type_instruction
-             (untype_instruction i1)
-             (untype_instruction i2) _ _ _
-             (IF_instruction_to_instruction _ _ _ (IF_NONE_i a A))).
-        rewrite untype_type_branches; auto.
-      + trans_refl
-          (@typer.type_branches self_type
-             typer.type_instruction
-             (untype_instruction i1)
-             (untype_instruction i2) _ _ _
-             (IF_instruction_to_instruction _ _ _ (IF_LEFT_i a b an bn A))).
-        rewrite untype_type_branches; auto.
-      + trans_refl
-          (@typer.type_branches self_type
-             typer.type_instruction
-             (untype_instruction i1)
-             (untype_instruction i2) _ _ _
-             (IF_instruction_to_instruction _ _ _ (IF_CONS_i a A))).
-        rewrite untype_type_branches; auto.
       + unfold untype_type_spec; simpl.
         rewrite untype_type_check_instruction.
         -- simpl.

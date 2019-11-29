@@ -52,7 +52,10 @@ Qed.
   Definition opcode_cast {self_type} A A' B B' o : M (syntax.opcode A' B') :=
     match stype_dec A A', stype_dec B B' with
     | left HA, left HB => Return (safe_opcode_cast A A' B B' o HA HB)
-    | _, _ => Failed _ (Typing cast_error (Mk_cast_error A B A' B' Datatypes.false self_type (syntax.Instruction_opcode o)))
+    | _, _ =>
+      Failed _ (Typing cast_error
+                       (Mk_cast_error A B A' B' Datatypes.false self_type
+                                      (syntax.Instruction_opcode o)))
     end.
 
   Definition instruction_cast_range {self_type tff} A B B' (i : instruction self_type tff A B)
@@ -107,32 +110,57 @@ Qed.
     let! r := type_instruction i A in
     assert_not_tail_fail A r.
 
-  Definition type_branches {self_type}
+  Definition type_if_family (f : if_family) (t : type) :
+    M {A & {B & syntax.if_family A B t}} :=
+    match f, t with
+    | IF_bool, Comparable_type bool => Return (existT _ _ (existT _ _ syntax.IF_bool))
+    | IF_option, option a => Return (existT _ _ (existT _ _ (syntax.IF_option a)))
+    | IF_or, or a an b bn => Return (existT _ _ (existT _ _ (syntax.IF_or a an b bn)))
+    | IF_list, list a => Return (existT _ _ (existT _ _ (syntax.IF_list a)))
+    | _, _ => Failed _ (Typing _ "type_family"%string)
+    end.
+
+  Definition type_branches {self_type} (f : if_family) (t : type)
              (type_instruction :
                 forall (i : untyped_syntax.instruction) A,
                   M (typer_result A))
-             i1 i2 A1 A2 A
-             (IF_instr : forall B tffa tffb,
-                 instruction self_type tffa A1 B ->
-                 instruction self_type tffb A2 B ->
-                 instruction self_type (tffa && tffb) A B)
-    : M (typer_result A) :=
-    let! r1 := type_instruction i1 A1 in
-    let! r2 := type_instruction i2 A2 in
+             i1 i2 A
+    : M (typer_result (self_type := self_type) (t ::: A)) :=
+    let! (existT _ B1 (existT _ B2 f)) := type_if_family f t in
+    let! r1 := type_instruction i1 (B1 ++ A) in
+    let! r2 := type_instruction i2 (B2 ++ A) in
     match r1, r2 with
-    | Inferred_type _ B1 i1, Inferred_type _ B2 i2 =>
-      let! i2 := instruction_cast_range A2 B2 B1 i2 in
+    | Inferred_type _ C1 i1, Inferred_type _ C2 i2 =>
+      let! i2 := instruction_cast_range (B2 ++ A) C2 C1 i2 in
       Return
               (Inferred_type _ _
-                            (IF_instr B1 false false i1 i2))
-    | Inferred_type _ B i1, Any_type _ i2 =>
-      Return (Inferred_type _ _ (IF_instr B false true i1 (i2 B)))
-    | Any_type _ i1, Inferred_type _ B i2 =>
-      Return (Inferred_type _ _ (IF_instr B true false (i1 B) i2))
+                            (syntax.IF_ f i1 i2))
+    | Inferred_type _ C i1, Any_type _ i2 =>
+      Return (Inferred_type _ _ (syntax.IF_ f i1 (i2 C)))
+    | Any_type _ i1, Inferred_type _ C i2 =>
+      Return (Inferred_type _ _ (syntax.IF_ f (i1 C) i2))
     | Any_type _ i1, Any_type _ i2 =>
-      Return (Any_type _ (fun B =>
-                              IF_instr B true true (i1 B) (i2 B)))
+      Return (Any_type _ (fun C =>
+                              syntax.IF_ f (i1 C) (i2 C)))
     end.
+
+  Definition type_loop_family (f : loop_family) (t : type) :
+    M {A & {B & syntax.loop_family A B t}} :=
+    match f, t with
+    | LOOP_bool, Comparable_type bool => Return (existT _ _ (existT _ _ syntax.LOOP_bool))
+    | LOOP_or, or a an b bn => Return (existT _ _ (existT _ _ (syntax.LOOP_or a an b bn)))
+    | _, _ => Failed _ (Typing _ "type_family"%string)
+    end.
+
+  Definition type_loop {self_type} (f : loop_family) (t : type)
+             (type_instruction :
+                forall (i : untyped_syntax.instruction) A,
+                  M (typer_result A))
+             i A
+    : M (typer_result (self_type := self_type) (t ::: A)) :=
+    let! (existT _ B1 (existT _ B2 f)) := type_loop_family f t in
+    let! r := type_check_instruction_no_tail_fail type_instruction i (B1 ++ A) (t ::: A) in
+    Return (Inferred_type _ _ (syntax.LOOP_ f r)).
 
   Definition take_one (S : syntax.stack_type) : M (type * syntax.stack_type) :=
     match S with
@@ -624,22 +652,10 @@ Qed.
       | Any_type _ i2 =>
         Return (Any_type _ (fun C => syntax.SEQ i1 (i2 C)))
       end
-    | IF_ i1 i2, Comparable_type bool :: A =>
-      type_branches type_instruction i1 i2 _ _ _ (fun B tffa tffb => syntax.IF_)
-    | IF_NONE i1 i2, option a :: A =>
-      type_branches type_instruction i1 i2 _ _ _ (fun B tffa tffb => syntax.IF_NONE)
-    | IF_LEFT i1 i2, or a an b bn :: A =>
-      type_branches type_instruction i1 i2 _ _ _ (fun B tffa tffb => syntax.IF_LEFT)
-    | IF_CONS i1 i2, list a :: A =>
-      type_branches type_instruction i1 i2 _ _ _ (fun B tffa tffb => syntax.IF_CONS)
-    | LOOP i, Comparable_type bool :: A =>
-      let! i := type_check_instruction_no_tail_fail
-        type_instruction i A (bool ::: A) in
-      Return (Inferred_type _ _ (syntax.LOOP i))
-    | LOOP_LEFT i, or a an b bn :: A =>
-      let! i := type_check_instruction_no_tail_fail
-        type_instruction i (a :: A) (or a an b bn :: A) in
-      Return (Inferred_type _ _ (syntax.LOOP_LEFT i))
+    | IF_ f i1 i2, t :: A =>
+      type_branches f t type_instruction i1 i2 A
+    | LOOP_ f i, t :: A =>
+      type_loop f t type_instruction i A
     | EXEC, a :: lambda a' b :: B =>
       let A := a :: lambda a' b :: B in
       let A' := a :: lambda a b :: B in

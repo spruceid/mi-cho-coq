@@ -187,22 +187,18 @@ Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
                                              michelson2micheline_atype
                                                michelson2micheline_type t2 an;
                                              michelson2micheline_ins i]
-  | IF_ i1 i2 =>
-    dummy_prim "IF" [dummy_seq (michelson2micheline_ins i1);
-                       dummy_seq (michelson2micheline_ins i2)]
-  | IF_NONE i1 i2 =>
-    dummy_prim "IF_NONE" [dummy_seq (michelson2micheline_ins i1);
-                            dummy_seq (michelson2micheline_ins i2)]
-  | IF_LEFT i1 i2 =>
-    dummy_prim "IF_LEFT" [dummy_seq (michelson2micheline_ins i1);
-                            dummy_seq (michelson2micheline_ins i2)]
-  | IF_CONS i1 i2 =>
-    dummy_prim "IF_CONS" [dummy_seq (michelson2micheline_ins i1);
-                            dummy_seq (michelson2micheline_ins i2)]
-  | LOOP i =>
-    dummy_prim "LOOP" [dummy_seq (michelson2micheline_ins i)]
-  | LOOP_LEFT i =>
-    dummy_prim "LOOP_LEFT" [dummy_seq (michelson2micheline_ins i)]
+  | IF_ f i1 i2 =>
+    let s := match f with
+             | IF_bool => "IF"
+             | IF_or => "IF_LEFT"
+             | IF_option => "IF_NONE"
+             | IF_list => "IF_CONS"
+             end in
+    dummy_prim s [dummy_seq (michelson2micheline_ins i1);
+                    dummy_seq (michelson2micheline_ins i2)]
+  | LOOP_ f i =>
+    let s := match f with LOOP_bool => "LOOP" | LOOP_or => "LOOP_LEFT" end in
+    dummy_prim s [dummy_seq (michelson2micheline_ins i)]
   | ITER i =>
     dummy_prim "ITER" [dummy_seq (michelson2micheline_ins i)]
   | MAP i =>

@@ -249,6 +249,7 @@ Proof.
   unfold "+", params, storage, multisig_head_spec.
   rewrite eval_precond_correct.
   repeat (more_fuel; simpl).
+  rewrite match_if_exchange.
   rewrite if_false_is_and.
   rewrite (eqb_eq nat).
   intuition.
@@ -297,7 +298,8 @@ Proof.
   simpl.
   destruct sigs as [|[sig|] sigs].
   - reflexivity.
-  - rewrite if_false_is_and.
+  - rewrite match_if_exchange.
+    rewrite if_false_is_and.
     apply and_both.
     reflexivity.
   - reflexivity.
@@ -475,6 +477,7 @@ Proof.
   unfold multisig_tail.
   do 6 more_fuel.
   simpl.
+  rewrite match_if_exchange.
   rewrite if_false_is_and.
   rewrite (leb_le nat).
   unfold lt, lt_comp, compare, simple_compare.

@@ -68,20 +68,20 @@ Inductive opcode : Set :=
 | DROP : Datatypes.nat -> opcode
 | CHAIN_ID : opcode.
 
+Inductive if_family : Set := IF_bool | IF_or | IF_option | IF_list.
+
+Inductive loop_family : Set := LOOP_bool | LOOP_or.
+
 Inductive instruction : Set :=
 | NOOP : instruction
 | FAILWITH : instruction
 | SEQ : instruction -> instruction -> instruction
-| IF_ : instruction -> instruction -> instruction
-| LOOP : instruction -> instruction
-| LOOP_LEFT : instruction -> instruction
+| IF_ : if_family -> instruction -> instruction -> instruction
+| LOOP_ : loop_family -> instruction -> instruction
 | PUSH : type -> concrete_data -> instruction
 | LAMBDA : type -> type -> instruction -> instruction
 | ITER : instruction -> instruction
 | MAP : instruction -> instruction
-| IF_NONE : instruction -> instruction -> instruction
-| IF_LEFT : instruction -> instruction -> instruction
-| IF_CONS : instruction -> instruction -> instruction
 | CREATE_CONTRACT : type -> type -> annot_o -> instruction -> instruction
 | DIP : Datatypes.nat -> instruction -> instruction
 | SELF : annot_o -> instruction
@@ -105,6 +105,13 @@ concrete_data : Set :=
 | Instruction : instruction -> concrete_data.
 
 Coercion instruction_opcode : opcode >-> instruction.
+
+Notation "'IF'" := (IF_ IF_bool).
+Notation "'IF_LEFT'" := (IF_ IF_or).
+Notation "'IF_NONE'" := (IF_ IF_option).
+Notation "'IF_CONS'" := (IF_ IF_list).
+Notation "'LOOP'" := (LOOP_ LOOP_bool).
+Notation "'LOOP_LEFT'" := (LOOP_ LOOP_or).
 
 (* Some macros *)
 Definition UNPAIR : instruction :=

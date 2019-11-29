@@ -94,6 +94,7 @@ Proof.
   rewrite return_precond.
   rewrite eval_precond_correct.
   do 15 (more_fuel; simpl).
+  rewrite match_if_exchange.
   rewrite if_false_not.
   apply and_both_0.
   - change (tez.compare (5000000 ~Mutez) (amount env)) with

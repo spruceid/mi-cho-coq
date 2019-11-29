@@ -131,13 +131,13 @@ Definition op_of_string (s : String.string) b e :=
   end.
 
 Definition FAIL := UNIT ;; FAILWITH.
-Definition ASSERT := IF_ NOOP FAIL.
+Definition ASSERT := (IF_ IF_bool) NOOP FAIL.
 
 Definition IF_op_of_string (s : String.string) b e bt bf :=
   match s with
   | String "I" (String "F" s) =>
     let! op := op_of_string s b e in
-    Return (op ;; IF_ bt bf)
+    Return (op ;; IF_ IF_bool bt bf)
   | _ => Failed _ (Expansion b e)
   end.
 
@@ -145,7 +145,7 @@ Definition ASSERT_op_of_string (s : String.string) b e :=
   match s with
   | String "A" (String "S" (String "S" (String "E" (String "R" (String "T" (String "_" s)))))) =>
     let! op := op_of_string s b e in
-    Return (op ;; IF_ NOOP FAIL)
+    Return (op ;; ASSERT)
   | _ => Failed _ (Expansion b e)
   end.
 
@@ -516,7 +516,7 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
   | Mk_loc_micheline (_, PRIM (_, "IF") (i1 :: i2 :: nil)) =>
     let! i1 := micheline2michelson_instruction i1 in
     let! i2 := micheline2michelson_instruction i2 in
-    Return (IF_ i1 i2)
+    Return (IF_ IF_bool i1 i2)
   | Mk_loc_micheline (_, PRIM (_, "IF_NONE") (i1 :: i2 :: nil)) =>
     let! i1 := micheline2michelson_instruction i1 in
     let! i2 := micheline2michelson_instruction i2 in
@@ -578,24 +578,24 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
     let! i1 := micheline2michelson_instruction i1 in
     let! i2 := micheline2michelson_instruction i2 in
     let! op := op_of_string s b e in
-    Return (COMPARE ;; op ;; IF_ i1 i2)
+    Return (COMPARE ;; op ;; IF_ IF_bool i1 i2)
   | Mk_loc_micheline ((b, e), PRIM (_,
        String "I" (String "F" s)) (i1 :: i2 :: nil)) =>
     let! i1 := micheline2michelson_instruction i1 in
     let! i2 := micheline2michelson_instruction i2 in
     let! op := op_of_string s b e in
-    Return (op ;; IF_ i1 i2)
+    Return (op ;; IF_ IF_bool i1 i2)
   | Mk_loc_micheline ((b, e), PRIM (_,
       String "A" (String "S" (String "S" (String "E" (String "R" (String "T"
       (String "_" (String "C" (String "M" (String "P" s)))))))))) nil) =>
     let! op := op_of_string s b e in
-    Return (COMPARE;; op ;; IF_ NOOP FAIL)
+    Return (COMPARE;; op ;; IF_ IF_bool NOOP FAIL)
 
   | Mk_loc_micheline ((b, e), PRIM (_,
       String "A" (String "S" (String "S" (String "E" (String "R" (String "T"
       (String "_" s))))))) nil) =>
     let! op := op_of_string s b e in
-    Return (op ;; IF_ NOOP FAIL)
+    Return (op ;; IF_ IF_bool NOOP FAIL)
 
   | Mk_loc_micheline ((b, e), PRIM (_, "CR") nil) =>
     Failed _ (Expansion_prim b e "CR")

@@ -263,11 +263,13 @@ Proof.
   intros params storage fuel Hfuel.
   unfold multisig_head.
   unfold "+", params, storage, multisig_head_spec.
-  do 11 (more_fuel; simpl); repeat fold_eval_precond.
+  do 11 (more_fuel; simpl).
+  rewrite match_if_exchange.
   rewrite if_false_is_and.
   rewrite (eqb_eq mutez).
   apply and_both.
   repeat simpl.
+  rewrite match_if_exchange.
   rewrite if_false_is_and.
   rewrite (eqb_eq nat).
   rewrite (eq_sym_iff counter stored_counter).
@@ -319,7 +321,8 @@ Proof.
   simpl.
   destruct sigs as [|[sig|] sigs].
   - reflexivity.
-  - rewrite if_false_is_and.
+  - rewrite match_if_exchange.
+    rewrite if_false_is_and.
     apply and_both.
     reflexivity.
   - reflexivity.

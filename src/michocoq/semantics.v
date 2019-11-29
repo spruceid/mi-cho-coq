@@ -653,6 +653,26 @@ Module Semantics(C : ContractContext).
       | CHAIN_ID, SA => Return (chain_id_ env, SA)
     end.
 
+  Definition if_family_destruct {A B t} (i : if_family A B t) (x : data t) : stack A + stack B :=
+    match i, x with
+    | IF_bool, true => inl tt
+    | IF_bool, false => inr tt
+    | IF_or _ _ _ _, inl x => inl (x, tt)
+    | IF_or _ _ _ _, inr x => inr (x, tt)
+    | IF_option a, None => inl tt
+    | IF_option a, Some x => inr (x, tt)
+    | IF_list a, cons x l => inl (x, (l, tt))
+    | IF_list a, nil => inr tt
+    end.
+
+  Definition loop_family_destruct {A B t} (i : loop_family A B t) (x : data t) : stack A + stack B :=
+    match i, x with
+    | LOOP_bool, true => inl tt
+    | LOOP_bool, false => inr tt
+    | LOOP_or _ _ _ _, inl x => inl (x, tt)
+    | LOOP_or _ _ _ _, inr x => inr (x, tt)
+    end.
+
   Fixpoint eval {param_ty : self_info} {tff0} (env : @proto_env param_ty) {A : stack_type} {B : stack_type}
            (i : instruction param_ty tff0 A B) (fuel : Datatypes.nat) (SA : stack A) {struct fuel} : M (stack B) :=
     match fuel with
@@ -671,14 +691,15 @@ Module Semantics(C : ContractContext).
       | SEQ B C, SA, env =>
         let! r := eval env B n SA in
         eval env C n r
-      | IF_ bt bf, (b, SA), env =>
-        if b then eval env bt n SA else eval env bf n SA
-      | LOOP body, (b, SA), env =>
-        if b then eval env (body;; (LOOP body)) n SA else Return SA
-      | LOOP_LEFT body, (ab, SA), env =>
-        match ab with
-        | inl x => eval env (body;; LOOP_LEFT body) n (x, SA)
-        | inr y => Return (y, SA)
+      | IF_ f bt bf, (x, SA), env =>
+        match if_family_destruct f x with
+        | inl SB => eval env bt n (stack_app SB SA)
+        | inr SB => eval env bf n (stack_app SB SA)
+        end
+      | LOOP_ f body, (ab, SA), env =>
+        match loop_family_destruct f ab with
+        | inl SB => eval env (body;; LOOP_ f body) n (stack_app SB SA)
+        | inr SB => Return (stack_app SB SA)
         end
       | PUSH a x, SA, _ => Return (concrete_data_to_data _ x, SA)
       | LAMBDA a b code, SA, _ => Return (existT _ _ code, SA)
@@ -700,21 +721,6 @@ Module Semantics(C : ContractContext).
           let! (b, SB) := eval env body n (a, SA) in
           let! (c, SC) := eval env (MAP body) n (y, SB) in
           Return (map_insert _ _ _ _ v a b c, SC)
-        end
-      | IF_NONE bt bf, (b, SA), env =>
-        match b with
-        | None => eval env bt n SA
-        | Some b => eval env bf n (b, SA)
-        end
-      | IF_LEFT bt bf, (b, SA), env =>
-        match b with
-        | inl a => eval env bt n (a, SA)
-        | inr b => eval env bf n (b, SA)
-        end
-      | IF_CONS bt bf, (l, SA), env =>
-        match l with
-        | cons a b => eval env bt n (a, (b, SA))
-        | nil => eval env bf n SA
         end
       | CREATE_CONTRACT g p an f, (a, (b, (c, SA))), env =>
         let (oper, addr) := create_contract env g p an _ a b f c in
@@ -754,11 +760,11 @@ Module Semantics(C : ContractContext).
              assumption.
           -- apply success_eq_return in H1.
              exact H1.
-        * destruct st as ([], st); rewrite IHfuel1; try assumption; reflexivity.
-        * destruct st as ([], st).
-          -- rewrite IHfuel1; try assumption; reflexivity.
-          -- reflexivity.
-        * destruct st as ([x|y], st).
+        * simpl in Hsucc.
+          destruct st as (x, st); destruct (if_family_destruct _ x) as [SB|SB];
+            rewrite IHfuel1; try assumption; reflexivity.
+        * simpl in Hsucc.
+          destruct st as (x, st); destruct (loop_family_destruct _ x) as [SB|SB].
           -- rewrite IHfuel1; try assumption; reflexivity.
           -- reflexivity.
         * destruct st as (x, SA).
@@ -801,21 +807,6 @@ Module Semantics(C : ContractContext).
              ++ apply success_bind_arg in Hsucc.
                 assumption.
           -- reflexivity.
-        * destruct st as ([|], SA); rewrite IHfuel1.
-          -- reflexivity.
-          -- exact Hsucc.
-          -- reflexivity.
-          -- exact Hsucc.
-        * destruct st as ([|], SA); rewrite IHfuel1.
-          -- reflexivity.
-          -- exact Hsucc.
-          -- reflexivity.
-          -- exact Hsucc.
-        * destruct st as ([|], SA); rewrite IHfuel1.
-          -- reflexivity.
-          -- exact Hsucc.
-          -- reflexivity.
-          -- exact Hsucc.
         * destruct st as (x, ((tff, f), SA)).
           f_equal.
           rewrite IHfuel1.
@@ -944,16 +935,15 @@ Module Semantics(C : ContractContext).
     | NOOP, env, psi, st => psi st
     | SEQ B C, env, psi, st =>
       eval_precond_n env B (eval_precond_n env C psi) st
-    | IF_ bt bf, env, psi, (b, SA) =>
-      if b then eval_precond_n env bt psi SA
-      else eval_precond_n env bf psi SA
-    | LOOP body, env, psi, (b, SA) =>
-      if b then eval_precond_n env (body;; (LOOP body)) psi SA
-      else psi SA
-    | LOOP_LEFT body, env, psi, (ab, SA) =>
-      match ab with
-      | inl x => eval_precond_n env (body;; LOOP_LEFT body) psi (x, SA)
-      | inr y => psi (y, SA)
+    | IF_ f bt bf, env, psi, (x, SA) =>
+      match (if_family_destruct f x) with
+      | inl SB => eval_precond_n env bt psi (stack_app SB SA)
+      | inr SB => eval_precond_n env bf psi (stack_app SB SA)
+      end
+    | LOOP_ f body, env, psi, (x, SA) =>
+      match (loop_family_destruct f x) with
+      | inl SB => eval_precond_n env (body;; LOOP_ f body) psi (stack_app SB SA)
+      | inr SB => psi (stack_app SB SA)
       end
     | EXEC, env, psi, (x, (existT _ _ f, SA)) =>
       eval_precond_n (no_self env) f (fun '(y, tt) => psi (y, SA)) (x, tt)
@@ -981,21 +971,6 @@ Module Semantics(C : ContractContext).
                (fun '(c, SC) => psi (map_insert _ _ _ _ v a b c, SC))
                (y, SB))
           (a, SA)
-      end
-    | IF_NONE bt bf, env, psi, (b, SA) =>
-      match b with
-      | None => eval_precond_n env bt psi SA
-      | Some b => eval_precond_n env bf psi (b, SA)
-      end
-    | IF_LEFT bt bf, env, psi, (b, SA) =>
-      match b with
-      | inl a => eval_precond_n env bt psi (a, SA)
-      | inr b => eval_precond_n env bf psi (b, SA)
-      end
-    | IF_CONS bt bf, env, psi, (l, SA) =>
-      match l with
-      | cons a b => eval_precond_n env bt psi (a, (b, SA))
-      | nil => eval_precond_n env bf psi SA
       end
     | CREATE_CONTRACT g p an f, env, psi, (a, (b, (c, SA))) =>
       let (oper, addr) := create_contract env g p an _ a b f c in
@@ -1045,13 +1020,10 @@ Module Semantics(C : ContractContext).
       apply precond_eqv.
       intro SB.
       apply IHn.
-    - destruct st as ([|], st); auto.
-    - destruct st as ([|], st).
+    - destruct st as (x, st); destruct (if_family_destruct _ x); auto.
+    - destruct st as (x, st); destruct (loop_family_destruct _ x).
       + apply IHn.
       + simpl. reflexivity.
-    - destruct st as ([|], st); simpl.
-      + apply (IHn _ _ _ _ _ (i;; LOOP_LEFT i)).
-      + reflexivity.
     - reflexivity.
     - reflexivity.
     - destruct st as (x, st).
@@ -1077,9 +1049,6 @@ Module Semantics(C : ContractContext).
         intros (c, B).
         reflexivity.
       + reflexivity.
-    - destruct st as ([|], st); apply IHn.
-    - destruct st as ([|], st); apply IHn.
-    - destruct st as ([|], st); apply IHn.
     - destruct st as (a, (b, (c, SA))).
       destruct (create_contract env g p an _ a b i c).
       reflexivity.

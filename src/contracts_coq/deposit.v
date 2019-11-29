@@ -37,15 +37,15 @@ Module deposit(C:ContractContext).
 Module semantics := Semantics C. Import semantics.
 
 Definition deposit : full_contract _ parameter_ty None storage_ty :=
-  ( DUP;; CAR;; DIP1 CDR;;
+  ( Instruction_opcode DUP;; Instruction_opcode CAR;; DIP1 (Instruction_opcode CDR);;
     IF_LEFT
-      ( DROP1;; NIL operation )
-      ( DIP1 ( DUP;;
-               DUP;; SENDER;; COMPARE;; EQ;; IF NOOP FAILWITH;;
-               CONTRACT None unit;; IF_NONE FAILWITH NOOP);;
-        PUSH unit Unit;; TRANSFER_TOKENS;;
-        NIL operation;; SWAP;; CONS);;
-    PAIR ).
+      ( DROP1;; Instruction_opcode (NIL operation) )
+      ( DIP1 ( Instruction_opcode DUP;;
+               Instruction_opcode DUP;; Instruction_opcode SENDER;; Instruction_opcode COMPARE;; Instruction_opcode EQ;; IF NOOP FAILWITH;;
+               Instruction_opcode (CONTRACT None unit);; IF_NONE FAILWITH NOOP);;
+        PUSH unit Unit;; Instruction_opcode TRANSFER_TOKENS;;
+        Instruction_opcode (NIL operation);; Instruction_opcode SWAP;; Instruction_opcode CONS);;
+    Instruction_opcode PAIR ).
 
 Lemma deposit_correct :
   forall (env : @proto_env (Some (parameter_ty, None)))
@@ -74,11 +74,12 @@ Proof.
   - do 2 (more_fuel ; simpl).
     intuition congruence.
   - do 11 (more_fuel ; simpl).
+    rewrite match_if_exchange.
     rewrite if_false_is_and.
     rewrite (eqb_eq address).
     remember (contract_ env None unit storage_in) as d.
     match goal with
-      |- (_ /\ match ?x with | Some b => _ | None => _ end <-> _) =>
+      |- context [match ?x with | Some x => _ | None => _ end] =>
       remember x as d2
     end.
     assert (d = d2) as Hdd2 by (subst; reflexivity).

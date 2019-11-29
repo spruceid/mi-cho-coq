@@ -38,7 +38,7 @@ Definition CMPGE {a S} := CMPop a S GE.
 Definition IFop SA SB tffa tffb
            (bt : instruction self_type tffa SA SB) (bf : instruction self_type tffb SA SB)
            (op : instruction self_type Datatypes.false (int ::: SA) (bool ::: SA)) :=
-  op ;; IF_ bt bf.
+  op ;; IF bt bf.
 
 Definition IFEQ {SA SB tffa tffb} bt bf := IFop SA SB tffa tffb bt bf EQ.
 Definition IFNEQ {SA SB tffa tffb} bt bf := IFop SA SB tffa tffb bt bf NEQ.
@@ -51,7 +51,7 @@ Definition IFCMPop (a : comparable_type) SA SB tffa tffb
            (bt : instruction self_type tffa SA SB) (bf : instruction self_type tffb SA SB)
            (op : instruction self_type Datatypes.false (int ::: SA) (bool ::: SA)) :
   instruction self_type (tffa && tffb) (a ::: a ::: SA) SB :=
-  COMPARE ;; op ;; IF_ bt bf.
+  COMPARE ;; op ;; IF bt bf.
 
 Definition IFCMPEQ {a SA SB tffa tffb} bt bf := IFCMPop a SA SB tffa tffb bt bf EQ.
 Definition IFCMPNEQ {a SA SB tffa tffb} bt bf := IFCMPop a SA SB tffa tffb bt bf NEQ.
@@ -62,7 +62,7 @@ Definition IFCMPGE {a SA SB tffa tffb} bt bf := IFCMPop a SA SB tffa tffb bt bf 
 
 Definition FAIL {SA SB} : instruction self_type Datatypes.true SA SB := UNIT ;; FAILWITH.
 
-Definition ASSERT {S} : instruction self_type Datatypes.false (bool ::: S) S := IF_ NOOP FAIL.
+Definition ASSERT {S} : instruction self_type Datatypes.false (bool ::: S) S := (IF_ IF_bool) NOOP FAIL.
 
 Definition ASSERT_op S (op : instruction self_type Datatypes.false (int ::: S) (bool ::: S)) : instruction self_type Datatypes.false (int ::: S) S :=
   IFop _ _ _ _ NOOP FAIL op.

@@ -227,3 +227,13 @@ Proof.
   destruct b; intuition congruence.
 Qed.
 
+Lemma match_if_exchange A B (b : Datatypes.bool) (P : A -> Prop) (Q : B -> Prop) u v :
+  match (if b then inl u else inr v) with
+  | inl x => P x
+  | inr y => Q y
+  end =
+  if b then P u else Q v.
+Proof.
+  destruct b; reflexivity.
+Qed.
+

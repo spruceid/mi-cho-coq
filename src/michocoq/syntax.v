@@ -439,21 +439,28 @@ Inductive opcode {self_type : self_info} : forall (A B : Datatypes.list type), S
     opcode (A +++ B) B
 | CHAIN_ID {S} : opcode S (chain_id ::: S).
 
+Inductive if_family : forall (A B : Datatypes.list type) (a : type), Set :=
+| IF_bool : if_family nil nil bool
+| IF_or a an b bn : if_family (a :: nil) (b :: nil) (or a an b bn)
+| IF_option a : if_family nil (a :: nil) (option a)
+| IF_list a : if_family (a ::: list a ::: nil) nil (list a).
+
+Inductive loop_family : forall (A B : Datatypes.list type) (a : type), Set :=
+| LOOP_bool : loop_family nil nil bool
+| LOOP_or a an b bn : loop_family (a :: nil) (b :: nil) (or a an b bn).
+
 Inductive instruction :
   forall (self_i : self_info) (tail_fail_flag : Datatypes.bool) (A B : Datatypes.list type), Set :=
 | NOOP {self_type A} : instruction self_type Datatypes.false A A    (* Undocumented *)
 | FAILWITH {self_type A B a} : instruction self_type Datatypes.true (a ::: A) B
 | SEQ {self_type A B C tff} : instruction self_type Datatypes.false A B -> instruction self_type tff B C -> instruction self_type tff A C
-(* The instruction self_type SEQ I C is written "{self_type  I ; C }" in Michelson *)
-| IF_ {self_type A B tffa tffb} :
-    instruction self_type tffa A B -> instruction self_type tffb A B ->
-    instruction self_type (tffa && tffb) (bool ::: A) B
-(* "IF" is a reserved keyword in file Coq.Init.Logic because it is
-part of the notation "'IF' c1 'then' c2 'else' c3" so we cannot call
-this constructor "IF" but we can make a notation for it. *)
-| LOOP {self_type A} : instruction self_type Datatypes.false A (bool ::: A) -> instruction self_type Datatypes.false (bool ::: A) A
-| LOOP_LEFT {self_type a b an bn A} : instruction self_type Datatypes.false (a :: A) (or a an b bn :: A) ->
-                      instruction self_type Datatypes.false (or a an b bn :: A) (b :: A)
+(* The instruction self_type SEQ I C is written "{ I ; C }" in Michelson *)
+| IF_ {self_type A B tffa tffb C1 C2 t} (i : if_family C1 C2 t) :
+    instruction self_type tffa (C1 ++ A) B -> instruction self_type tffb (C2 ++ A) B ->
+    instruction self_type (tffa && tffb) (t ::: A) B
+| LOOP_ {self_type C1 C2 t A} (i : loop_family C1 C2 t) :
+    instruction self_type Datatypes.false (C1 ++ A) (t :: A) ->
+    instruction self_type Datatypes.false (t :: A) (C2 ++ A)
 | PUSH (a : type) (x : concrete_data a) {self_type A} : instruction self_type Datatypes.false A (a :: A)
 | LAMBDA (a b : type) {self_type A tff} :
     instruction None tff (a :: nil) (b :: nil) ->
@@ -463,18 +470,6 @@ this constructor "IF" but we can make a notation for it. *)
 | MAP {self_type collection b} {i : map_struct collection b} {A} :
     instruction self_type Datatypes.false (map_in_type _ _ i :: A) (b :: A) ->
     instruction self_type Datatypes.false (collection :: A) (map_out_collection_type _ _ i :: A)
-(* Not the one documented, see https://gitlab.com/tezos/tezos/issues/471 *)
-| IF_NONE {self_type a A B tffa tffb} :
-    instruction self_type tffa A B -> instruction self_type tffb (a :: A) B ->
-    instruction self_type (tffa && tffb) (option a :: A) B
-| IF_LEFT {self_type a an b bn A B tffa tffb} :
-    instruction self_type tffa (a :: A) B ->
-    instruction self_type tffb (b :: A) B ->
-    instruction self_type (tffa && tffb) (or a an b bn :: A) B
-| IF_CONS {self_type a A B tffa tffb} :
-    instruction self_type tffa (a ::: list a ::: A) B ->
-    instruction self_type tffb A B ->
-    instruction self_type (tffa && tffb) (list a :: A) B
 | CREATE_CONTRACT {self_type S tff} (g p : type) (an : annot_o) :
     instruction (Some (p, an)) tff (pair p g :: nil) (pair (list operation) g :: nil) ->
     instruction self_type Datatypes.false
@@ -518,7 +513,6 @@ concrete_data : type -> Set :=
 | Instruction {a b} tff : instruction (None) tff (a ::: nil) (b ::: nil) ->
                           concrete_data (lambda a b)
 | Chain_id_constant : chain_id_constant -> concrete_data chain_id.
-(* TODO: add the no-ops CAST and RENAME *)
 
 Coercion Instruction_opcode : opcode >-> instruction.
 
@@ -547,7 +541,12 @@ Record contract_file : Set :=
           contract_file_storage;
     }.
 
-Notation "'IF'" := (IF_).
+Notation "'IF'" := (IF_ IF_bool).
+Notation "'IF_LEFT'" := (IF_ (IF_or _ _ _ _)).
+Notation "'IF_NONE'" := (IF_ (IF_option _)).
+Notation "'IF_CONS'" := (IF_ (IF_list _)).
+Notation "'LOOP'" := (LOOP_ LOOP_bool).
+Notation "'LOOP_LEFT'" := (LOOP_ (LOOP_or _ _)).
 
 Notation "A ;; B" := (SEQ A B) (at level 100, right associativity).
 

@@ -91,6 +91,7 @@ Proof.
   rewrite eval_precond_correct.
   unfold ">=" in Hfuel.
   repeat (more_fuel ; simpl).
+  rewrite match_if_exchange.
   rewrite destruct_if.
   apply or_both; apply and_both_0.
   - rewrite (eqb_eq mutez).
@@ -101,7 +102,7 @@ Proof.
     intuition.
   - pose (c := contract_ env None unit (source env)).
     pose (transfer := transfer_tokens env unit tt (amount env)).
-    change (match c with Some b => ((transfer b :: nil)%list, tt, tt) = (ops, tt, tt) | None => False end <-> (exists ctr, c = Some ctr /\ ops = (transfer ctr :: nil)%list)).
+    fold c.
     destruct c.
     + split.
       * intro H.
