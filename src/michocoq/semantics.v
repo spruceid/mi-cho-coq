@@ -44,6 +44,35 @@ Module Semantics(C : ContractContext).
       | apply le_S_n in Hfuel]
   end.
 
+  (* Like more_fuel, but attempts to keep Peano numbers in
+   * the decimal representation *)
+  Ltac more_fuel' :=
+    match goal with
+    | Hfuel: (S ?x) + _ <= ?fuel |- _ =>
+      change (S x) with (1 + x) in Hfuel;
+      rewrite <- plus_assoc in Hfuel; more_fuel
+    end.
+
+  (* extract_fuel f replaces
+   *   Hfuel : n <= fuel  with Hfuel : n - f <= fuel
+   *   and fuel in the goal with f + fuel
+   * supposes that f <= fuel.
+   *)
+  Ltac extract_fuel f :=
+    match goal with
+    | [ fuel : Datatypes.nat |- _ ] =>
+      match goal with
+      | [ Hfuel : ?n <= fuel |- _ ] =>
+        replace fuel with (f + (fuel - f)) in *; [
+          remember (fuel - f) as fuel' eqn:Heqfuel'; cut (n <= f + fuel' <-> n - f <= fuel'); [
+            intros Heqfuel; apply Heqfuel in Hfuel;
+            clear Heqfuel Heqfuel' fuel; rename fuel' into fuel
+          | try omega
+          ] | try omega
+        ]
+      end
+    end.
+
   Export C.
 
   Fixpoint data (a : type) {struct a} : Set :=
@@ -368,6 +397,28 @@ Module Semantics(C : ContractContext).
     | Add_variant_tez_tez =>
       fun x y => tez.of_Z (tez.to_Z x + tez.to_Z y)
     end.
+
+  Definition add_variant_rev a b c (v : add_variant a b c) : add_variant b a c :=
+    match v with
+    | Add_variant_nat_int => Add_variant_int_nat
+    | Add_variant_int_nat => Add_variant_nat_int
+    | Add_variant_timestamp_int => Add_variant_int_timestamp
+    | Add_variant_int_timestamp => Add_variant_timestamp_int
+    | v => v
+    end.
+
+  Lemma add_comm a b c v x y :
+    @add a b c v x y = @add b a c (add_variant_rev a b c v) y x.
+  Proof.
+    destruct v; simpl; f_equal.
+    - apply N.add_comm.
+    - apply Z.add_comm.
+    - apply Z.add_comm.
+    - apply Z.add_comm.
+    - apply Z.add_comm.
+    - apply Z.add_comm.
+    - apply Z.add_comm.
+  Qed.
 
   Definition sub a b c (v : sub_variant a b c) : data a -> data b -> M (data c) :=
     match v with
@@ -1242,11 +1293,11 @@ Module Semantics(C : ContractContext).
   Qed.
 
   (* If we know a fuel bound on the body of an ITER, we have a rather simple formula for eval_precond: *)
-  Lemma precond_iter_bounded a (l : data (list a)) A (body : instruction _ _ (a ::: A) A)
+  Lemma precond_iter_bounded st env a (l : data (list a)) A (body : instruction_seq st _ (a ::: A) A)
         fuel_bound body_spec :
     (forall fuel (x : data a) (input_stack : stack A) (psi : stack A -> Prop),
         fuel_bound <= fuel ->
-        precond (eval env body fuel (x, input_stack)) psi <-> body_spec psi x input_stack) ->
+        precond (eval_seq env body fuel (x, input_stack)) psi <-> body_spec psi x input_stack) ->
     (forall psi1 psi2 x input_stack,
         (forall x, psi1 x <-> psi2 x) ->
         body_spec psi1 x input_stack <-> body_spec psi2 x input_stack) ->
@@ -1266,6 +1317,7 @@ Module Semantics(C : ContractContext).
       more_fuel.
       simpl.
       rewrite precond_bind.
+      unfold eval_seq in H.
       rewrite H.
       + apply Hbs.
         intro s.
@@ -1276,13 +1328,13 @@ Module Semantics(C : ContractContext).
         lia.
   Qed.
 
-  Definition precond_iter_fun a A fuel (body : instruction _ Datatypes.false (a ::: A) A) (x : data a) (psiacc : ((stack A -> Prop) * Datatypes.nat))
+  Definition precond_iter_fun st env a A fuel (body : instruction_seq st Datatypes.false (a ::: A) A) (x : data a) (psiacc : ((stack A -> Prop) * Datatypes.nat))
     :=
-      (fun (st : stack A) => precond (eval env body (snd psiacc + fuel) (x, st)) (fst psiacc),
+      (fun (st : stack A) => precond (eval_seq env body (snd psiacc + fuel) (x, st)) (fst psiacc),
                  S (snd psiacc)).
 
-  Lemma precond_iter_fun_fold_right_length a A l psi body fuel :
-    snd (List.fold_right (precond_iter_fun a A fuel body) (psi, 1) l) + fuel
+  Lemma precond_iter_fun_fold_right_length st env a A l psi body fuel :
+    snd (List.fold_right (precond_iter_fun st env a A fuel body) (psi, 1) l) + fuel
     = List.length l + S fuel.
   Proof.
     induction l.
@@ -1293,11 +1345,11 @@ Module Semantics(C : ContractContext).
       exact IHl.
   Qed.
 
-  Lemma precond_iter a (l : data (list a)) A (body : instruction _ _ (a ::: A) A) :
+  Lemma precond_iter st env a (l : data (list a)) A (body : instruction_seq st _ (a ::: A) A) :
     forall fuel (input_stack : stack A) (psi : stack A -> Prop),
     precond (eval env (ITER body) (List.length l + S fuel) (l, input_stack)) psi
     <->
-    fst (List.fold_right (precond_iter_fun a A fuel body)
+    fst (List.fold_right (precond_iter_fun st env a A fuel body)
                   (psi, 1)
                   l) input_stack.
   Proof.
@@ -1308,6 +1360,28 @@ Module Semantics(C : ContractContext).
       apply precond_eqv.
       intros s.
       apply IHl.
+  Qed.
+
+  Lemma fold_eval_precond fuel :
+    @eval_precond_body (@eval_precond fuel) =
+    @eval_precond (S fuel).
+  Proof.
+    reflexivity.
+  Qed.
+
+  Lemma precond_eval_iff :
+    forall sf tff fuel env
+           (A B : stack_type)
+           (lam : instruction sf tff A B)
+           psi psi',
+      (forall st', psi st' <-> psi' st') ->
+      forall st,
+        eval_precond fuel env lam psi st <->
+        eval_precond fuel env lam psi' st.
+  Proof.
+    intros sf tff fuel env0 A B lam psi psi' H st.
+    do 2 rewrite <- eval_precond_correct.
+    apply precond_eqv. assumption.
   Qed.
 
 End Semantics.
