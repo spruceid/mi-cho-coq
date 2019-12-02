@@ -146,80 +146,112 @@ Module typ.
     | Chain_id_t _ => chain_id
     end.
 
+  Fixpoint coq_to_ocaml_typ (typ : syntax_type.type) : Type :=
+    match typ with
+    | Comparable_type comparable_typ =>
+      comparable.coq_simple_to_ocaml_typ comparable_typ
+    | key => Tezos_raw_protocol_alpha.Alpha_context.public_key
+    | unit => Datatypes.unit
+    | signature => Tezos_raw_protocol_alpha.Alpha_context.signature
+    | option typ => Datatypes.option (coq_to_ocaml_typ typ)
+    | list typ => Datatypes.list (coq_to_ocaml_typ typ)
+    | set comparable_typ =>
+      script_typed_ir_ml.set (comparable.coq_to_ocaml_typ comparable_typ)
+    | contract typ => typed_contract (coq_to_ocaml_typ typ)
+    | operation => script_typed_ir_ml.operation
+    | pair typ_a typ_b => coq_to_ocaml_typ typ_a * coq_to_ocaml_typ typ_b
+    | or typ_a typ_b => union (coq_to_ocaml_typ typ_a) (coq_to_ocaml_typ typ_b)
+    | lambda typ_arg typ_res =>
+      script_typed_ir_ml.lambda
+        (coq_to_ocaml_typ typ_arg)
+        (coq_to_ocaml_typ typ_res)
+    | map comparable_typ typ =>
+      script_typed_ir_ml.map
+        (comparable.coq_to_ocaml_typ comparable_typ)
+        (coq_to_ocaml_typ typ)
+    | big_map comparable_typ typ =>
+      script_typed_ir_ml.big_map
+        (comparable.coq_to_ocaml_typ comparable_typ)
+        (coq_to_ocaml_typ typ)
+    | chain_id => Tezos_protocol_environment_alpha.Environment.Chain_id.t
+    end.
+
   Fixpoint coq_to_ocaml (typ : syntax_type.type)
-    : Datatypes.option {ty : Type & script_typed_ir_ml.Ty ty} :=
+    : Datatypes.option (script_typed_ir_ml.Ty (coq_to_ocaml_typ typ)) :=
     match typ with
     | Comparable_type comparable_typ =>
       Some (
-        match comparable_typ with
-        | string => existT _ _ (String_t None)
-        | nat => existT _ _ (Nat_t None)
-        | int => existT _ _ (Int_t None)
-        | bytes => existT _ _ (Bytes_t None)
-        | bool => existT _ _ (Bool_t None)
-        | mutez => existT _ _ (Mutez_t None)
-        | address => existT _ _ (Address_t None)
-        | key_hash => existT _ _ (Key_hash_t None)
-        | timestamp => existT _ _ (Timestamp_t None)
+        match comparable_typ return
+          script_typed_ir_ml.Ty (comparable.coq_simple_to_ocaml_typ comparable_typ)
+        with
+        | string => String_t None
+        | nat => Nat_t None
+        | int => Int_t None
+        | bytes => Bytes_t None
+        | bool => Bool_t None
+        | mutez => Mutez_t None
+        | address => Address_t None
+        | key_hash => Key_hash_t None
+        | timestamp => Timestamp_t None
         end
       )
-    | key => Some (existT _ _ (Key_t None))
-    | unit => Some (existT _ _ (Unit_t None))
-    | signature => Some (existT _ _ (Signature_t None))
+    | key => Some (Key_t None)
+    | unit => Some (Unit_t None)
+    | signature => Some (Signature_t None)
     | option typ =>
       match coq_to_ocaml typ with
-      | Some (existT _ _ typ) => Some (existT _ _ (Option_t typ None false))
+      | Some typ => Some (Option_t typ None false)
       | _ => None
       end
     | list typ =>
       match coq_to_ocaml typ with
-      | Some (existT _ _ typ) => Some (existT _ _ (List_t typ None false))
+      | Some typ => Some (List_t typ None false)
       | _ => None
       end
     | set typ_key =>
-      Some (existT _ _ (Set_t (comparable.coq_to_ocaml typ_key) None))
-    | operation => Some (existT _ _ (Operation_t None))
+      Some (Set_t (comparable.coq_to_ocaml typ_key) None)
+    | operation => Some (Operation_t None)
     | pair typ_a typ_b =>
       match (coq_to_ocaml typ_a, coq_to_ocaml typ_b) with
-      | (Some (existT _ _ typ_a), Some (existT _ _ typ_b)) =>
-        Some (existT _ _ (Pair_t
+      | (Some typ_a, Some typ_b) =>
+        Some (Pair_t
           (typ_a, None, None)
           (typ_b, None, None)
           None
           false
-        ))
+        )
       | _ => None
       end
     | or typ_a typ_b =>
       match (coq_to_ocaml typ_a, coq_to_ocaml typ_b) with
-      | (Some (existT _ _ typ_a), Some (existT _ _ typ_b)) =>
-        Some (existT _ _ (Union_t
+      | (Some typ_a, Some typ_b) =>
+        Some (Union_t
           (typ_a, None)
           (typ_b, None)
           None
           false
-        ))
+        )
       | _ => None
       end
     | lambda typ_arg typ_ret =>
       match (coq_to_ocaml typ_arg, coq_to_ocaml typ_ret) with
-      | (Some (existT _ _ typ_arg), Some (existT _ _ typ_ret)) =>
-        Some (existT _ _ (Lambda_t typ_arg typ_ret None))
+      | (Some typ_arg, Some typ_ret) =>
+        Some (Lambda_t typ_arg typ_ret None)
       | _ => None
       end
     | map typ_key typ =>
       match coq_to_ocaml typ with
-      | Some (existT _ _ typ) =>
-        Some (existT _ _ (Map_t (comparable.coq_to_ocaml typ_key) typ None false))
+      | Some typ =>
+        Some (Map_t (comparable.coq_to_ocaml typ_key) typ None false)
       | _ => None
       end
-    | chain_id => Some (existT _ _ (Chain_id_t None))
+    | chain_id => Some (Chain_id_t None)
     | _ => None
     end.
 
   Fixpoint coq_to_ocaml_to_coq_eq (typ : syntax_type.type)
     : match coq_to_ocaml typ with
-      | Some (existT _ _ typ') => ocaml_to_coq typ' = typ
+      | Some typ' => ocaml_to_coq typ' = typ
       | _ => True
       end.
     destruct typ; simpl;
@@ -229,20 +261,17 @@ Module typ.
         case_eq (coq_to_ocaml typ); trivial;
         intros s Heq;
         set (Heq' := coq_to_ocaml_to_coq_eq typ);
-        rewrite Heq in Heq';
-        destruct s; simpl;
+        rewrite Heq in Heq'; simpl;
         rewrite Heq'; trivial
       );
       (* Two recusive calls *)
       try (
         case_eq (coq_to_ocaml typ1); trivial;
-        destruct s as [ty1' typ1'];
-        intro Heq1;
+        intros ty1' Heq1;
+        case_eq (coq_to_ocaml typ2); trivial;
+        intros ty2' Heq2;
         set (Heq1' := coq_to_ocaml_to_coq_eq typ1);
         rewrite Heq1 in Heq1';
-        case_eq (coq_to_ocaml typ2); trivial;
-        destruct s as [ty2' typ2'];
-        intro Heq2;
         set (Heq2' := coq_to_ocaml_to_coq_eq typ2);
         rewrite Heq2 in Heq2';
         simpl; rewrite Heq1'; rewrite Heq2'; trivial

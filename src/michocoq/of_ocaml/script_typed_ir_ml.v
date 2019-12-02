@@ -170,14 +170,13 @@ Record script_skeleton {code arg_type storage storage_type root_name : Type} :=
   root_name : root_name }.
 Arguments script_skeleton : clear implicits.
 
-
 (*Inductive lambda : forall (arg ret : Type), Type :=
 | Lam : forall (arg ret : Type), ('descr (arg * 'end_of_stack) (ret * 'end_of_stack)) ->
 Tezos_raw_protocol_alpha.Alpha_context.Script.node -> lambda arg ret*)
 
 Parameter lambda : forall (arg ret : Type), Type.
 
-Inductive Ty : forall (ty : Type), Type :=
+Polymorphic Inductive Ty : forall (ty : Type), Type :=
 | Unit_t : (option type_annot) -> Ty unit
 | Int_t : (option type_annot) ->
   Ty
