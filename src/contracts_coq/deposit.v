@@ -36,16 +36,20 @@ Module deposit(C:ContractContext).
 
 Module semantics := Semantics C. Import semantics.
 
+Open Scope michelson_scope.
+
 Definition deposit : full_contract _ parameter_ty None storage_ty :=
-  ( Instruction_opcode DUP;; Instruction_opcode CAR;; DIP1 (Instruction_opcode CDR);;
+  (
+    DUP;; CAR;; DIP1 ( CDR ;; NOOP );;
     IF_LEFT
-      ( DROP1;; Instruction_opcode (NIL operation) )
-      ( DIP1 ( Instruction_opcode DUP;;
-               Instruction_opcode DUP;; Instruction_opcode SENDER;; Instruction_opcode COMPARE;; Instruction_opcode EQ;; IF NOOP FAILWITH;;
-               Instruction_opcode (CONTRACT None unit);; IF_NONE FAILWITH NOOP);;
-        PUSH unit Unit;; Instruction_opcode TRANSFER_TOKENS;;
-        Instruction_opcode (NIL operation);; Instruction_opcode SWAP;; Instruction_opcode CONS);;
-    Instruction_opcode PAIR ).
+      ( DROP1;; NIL operation;; NOOP )
+      ( DIP1 ( DUP;; DUP;;
+               SENDER;; COMPARE;;
+               EQ;; IF_TRUE NOOP ( FAILWITH ;; NOOP );;
+               (CONTRACT None unit);; IF_NONE (FAILWITH ;; NOOP) NOOP ;; NOOP );;
+        PUSH unit Unit;; TRANSFER_TOKENS;;
+        (NIL operation);; SWAP;; CONS;; NOOP );;
+    PAIR ;; NOOP).
 
 Lemma deposit_correct :
   forall (env : @proto_env (Some (parameter_ty, None)))
@@ -53,7 +57,7 @@ Lemma deposit_correct :
          (ops : data (list operation)) storage_out
          (fuel : Datatypes.nat),
   fuel >= 42 ->
-  eval env deposit fuel ((input, storage_in), tt) = Return ((ops, storage_out), tt)
+  eval_seq env deposit fuel ((input, storage_in), tt) = Return ((ops, storage_out), tt)
   <->
   (storage_in = storage_out /\
    match input with
@@ -66,9 +70,9 @@ Lemma deposit_correct :
 Proof.
   intros env input storage_in ops storage_out fuel Hfuel.
   rewrite return_precond.
-  unfold eval.
-  rewrite eval_precond_correct.
+  rewrite eval_seq_precond_correct.
   unfold ">=" in Hfuel.
+  unfold eval_seq_precond.
   do 5 (more_fuel ; simpl).
   destruct input as [[]|am].
   - do 2 (more_fuel ; simpl).
@@ -79,7 +83,7 @@ Proof.
     rewrite (eqb_eq address).
     remember (contract_ env None unit storage_in) as d.
     match goal with
-      |- context [match ?x with | Some x => _ | None => _ end] =>
+      |- context [match ?x with | Some y => _ | None => _ end] =>
       remember x as d2
     end.
     assert (d = d2) as Hdd2 by (subst; reflexivity).

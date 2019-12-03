@@ -16,12 +16,7 @@ Qed.
 
   Definition instruction := syntax.instruction.
 
-  Definition safe_instruction_cast {self_type tff} A A' B B' :
-    instruction self_type tff A B -> A = A' -> B = B' -> instruction self_type tff A' B'.
-  Proof.
-    intros i [] [].
-    exact i.
-  Defined.
+  Definition instruction_seq := syntax.instruction_seq.
 
   Definition safe_opcode_cast {self_type} A A' B B' :
     syntax.opcode (self_type := self_type) A B -> A = A' -> B = B' ->
@@ -29,6 +24,20 @@ Qed.
   Proof.
     intros o [] [].
     exact o.
+  Defined.
+
+  Definition safe_instruction_cast {self_type tff} A A' B B' :
+    instruction self_type tff A B -> A = A' -> B = B' -> instruction self_type tff A' B'.
+  Proof.
+    intros i [] [].
+    exact i.
+  Defined.
+
+  Definition safe_instruction_seq_cast {self_type tff} A A' B B' :
+    instruction_seq self_type tff A B -> A = A' -> B = B' -> instruction_seq self_type tff A' B'.
+  Proof.
+    intros i [] [].
+    exact i.
   Defined.
 
   Record cast_error :=
@@ -40,14 +49,8 @@ Qed.
         expected_output : Datatypes.list type;
         tff : Datatypes.bool;
         self_type_ : syntax.self_info;
-        i : instruction self_type_ tff input output;
+        i : instruction_seq self_type_ tff input output;
       }.
-
-  Definition instruction_cast {self_type tff} A A' B B' i : M (instruction self_type tff A' B') :=
-    match stype_dec A A', stype_dec B B' with
-    | left HA, left HB => Return (safe_instruction_cast A A' B B' i HA HB)
-    | _, _ => Failed _ (Typing cast_error (Mk_cast_error A B A' B' tff _ i))
-    end.
 
   Definition opcode_cast {self_type} A A' B B' o : M (syntax.opcode A' B') :=
     match stype_dec A A', stype_dec B B' with
@@ -55,11 +58,27 @@ Qed.
     | _, _ =>
       Failed _ (Typing cast_error
                        (Mk_cast_error A B A' B' Datatypes.false self_type
-                                      (syntax.Instruction_opcode o)))
+                                      (syntax.instruction_wrap
+                                         (syntax.Instruction_opcode o))))
+    end.
+
+  Definition instruction_cast {self_type tff} A A' B B' i : M (instruction self_type tff A' B') :=
+    match stype_dec A A', stype_dec B B' with
+    | left HA, left HB => Return (safe_instruction_cast A A' B B' i HA HB)
+    | _, _ => Failed _ (Typing cast_error (Mk_cast_error A B A' B' tff _ (syntax.instruction_wrap i)))
+    end.
+
+  Definition instruction_seq_cast {self_type tff} A A' B B' i : M (instruction_seq self_type tff A' B') :=
+    match stype_dec A A', stype_dec B B' with
+    | left HA, left HB => Return (safe_instruction_seq_cast A A' B B' i HA HB)
+    | _, _ => Failed _ (Typing cast_error (Mk_cast_error A B A' B' tff _ i))
     end.
 
   Definition instruction_cast_range {self_type tff} A B B' (i : instruction self_type tff A B)
     : M (instruction self_type tff A B') := instruction_cast A A B B' i.
+
+  Definition instruction_seq_cast_range {self_type tff} A B B' (i : instruction_seq self_type tff A B)
+    : M (instruction_seq self_type tff A B') := instruction_seq_cast A A B B' i.
 
   Definition instruction_cast_domain {self_type tff} A A' B (i : instruction self_type tff A B)
     : M (instruction self_type tff A' B) := instruction_cast A A' B B i.
@@ -70,6 +89,10 @@ Qed.
   Inductive typer_result {self_type} A : Set :=
   | Inferred_type B : instruction self_type false A B -> typer_result A
   | Any_type : (forall B, instruction self_type true A B) -> typer_result A.
+
+  Inductive typer_result_seq {self_type} A : Set :=
+  | Inferred_type_seq B : instruction_seq self_type false A B -> typer_result_seq A
+  | Any_type_seq : (forall B, instruction_seq self_type true A B) -> typer_result_seq A.
 
   Definition type_check_instruction {self_type}
              (type_instruction :
@@ -84,15 +107,28 @@ Qed.
     | Any_type _ i => Return (existT _ true (i B))
     end.
 
-  Definition type_check_instruction_no_tail_fail {self_type}
-             (type_instruction :
-                forall (i : untyped_syntax.instruction) A,
-                  M (typer_result A))
-             i A B : M (instruction self_type Datatypes.false A B) :=
-    let! r1 := type_instruction i A in
+  Definition type_check_instruction_seq {self_type}
+             (type_instruction_seq :
+                forall (i : untyped_syntax.instruction_seq) A,
+                  M (typer_result_seq A))
+             i A B : M {b : Datatypes.bool & instruction_seq self_type b A B} :=
+    let! r1 := type_instruction_seq i A in
     match r1 with
-    | Inferred_type _ B' i => instruction_cast_range A B' B i
-    | Any_type _ i => Failed _ (Typing _ tt)
+    | Inferred_type_seq _ B' i =>
+      let! i := instruction_seq_cast_range A B' B i in
+      Return (existT _ false i)
+    | Any_type_seq _ i => Return (existT _ true (i B))
+    end.
+
+  Definition type_check_instruction_seq_no_tail_fail {self_type}
+             (type_instruction_seq :
+                forall (i : untyped_syntax.instruction_seq) A,
+                  M (typer_result_seq A))
+             i A B : M (instruction_seq self_type Datatypes.false A B) :=
+    let! r1 := type_instruction_seq i A in
+    match r1 with
+    | Inferred_type_seq _ B' i => instruction_seq_cast_range A B' B i
+    | Any_type_seq _ i => Failed _ (Typing _ tt)
     end.
 
   Definition assert_not_tail_fail {self_type} A (r : typer_result A) :
@@ -110,6 +146,21 @@ Qed.
     let! r := type_instruction i A in
     assert_not_tail_fail A r.
 
+  Definition assert_not_tail_fail_seq {self_type} A (r : typer_result_seq A) :
+    M {B & instruction_seq self_type Datatypes.false A B} :=
+    match r with
+    | Inferred_type_seq _ B i => Return (existT _ B i)
+    | Any_type_seq _ _ => Failed _ (Typing _ tt)
+    end.
+
+  Definition type_instruction_seq_no_tail_fail {self_type}
+             (type_instruction_seq :
+                forall (i : untyped_syntax.instruction_seq) A,
+                  M (typer_result_seq A))
+             i A : M {B & instruction_seq self_type Datatypes.false A B} :=
+    let! r := type_instruction_seq i A in
+    assert_not_tail_fail_seq A r.
+
   Definition type_if_family (f : if_family) (t : type) :
     M {A & {B & syntax.if_family A B t}} :=
     match f, t with
@@ -121,25 +172,25 @@ Qed.
     end.
 
   Definition type_branches {self_type} (f : if_family) (t : type)
-             (type_instruction :
-                forall (i : untyped_syntax.instruction) A,
-                  M (typer_result A))
+             (type_instruction_seq :
+                forall (i : untyped_syntax.instruction_seq) A,
+                  M (typer_result_seq A))
              i1 i2 A
     : M (typer_result (self_type := self_type) (t ::: A)) :=
     let! (existT _ B1 (existT _ B2 f)) := type_if_family f t in
-    let! r1 := type_instruction i1 (B1 ++ A) in
-    let! r2 := type_instruction i2 (B2 ++ A) in
+    let! r1 := type_instruction_seq i1 (B1 ++ A) in
+    let! r2 := type_instruction_seq i2 (B2 ++ A) in
     match r1, r2 with
-    | Inferred_type _ C1 i1, Inferred_type _ C2 i2 =>
-      let! i2 := instruction_cast_range (B2 ++ A) C2 C1 i2 in
+    | Inferred_type_seq _ C1 i1, Inferred_type_seq _ C2 i2 =>
+      let! i2 := instruction_seq_cast_range (B2 ++ A) C2 C1 i2 in
       Return
               (Inferred_type _ _
                             (syntax.IF_ f i1 i2))
-    | Inferred_type _ C i1, Any_type _ i2 =>
+    | Inferred_type_seq _ C i1, Any_type_seq _ i2 =>
       Return (Inferred_type _ _ (syntax.IF_ f i1 (i2 C)))
-    | Any_type _ i1, Inferred_type _ C i2 =>
+    | Any_type_seq _ i1, Inferred_type_seq _ C i2 =>
       Return (Inferred_type _ _ (syntax.IF_ f (i1 C) i2))
-    | Any_type _ i1, Any_type _ i2 =>
+    | Any_type_seq _ i1, Any_type_seq _ i2 =>
       Return (Any_type _ (fun C =>
                               syntax.IF_ f (i1 C) (i2 C)))
     end.
@@ -153,13 +204,13 @@ Qed.
     end.
 
   Definition type_loop {self_type} (f : loop_family) (t : type)
-             (type_instruction :
-                forall (i : untyped_syntax.instruction) A,
-                  M (typer_result A))
-             i A
+             (type_instruction_seq :
+                forall (i : untyped_syntax.instruction_seq) A,
+                  M (typer_result_seq A))
+             (i : untyped_syntax.instruction_seq) A
     : M (typer_result (self_type := self_type) (t ::: A)) :=
     let! (existT _ B1 (existT _ B2 f)) := type_loop_family f t in
-    let! r := type_check_instruction_no_tail_fail type_instruction i (B1 ++ A) (t ::: A) in
+    let! r := type_check_instruction_seq_no_tail_fail type_instruction_seq i (B1 ++ A) (t ::: A) in
     Return (Inferred_type _ _ (syntax.LOOP_ f r)).
 
   Definition take_one (S : syntax.stack_type) : M (type * syntax.stack_type) :=
@@ -631,7 +682,7 @@ Qed.
       fun ty =>
         match ty with
         | lambda a b =>
-          let! existT _ tff i := type_check_instruction type_instruction i (cons a nil) (cons b nil) in
+          let! existT _ tff i := type_check_instruction_seq type_instruction_seq i (cons a nil) (cons b nil) in
           Return (syntax.Instruction _ i)
         | _ => Failed _ (Typing _ (d, ty))
         end
@@ -641,21 +692,17 @@ Qed.
   with
   type_instruction {self_type} i A {struct i} : M (typer_result (self_type := self_type) A) :=
     match i, A with
-    | NOOP, A => Return (Inferred_type _ _ syntax.NOOP)
-    | FAILWITH, a :: A => Return (Any_type _ (fun B => syntax.FAILWITH))
-    | SEQ i1 i2, A =>
-      let! existT _ B i1 := type_instruction_no_tail_fail type_instruction i1 A in
-      let! r2 := type_instruction i2 B in
-      match r2 with
-      | Inferred_type _ C i2 =>
-        Return (Inferred_type _ _ (syntax.SEQ i1 i2))
-      | Any_type _ i2 =>
-        Return (Any_type _ (fun C => syntax.SEQ i1 (i2 C)))
+    | Instruction_seq i, _ =>
+      let! i := type_instruction_seq i A in
+      match i with
+      | Any_type_seq _ i => Return (Any_type _ (fun B => syntax.Instruction_seq (i B)))
+      | Inferred_type_seq _ _ i => Return (Inferred_type _ _ (syntax.Instruction_seq i))
       end
+    | FAILWITH, a :: A => Return (Any_type _ (fun B => syntax.FAILWITH))
     | IF_ f i1 i2, t :: A =>
-      type_branches f t type_instruction i1 i2 A
+      type_branches f t type_instruction_seq i1 i2 A
     | LOOP_ f i, t :: A =>
-      type_loop f t type_instruction i A
+      type_loop f t type_instruction_seq i A
     | EXEC, a :: lambda a' b :: B =>
       let A := a :: lambda a' b :: B in
       let A' := a :: lambda a b :: B in
@@ -666,30 +713,30 @@ Qed.
       Return (Inferred_type _ _ (syntax.PUSH a d))
     | LAMBDA a b i, A =>
       let! existT _ tff i :=
-        type_check_instruction type_instruction i (a :: nil) (b :: nil) in
+        type_check_instruction_seq type_instruction_seq i (a :: nil) (b :: nil) in
       Return (Inferred_type _ _ (syntax.LAMBDA a b i))
     | ITER i, list a :: A =>
-      let! i := type_check_instruction_no_tail_fail type_instruction i (a :: A) A in
+      let! i := type_check_instruction_seq_no_tail_fail type_instruction_seq i (a :: A) A in
       Return (Inferred_type _ _ (syntax.ITER (i := syntax.iter_list _) i))
     | ITER i, set a :: A =>
-      let! i := type_check_instruction_no_tail_fail type_instruction i (a ::: A) A in
+      let! i := type_check_instruction_seq_no_tail_fail type_instruction_seq i (a ::: A) A in
       Return (Inferred_type _ _ (syntax.ITER (i := syntax.iter_set _)i))
     | ITER i, map kty vty :: A =>
-      let! i := type_check_instruction_no_tail_fail type_instruction i (pair kty vty :: A) A in
+      let! i := type_check_instruction_seq_no_tail_fail type_instruction_seq i (pair kty vty :: A) A in
       Return (Inferred_type _ _ (syntax.ITER (i := syntax.iter_map _ _) i))
     | MAP i, list a :: A =>
-      let! r := type_instruction_no_tail_fail type_instruction i (a :: A) in
+      let! r := type_instruction_seq_no_tail_fail type_instruction_seq i (a :: A) in
       match r with
       | existT _ (b :: A') i =>
-        let! i := instruction_cast_range (a :: A) (b :: A') (b :: A) i in
+        let! i := instruction_seq_cast_range (a :: A) (b :: A') (b :: A) i in
         Return (Inferred_type _ _ (syntax.MAP (i := syntax.map_list _ _) i))
       | _ => Failed _ (Typing _ tt)
       end
     | MAP i, map kty vty :: A =>
-      let! r := type_instruction_no_tail_fail type_instruction i (pair kty vty ::: A) in
+      let! r := type_instruction_seq_no_tail_fail type_instruction_seq i (pair kty vty ::: A) in
       match r with
       | existT _ (b :: A') i =>
-        let! i := instruction_cast_range (pair kty vty :: A) (b :: A') (b :: A) i in
+        let! i := instruction_seq_cast_range (pair kty vty :: A) (b :: A') (b :: A) i in
         Return (Inferred_type _ _ (syntax.MAP (i := syntax.map_map _ _ _) i))
       | _ => Failed _ (Typing _ tt)
       end
@@ -700,7 +747,7 @@ Qed.
       let A' :=
           option key_hash ::: mutez ::: g ::: B in
       let! existT _ tff i :=
-        type_check_instruction (self_type := (Some (p, an))) type_instruction i (pair p g :: nil) (pair (list operation) g :: nil) in
+        type_check_instruction_seq (self_type := (Some (p, an))) type_instruction_seq i (pair p g :: nil) (pair (list operation) g :: nil) in
       let! i := instruction_cast_domain A' A _ (syntax.CREATE_CONTRACT g p an i) in
       Return (Inferred_type _ _ i)
     | SELF an, A =>
@@ -713,11 +760,34 @@ Qed.
       end
     | DIP n i, S12 =>
       let! (exist _ S1 H1, S2) := take_n S12 n in
-      let! existT _ B i := type_instruction_no_tail_fail type_instruction i S2 in
+      let! existT _ B i := type_instruction_seq_no_tail_fail type_instruction_seq i S2 in
       let! i := instruction_cast_domain (S1 +++ S2) S12 _ (syntax.DIP n H1 i) in
       Return (Inferred_type S12 (S1 +++ B) i)
     | instruction_opcode o, A =>
       let! (existT _ B o) := type_opcode o A in
       Return (Inferred_type A B (syntax.Instruction_opcode o))
     | _, _ => Failed _ (Typing _ (i, A))
+    end
+  with
+  type_instruction_seq {self_type} i A {struct i} : M (typer_result_seq (self_type := self_type) A) :=
+    match i, A with
+    | NOOP, A => Return (Inferred_type_seq _ _ syntax.NOOP)
+    | SEQ i1 i2, A =>
+      let! r1 := type_instruction i1 A in
+      match r1, i2 with
+      | Inferred_type _ B i1, i2 =>
+        let! r2 := type_instruction_seq i2 B in
+        match r2 with
+        | Inferred_type_seq _ C i2 =>
+          Return (Inferred_type_seq _ _ (syntax.SEQ i1 i2))
+        | Any_type_seq _ i2 =>
+          Return (Any_type_seq _ (fun C => syntax.SEQ i1 (i2 C)))
+        end
+      | Any_type _ i1, NOOP =>
+        Return (Any_type_seq _ (fun C => syntax.Tail_fail (i1 C)))
+      | Any_type _ _, _ =>
+        Failed _ (Typing _
+                         "FAILWITH instruction can only appear at the tail of application sequences"%string)
+      end
     end.
+

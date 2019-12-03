@@ -45,7 +45,7 @@ Definition contract_file_M : error.M syntax.contract_file :=
   let! existT _ tff code :=
     let! a := michelson_M in
     let i := a.(micheline2michelson.code) in
-    typer.type_check_instruction typer.type_instruction i _ _ in
+    typer.type_check_instruction_seq typer.type_instruction_seq i _ _ in
   error.Return
     {| contract_file_parameter := self_type;
        contract_file_annotation := None;

@@ -52,9 +52,9 @@ Module Semantics(C : ContractContext).
     | map a b => map.map (comparable_data a) (data b) (compare a)
     | big_map a b => map.map (comparable_data a) (data b) (compare a)
     | lambda a b =>
-      {tff : Datatypes.bool &
-             instruction None tff (a ::: nil) (b ::: nil)}
-    | contract a => {s : contract_constant | get_contract_type s = Some a }
+      sigT (fun tff : Datatypes.bool =>
+             instruction_seq None tff (a ::: nil) (b ::: nil))
+    | contract a => sig (fun s : contract_constant => get_contract_type s = Some a )
     | chain_id => chain_id_constant
     end.
 
@@ -64,7 +64,7 @@ Module Semantics(C : ContractContext).
         create_contract : forall g p annot tff,
           Datatypes.option (comparable_data key_hash) ->
           tez.mutez ->
-          syntax.instruction (Some (p, annot)) tff
+          syntax.instruction_seq (Some (p, annot)) tff
                              (pair p g ::: nil)
                              (pair (list operation) g ::: nil) ->
           data g -> data (pair operation address);
@@ -673,12 +673,30 @@ Module Semantics(C : ContractContext).
     | LOOP_or _ _ _ _, inr x => inr (x, tt)
     end.
 
+  Fixpoint eval_seq_body
+           (eval : forall param_ty tff0 (env : @proto_env param_ty) A B, instruction param_ty tff0 A B -> stack A -> M (stack B))
+           {param_ty : self_info} {tff0} (env : @proto_env param_ty) {A : stack_type} {B : stack_type}
+           (i : instruction_seq param_ty tff0 A B) (SA : stack A) {struct i} : M (stack B) :=
+    match i, SA, env with
+    | NOOP, SA, _ => Return SA
+    | Tail_fail i, SA, env => eval _ _ env _ _ i SA
+    | SEQ B C, SA, env =>
+      let! r := eval _ _ env _ _ B SA in
+      eval_seq_body eval env C r
+    end.
+
   Fixpoint eval {param_ty : self_info} {tff0} (env : @proto_env param_ty) {A : stack_type} {B : stack_type}
            (i : instruction param_ty tff0 A B) (fuel : Datatypes.nat) (SA : stack A) {struct fuel} : M (stack B) :=
     match fuel with
     | O => Failed _ Out_of_fuel
     | S n =>
+      let eval_n {param_ty : self_info} {tff0} (env : @proto_env param_ty)
+                 {A : stack_type} {B : stack_type} (i : instruction param_ty tff0 A B)
+                 (SA : stack A) : M (stack B) :=
+          eval env i n SA in
       match i, SA, env with
+      | Instruction_seq i, SA, env =>
+        eval_seq_body (@eval_n) env i SA
       | FAILWITH, (x, _), _ =>
         Failed _ (Assertion_Failure _ x)
 
@@ -687,139 +705,189 @@ Module Semantics(C : ContractContext).
          whole point of this instruction (compared to the FAIL macro)
          is to report the argument to the user. *)
 
-      | NOOP, SA, _ => Return SA
-      | SEQ B C, SA, env =>
-        let! r := eval env B n SA in
-        eval env C n r
       | IF_ f bt bf, (x, SA), env =>
         match if_family_destruct f x with
-        | inl SB => eval env bt n (stack_app SB SA)
-        | inr SB => eval env bf n (stack_app SB SA)
+        | inl SB => eval_seq_body (@eval_n) env bt (stack_app SB SA)
+        | inr SB => eval_seq_body (@eval_n) env bf (stack_app SB SA)
         end
       | LOOP_ f body, (ab, SA), env =>
         match loop_family_destruct f ab with
-        | inl SB => eval env (body;; LOOP_ f body) n (stack_app SB SA)
+        | inl SB =>
+          let! SC := eval_seq_body (@eval_n) env body (stack_app SB SA) in
+          eval_n env (LOOP_ f body) SC
         | inr SB => Return (stack_app SB SA)
         end
       | PUSH a x, SA, _ => Return (concrete_data_to_data _ x, SA)
       | LAMBDA a b code, SA, _ => Return (existT _ _ code, SA)
-      | EXEC, (x, (existT _ tff f, SA)), env =>
-        let! (y, tt) := eval (no_self env) f n (x, tt) in
-        Return (y, SA)
       | @ITER _ _ s _ body, (x, SA), env =>
         match iter_destruct _ _ (iter_variant_field _ s) x with
         | None => Return SA
         | Some (a, y) =>
-          let! SB := eval env body n (a, SA) in
-          eval env (ITER body) n (y, SB)
+          let! SB := eval_seq_body (@eval_n) env body (a, SA) in
+          eval_n env (ITER body) (y, SB)
         end
       | @MAP _ _ _ s _ body, (x, SA), env =>
         let v := (map_variant_field _ _ s) in
         match map_destruct _ _ _ _ v x with
         | None => Return (map_empty _ _ _ _ v, SA)
         | Some (a, y) =>
-          let! (b, SB) := eval env body n (a, SA) in
-          let! (c, SC) := eval env (MAP body) n (y, SB) in
+          let! (b, SB) := eval_seq_body (@eval_n) env body (a, SA) in
+          let! (c, SC) := eval_n env (MAP body) (y, SB) in
           Return (map_insert _ _ _ _ v a b c, SC)
         end
       | CREATE_CONTRACT g p an f, (a, (b, (c, SA))), env =>
         let (oper, addr) := create_contract env g p an _ a b f c in
         Return (oper, (addr, SA))
       | SELF ao H, SA, env => Return (self env ao H, SA)
+      | EXEC, (x, (existT _ tff f, SA)), env =>
+        let! (y, tt) := eval_seq_body (@eval_n) (no_self env) f (x, tt) in
+        Return (y, SA)
       | DIP nl Hlen i, SA, env =>
         let (S1, S2) := stack_split SA in
-        let! S3 := eval env i n S2 in
+        let! S3 := eval_seq_body (@eval_n) env i S2 in
         Return (stack_app S1 S3)
       | Instruction_opcode o, SA, env =>
         eval_opcode _ env o SA
       end
     end.
 
+  Definition eval_seq
+             {param_ty : self_info} {tff0} (env : @proto_env param_ty) {A : stack_type} {B : stack_type}
+             (i : instruction_seq param_ty tff0 A B) (fuel : Datatypes.nat) (SA : stack A) : M (stack B) :=
+    eval_seq_body (fun param_ty tff env A B i SA => eval env i fuel SA) env i SA.
+
+  Lemma eval_seq_deterministic_le_aux
+             (eval1 eval2 : forall param_ty tff (env : @proto_env param_ty) A B, instruction param_ty tff A B -> stack A -> M (stack B))
+             (H : forall param_ty env tff A B (i : instruction param_ty tff A B) st,
+                 success (eval1 param_ty tff env A B i st) ->
+                 eval1 param_ty tff env A B i st = eval2 param_ty tff env A B i st) :
+             forall param_ty env tff A B (i : instruction_seq param_ty tff A B) st,
+                 success (eval_seq_body eval1 env i st) ->
+                 eval_seq_body eval1 env i st =
+                 eval_seq_body eval2 env i st.
+  Proof.
+    intros param_ty env tff A B i.
+    induction i; simpl; auto.
+    intros st Hsucc.
+    destruct (success_bind _ _ Hsucc) as (x, (H1, H2)).
+    rewrite <- H.
+    - rewrite H1.
+      simpl.
+      apply IHi.
+      exact H2.
+    - rewrite H1.
+      constructor.
+  Qed.
+
   (* The evaluator does not depend on the amount of fuel provided *)
-  Lemma eval_deterministic_le :
-    forall fuel1 fuel2,
+  Fixpoint eval_deterministic_le fuel1 :
+    forall fuel2,
       fuel1 <= fuel2 ->
       forall {self_type env tff0 A B} (i : instruction self_type tff0 A B) st,
         success (eval env i fuel1 st) ->
         eval env i fuel1 st = eval env i fuel2 st.
   Proof.
-    induction fuel1; intros fuel2 Hle self_type env tff0 A B i st Hsucc.
-    - contradiction.
-    - destruct fuel2.
-      + inversion Hle.
-      + apply le_S_n in Hle.
-        specialize (IHfuel1 fuel2 Hle).
-        simpl.
-        destruct i; try reflexivity.
-        * simpl in Hsucc.
-          destruct (success_bind _ _ Hsucc) as (x, (H1, H2)).
-          rewrite <- IHfuel1.
-          -- rewrite H1.
-             simpl.
-             apply IHfuel1.
-             assumption.
-          -- apply success_eq_return in H1.
-             exact H1.
-        * simpl in Hsucc.
-          destruct st as (x, st); destruct (if_family_destruct _ x) as [SB|SB];
-            rewrite IHfuel1; try assumption; reflexivity.
-        * simpl in Hsucc.
-          destruct st as (x, st); destruct (loop_family_destruct _ x) as [SB|SB].
-          -- rewrite IHfuel1; try assumption; reflexivity.
-          -- reflexivity.
-        * destruct st as (x, SA).
-          generalize Hsucc; clear Hsucc.
+    {
+      destruct fuel1; intros fuel2 Hle self_type env tff0 A B i st Hsucc.
+      - contradiction.
+      - destruct fuel2.
+        + inversion Hle.
+        + apply le_S_n in Hle.
+          pose (eval1 := fun param_ty tff env A B (i : instruction param_ty tff A B) st => eval env i fuel1 st).
+          pose (eval2 := fun param_ty tff env A B (i : instruction param_ty tff A B) st => eval env i fuel2 st).
+          assert (forall param_ty env tff A B (i : instruction param_ty tff A B) st,
+                 success (eval1 param_ty tff env A B i st) ->
+                 eval1 param_ty tff env A B i st = eval2 param_ty tff env A B i st) as Heval12 by (apply eval_deterministic_le; assumption).
+          specialize (eval_seq_deterministic_le_aux eval1 eval2 Heval12); intro Haux.
           simpl.
-          destruct (iter_destruct (iter_elt_type collection i) collection
-                                  (iter_variant_field collection i) x).
-          -- destruct d.
-             fold stack.
-             intro Hsucc.
-             rewrite <- IHfuel1.
-             ++ destruct (success_bind _ _ Hsucc) as (SB, (Ha, Hb)).
-                rewrite Ha.
-                simpl.
-                apply IHfuel1.
-                assumption.
-             ++ apply success_bind_arg in Hsucc.
-                assumption.
-          -- reflexivity.
-        * destruct st as (x, SA).
-          generalize Hsucc; clear Hsucc.
-          simpl.
-          fold stack.
-          destruct (map_destruct (map_in_type collection b i)
-                                 b
-                                 collection
-                                 (map_out_collection_type collection b i)
-                                 (map_variant_field collection b i) x).
-          -- destruct d.
-             intro Hsucc.
-             rewrite <- IHfuel1.
-             ++ destruct (success_bind _ _ Hsucc) as ((c, SC), (Ha, Hb)).
-                destruct (success_bind _ _ Hb) as ((dd, SD), (Hm, _)).
-                rewrite Ha.
-                simpl.
-                rewrite <- IHfuel1.
-                ** reflexivity.
-                ** rewrite Hm.
-                   constructor.
-             ++ apply success_bind_arg in Hsucc.
-                assumption.
-          -- reflexivity.
-        * destruct st as (x, ((tff, f), SA)).
-          f_equal.
-          rewrite IHfuel1.
-          -- reflexivity.
-          -- simpl in Hsucc.
-             apply success_bind_arg in Hsucc.
-             assumption.
-        * simpl in Hsucc.
-          destruct (stack_split st); rewrite IHfuel1.
-          -- reflexivity.
-          -- destruct (success_bind _ _ Hsucc) as (x, (H1, H2)).
-             apply success_eq_return in H1.
-             exact H1.
+          destruct i; try reflexivity.
+          * apply Haux; assumption.
+          * simpl in Hsucc.
+            destruct st as (x, st); destruct (if_family_destruct _ x) as [SB|SB];
+              rewrite Haux; try assumption; reflexivity.
+          * simpl in Hsucc.
+            destruct st as (x, st); destruct (loop_family_destruct _ x) as [SB|SB]; clear x.
+            -- apply success_bind in Hsucc.
+               destruct Hsucc as ((x, stA), (H1, H2)).
+               change (fun param_ty tff0 env A B i SA => eval env i fuel1 SA) with eval1 in H1.
+               change (fun param_ty tff0 env A B i SA => eval env i fuel1 SA) with eval1.
+               change (fun param_ty tff0 env A B i SA => eval env i fuel2 SA) with eval2.
+               rewrite <- Haux; try assumption.
+               ++ rewrite H1.
+                  simpl.
+                  apply eval_deterministic_le; assumption.
+               ++ rewrite H1.
+                  constructor.
+            -- reflexivity.
+          * destruct st as (x, SA).
+            generalize Hsucc; clear Hsucc.
+            simpl.
+            destruct (iter_destruct (iter_elt_type collection i) collection
+                                    (iter_variant_field collection i) x).
+            -- destruct d.
+               change (fun param_ty tff0 env A B i SA => eval env i fuel1 SA) with eval1.
+               change (fun param_ty tff0 env A B i SA => eval env i fuel2 SA) with eval2.
+               intro Hsucc.
+               rewrite <- Haux.
+               ++ destruct (success_bind _ _ Hsucc) as (SB, (Ha, Hb)).
+                  rewrite Ha.
+                  simpl.
+                  apply eval_deterministic_le; assumption.
+               ++ apply success_bind_arg in Hsucc.
+                  assumption.
+            -- reflexivity.
+          * destruct st as (x, SA).
+            generalize Hsucc; clear Hsucc.
+            simpl.
+            fold stack.
+            destruct (map_destruct (map_in_type collection b i)
+                                   b
+                                   collection
+                                   (map_out_collection_type collection b i)
+                                   (map_variant_field collection b i) x).
+            -- destruct d.
+               change (fun param_ty tff0 env A B i SA => eval env i fuel1 SA) with eval1.
+               change (fun param_ty tff0 env A B i SA => eval env i fuel2 SA) with eval2.
+               intro Hsucc.
+               rewrite <- Haux; try assumption.
+               ++ destruct (success_bind _ _ Hsucc) as ((c, SC), (Ha, Hb)).
+                  destruct (success_bind _ _ Hb) as ((dd, SD), (Hm, _)).
+                  rewrite Ha.
+                  simpl.
+                  rewrite <- (eval_deterministic_le fuel1 fuel2); try assumption.
+                  ** reflexivity.
+                  ** rewrite Hm.
+                     constructor.
+               ++ apply success_bind_arg in Hsucc.
+                  assumption.
+            -- reflexivity.
+          * destruct st as (x, ((tff, f), SA)).
+            f_equal.
+            rewrite Haux; try assumption.
+            -- reflexivity.
+            -- simpl in Hsucc.
+               apply success_bind_arg in Hsucc.
+               assumption.
+          * simpl in Hsucc.
+            destruct (stack_split st); rewrite Haux; try assumption.
+            -- reflexivity.
+            -- destruct (success_bind _ _ Hsucc) as (x, (H1, H2)).
+               apply success_eq_return in H1.
+               exact H1.
+    }
+  Qed.
+
+  Lemma eval_seq_deterministic_le fuel1 fuel2 :
+      fuel1 <= fuel2 ->
+      forall {self_type env tff0 A B} (i : instruction_seq self_type tff0 A B) st,
+        success (eval_seq env i fuel1 st) ->
+        eval_seq env i fuel1 st = eval_seq env i fuel2 st.
+  Proof.
+    pose (eval1 := fun param_ty tff env A B (i : instruction param_ty tff A B) st => eval env i fuel1 st).
+    pose (eval2 := fun param_ty tff env A B (i : instruction param_ty tff A B) st => eval env i fuel2 st).
+    intro H.
+    apply (eval_seq_deterministic_le_aux eval1 eval2).
+    apply eval_deterministic_le; assumption.
   Qed.
 
   Lemma eval_deterministic_success_both {self_type env} fuel1 fuel2 {A B tff0} (i : instruction self_type tff0 A B) S :
@@ -920,6 +988,24 @@ Module Semantics(C : ContractContext).
     | CHAIN_ID, env, psi, SA => psi (chain_id_ env, SA)
     end.
 
+  Fixpoint eval_seq_precond_body
+           (eval_precond_n : forall {self_type},
+               @proto_env self_type ->
+               forall {tff0 A B},
+                 instruction self_type tff0 A B ->
+                 (stack B -> Prop) -> stack A -> Prop)
+           {self_type} env tff0 A B
+           (i : instruction_seq self_type tff0 A B)
+           (psi : stack B -> Prop)
+           (SA : stack A) : Prop :=
+    match i, env, psi, SA with
+    | NOOP, env, psi, st => psi st
+    | SEQ B C, env, psi, st =>
+      eval_precond_n env B (@eval_seq_precond_body (@eval_precond_n) _ env _ _ _ C psi) st
+    | Tail_fail i, env, psi, st =>
+      eval_precond_n env i psi st
+    end.
+
   Definition eval_precond_body
              (eval_precond_n : forall {self_type},
                  @proto_env self_type ->
@@ -931,30 +1017,32 @@ Module Semantics(C : ContractContext).
              (psi : stack B -> Prop)
              (SA : stack A) : Prop :=
     match i, env, psi, SA with
+    | Instruction_seq i, env, psi, SA =>
+      eval_seq_precond_body (@eval_precond_n) env _ _ _ i psi SA
     | FAILWITH, _, _, _ => false
-    | NOOP, env, psi, st => psi st
-    | SEQ B C, env, psi, st =>
-      eval_precond_n env B (eval_precond_n env C psi) st
     | IF_ f bt bf, env, psi, (x, SA) =>
       match (if_family_destruct f x) with
-      | inl SB => eval_precond_n env bt psi (stack_app SB SA)
-      | inr SB => eval_precond_n env bf psi (stack_app SB SA)
+      | inl SB => eval_seq_precond_body (@eval_precond_n) env _ _ _ bt psi (stack_app SB SA)
+      | inr SB => eval_seq_precond_body (@eval_precond_n) env _ _ _ bf psi (stack_app SB SA)
       end
     | LOOP_ f body, env, psi, (x, SA) =>
       match (loop_family_destruct f x) with
-      | inl SB => eval_precond_n env (body;; LOOP_ f body) psi (stack_app SB SA)
+      | inl SB =>
+        eval_seq_precond_body (@eval_precond_n) env _ _ _ body
+                           (eval_precond_n env (LOOP_ f body) psi)
+                           (stack_app SB SA)
       | inr SB => psi (stack_app SB SA)
       end
     | EXEC, env, psi, (x, (existT _ _ f, SA)) =>
-      eval_precond_n (no_self env) f (fun '(y, tt) => psi (y, SA)) (x, tt)
+      eval_seq_precond_body (@eval_precond_n) (no_self env) _ _ _ f (fun '(y, tt) => psi (y, SA)) (x, tt)
     | PUSH a x, env, psi, SA => psi (concrete_data_to_data _ x, SA)
     | LAMBDA a b code, env, psi, SA => psi (existT _ _ code, SA)
     | @ITER _ _ s _ body, env, psi, (x, SA) =>
       match iter_destruct _ _ (iter_variant_field _ s) x with
       | None => psi SA
       | Some (a, y) =>
-        eval_precond_n
-          env body
+        eval_seq_precond_body (@eval_precond_n)
+          env _ _ _ body
           (fun SB => eval_precond_n env (ITER body) psi (y, SB))
           (a, SA)
       end
@@ -963,8 +1051,8 @@ Module Semantics(C : ContractContext).
       match map_destruct _ _ _ _ v x with
       | None => psi (map_empty _ _ _ _ v, SA)
       | Some (a, y) =>
-        eval_precond_n
-          env body
+        eval_seq_precond_body (@eval_precond_n)
+          env _ _ _ body
           (fun '(b, SB) =>
              eval_precond_n
                env (MAP body)
@@ -978,7 +1066,7 @@ Module Semantics(C : ContractContext).
     | SELF ao H, env, psi, SA => psi (self env ao H, SA)
     | DIP n Hlen i, env, psi, SA =>
       let (S1, S2) := stack_split SA in
-      eval_precond_n env i (fun SB => psi (stack_app S1 SB)) S2
+      eval_seq_precond_body (@eval_precond_n) env _ _ _ i (fun SB => psi (stack_app S1 SB)) S2
     | Instruction_opcode o, env, psi, SA =>
       eval_precond_opcode env _ _ o psi SA
     end.
@@ -992,6 +1080,12 @@ Module Semantics(C : ContractContext).
     | S n =>
       @eval_precond_body (@eval_precond n)
     end.
+
+  Definition eval_seq_precond (fuel : Datatypes.nat) :
+    forall {self_type} env {tff0 A B},
+      instruction_seq self_type tff0 A B ->
+      (stack B -> Prop) -> (stack A -> Prop) :=
+      @eval_seq_precond_body (@eval_precond fuel).
 
   Lemma eval_precond_opcode_correct {sty env A B} (o : opcode A B) st psi :
     precond (eval_opcode sty env o st) psi <-> eval_precond_opcode env _ _ o psi st.
@@ -1007,22 +1101,44 @@ Module Semantics(C : ContractContext).
     - destruct (stack_split st); reflexivity.
   Qed.
 
+  Lemma eval_seq_precond_correct_aux n
+        (eval_precond_correct : forall sty env tff0 A B (i : instruction sty tff0 A B) st psi,
+            precond (eval env i n st) psi <-> eval_precond n env i psi st)
+        {sty env tff0 A B} (i : instruction_seq sty tff0 A B) st psi :
+    precond (eval_seq env i n st) psi <-> eval_seq_precond n env i psi st.
+  Proof.
+    unfold eval_seq_precond in *.
+    induction i; simpl; fold data stack.
+     - reflexivity.
+     - apply eval_precond_correct.
+     - unfold eval_seq.
+       simpl.
+       rewrite precond_bind.
+       rewrite <- eval_precond_correct.
+       apply precond_eqv.
+       intro SB.
+       apply IHi.
+  Qed.
+
   Lemma eval_precond_correct {sty env tff0 A B} (i : instruction sty tff0 A B) n st psi :
     precond (eval env i n st) psi <-> eval_precond n env i psi st.
   Proof.
     generalize sty env tff0 A B i st psi; clear sty env tff0 A B i st psi.
     induction n; intros sty env tff0 A B i st psi; [simpl; intuition|].
+    specialize (@eval_seq_precond_correct_aux n IHn).
+    intro eval_seq_precond_correct.
+    unfold eval_seq_precond in *.
+
     destruct i; simpl; fold data stack.
-    - reflexivity.
+    - apply eval_seq_precond_correct.
     - destruct st; reflexivity.
-    - rewrite precond_bind.
-      rewrite <- IHn.
-      apply precond_eqv.
-      intro SB.
-      apply IHn.
-    - destruct st as (x, st); destruct (if_family_destruct _ x); auto.
+    - destruct st as (x, st); destruct (if_family_destruct _ x); apply eval_seq_precond_correct.
     - destruct st as (x, st); destruct (loop_family_destruct _ x).
-      + apply IHn.
+      + rewrite precond_bind.
+        rewrite <- eval_seq_precond_correct.
+        apply precond_eqv.
+        intro st'.
+        apply IHn.
       + simpl. reflexivity.
     - reflexivity.
     - reflexivity.
@@ -1030,7 +1146,7 @@ Module Semantics(C : ContractContext).
       destruct (iter_destruct (iter_elt_type collection i) collection
                               (iter_variant_field collection i) x) as [(hd, tl)|].
       + rewrite precond_bind.
-        rewrite <- IHn.
+        rewrite <- eval_seq_precond_correct.
         apply precond_eqv.
         intro SA.
         apply IHn.
@@ -1040,7 +1156,7 @@ Module Semantics(C : ContractContext).
                              (map_out_collection_type collection b i)
                              (map_variant_field collection b i) x) as [(hd, tl)|].
       + rewrite precond_bind.
-        rewrite <- IHn.
+        rewrite <- eval_seq_precond_correct.
         apply precond_eqv.
         intros (bb, SA).
         rewrite precond_bind.
@@ -1055,15 +1171,65 @@ Module Semantics(C : ContractContext).
     - reflexivity.
     - destruct st as (x, ((tff, f), st)).
       rewrite precond_bind.
-      rewrite <- (IHn _ _ _ _ _ f (x, tt) (fun '(y, tt) => psi (y, st))).
+      rewrite <- (eval_seq_precond_correct _ _ _ _ _ f (x, tt) (fun '(y, tt) => psi (y, st))).
       apply precond_eqv.
       intros (y, []).
       simpl.
       reflexivity.
     - destruct (stack_split st).
       rewrite precond_bind.
-      apply IHn.
+      apply eval_seq_precond_correct.
     - apply eval_precond_opcode_correct.
+  Qed.
+
+  Lemma eval_precond_eqv self_type env tff A B (i : instruction self_type tff A B) n st phi psi :
+    (forall st, phi st <-> psi st) ->
+    eval_precond n env i phi st <-> eval_precond n env i psi st.
+  Proof.
+    intro H.
+    do 2 rewrite <- eval_precond_correct.
+    apply precond_eqv.
+    assumption.
+  Qed.
+
+  Lemma eval_seq_precond_correct {sty env tff0 A B} (i : instruction_seq sty tff0 A B) n st psi :
+    precond (eval_seq env i n st) psi <-> eval_seq_precond n env i psi st.
+  Proof.
+    apply eval_seq_precond_correct_aux.
+    intros; apply eval_precond_correct.
+  Qed.
+
+  Lemma eval_seq_precond_eqv self_type env tff A B (i : instruction_seq self_type tff A B) n st phi psi :
+    (forall st, phi st <-> psi st) ->
+    eval_seq_precond n env i phi st <-> eval_seq_precond n env i psi st.
+  Proof.
+    intro H.
+    do 2 rewrite <- eval_seq_precond_correct.
+    apply precond_eqv.
+    assumption.
+  Qed.
+
+  Lemma eval_seq_assoc_aux {sty env tffa tffb A B C}
+        (i1 : instruction_seq sty tffa A B)
+        (i2 : instruction_seq sty tffb B C) H n st psi :
+    eval_seq_precond n env (instruction_app_aux i1 H i2) psi st <->
+    eval_seq_precond n env i1 (eval_seq_precond n env i2 psi) st.
+  Proof.
+    induction i1; unfold eval_seq_precond; simpl.
+    - reflexivity.
+    - discriminate.
+    - apply eval_precond_eqv.
+      intro stB.
+      apply (IHi1 _ _ _ _).
+  Qed.
+
+  Lemma eval_seq_assoc {sty env tff0 A B C}
+        (i1 : instruction_seq sty Datatypes.false A B)
+        (i2 : instruction_seq sty tff0 B C) n st psi :
+    eval_seq_precond n env (instruction_app i1 i2) psi st <->
+    eval_seq_precond n env i1 (eval_seq_precond n env i2 psi) st.
+  Proof.
+    apply eval_seq_assoc_aux.
   Qed.
 
 End Semantics.

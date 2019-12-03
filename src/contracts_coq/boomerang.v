@@ -48,9 +48,9 @@ Definition boomerang : full_contract _ parameter_ty None storage_ty :=
            AMOUNT ;;
            UNIT ;;
            TRANSFER_TOKENS ;;
-           CONS
+           CONS ;; NOOP
          );;
-       PAIR
+       PAIR ;; NOOP
   ).
 
 Lemma eqb_eq a c1 c2 :
@@ -78,7 +78,7 @@ Qed.
 Lemma boomerang_correct :
   forall env (ops : data (list operation)) (fuel : Datatypes.nat),
   fuel >= 42 ->
-  eval env boomerang fuel ((tt, tt), tt) = Return ((ops, tt), tt)
+  eval_seq env boomerang fuel ((tt, tt), tt) = Return ((ops, tt), tt)
   <->
   (amount env = (0 ~Mutez) /\ ops = nil) \/
   (amount env <> (0 ~Mutez) /\
@@ -87,34 +87,46 @@ Lemma boomerang_correct :
 Proof.
   intros env ops fuel Hfuel.
   rewrite return_precond.
-  unfold eval.
-  rewrite eval_precond_correct.
+  rewrite eval_seq_precond_correct.
+  unfold eval_seq_precond.
   unfold ">=" in Hfuel.
-  repeat (more_fuel ; simpl).
-  rewrite match_if_exchange.
-  rewrite destruct_if.
-  apply or_both; apply and_both_0.
-  - rewrite (eqb_eq mutez).
-    intuition.
-  - intuition congruence.
-  - rewrite bool_not_false.
-    rewrite (eqb_eq mutez).
-    intuition.
-  - pose (c := contract_ env None unit (source env)).
-    pose (transfer := transfer_tokens env unit tt (amount env)).
-    fold c.
-    destruct c.
-    + split.
-      * intro H.
-        exists d.
-        intuition congruence.
-      * intros (c, (Hc, Hops)).
-        injection Hc; clear Hc.
-        intro; subst.
-        reflexivity.
-    + split; [contradiction|].
-      intros (c, (Habs, _)).
-      discriminate.
+  more_fuel; simpl.
+  more_fuel; simpl.
+  fold (simple_compare mutez).
+  fold (compare mutez).
+  case_eq ((comparison_to_int (compare mutez (0 ~Mutez) (amount env)) =? 0)%Z).
+  - (* true *)
+    intro Heq.
+    rewrite eqb_eq in Heq.
+    split.
+    + intro Hops.
+      injection Hops.
+      intro; subst ops.
+      intuition.
+    + intros [(Hl, Hops)|(Hr, _)].
+      * simpl.
+        subst; reflexivity.
+      * symmetry in Heq.
+        contradiction.
+  - intro Hneq.
+    rewrite eqb_neq in Hneq.
+    do 7 (more_fuel ; simpl).
+    destruct (contract_ env None unit (source env)).
+    + (* Some *)
+      split.
+      * intro H ; right; split.
+        -- congruence.
+        -- eexists ; intuition ; injection H.
+           symmetry; assumption.
+      * intros [(Habs, _)| (_, (ctr, (He, Hops)))].
+        -- congruence.
+        -- injection He; intro; subst d; subst ops; reflexivity.
+    + (* None *)
+      simpl. split.
+      * intro H; inversion H.
+      * intros [(Habs, _)|(ctr, (He, (Hops, _)))].
+        -- congruence.
+        -- discriminate.
 Qed.
 
 End boomerang.

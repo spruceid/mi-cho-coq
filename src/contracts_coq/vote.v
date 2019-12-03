@@ -37,14 +37,14 @@ Definition vote : full_contract _ parameter_ty None storage_ty :=
     AMOUNT ;;
     PUSH mutez (5000000 ~mutez);;
     COMPARE;; GT;;
-    IF ( FAIL ) ( NOOP );;
-    DUP;; DIP1 ( CDR;; DUP );; CAR;; DUP;;
+    IF ( FAIL;; NOOP ) ( NOOP );;
+    DUP;; DIP1 ( CDR;; DUP;; NOOP );; CAR;; DUP;;
     DIP1 (
       GET (i := get_map string int);; ASSERT_SOME;;
-      PUSH int (Int_constant 1%Z);; ADD (s := add_int_int);; SOME
+      PUSH int (Int_constant 1%Z);; ADD (s := add_int_int);; SOME;; NOOP
     );;
     UPDATE (i := Mk_update string (option int) (map string int) (Update_variant_map string int));;
-    NIL operation;; PAIR ).
+    NIL operation;; PAIR;; NOOP ).
 
 Definition vote_spec
            (env : @proto_env (Some (parameter_ty, None)))
@@ -86,14 +86,15 @@ Theorem vote_correct
       (returned_operations : data (list operation))
       (fuel : Datatypes.nat) :
   fuel >= 42 ->
-  eval env vote fuel ((param, storage), tt) = Return ((returned_operations, new_storage), tt)
+  eval_seq env vote fuel ((param, storage), tt) = Return ((returned_operations, new_storage), tt)
   <-> vote_spec env storage param new_storage returned_operations.
 Proof.
   intro Hfuel. unfold ">=" in Hfuel.
   unfold eval.
   rewrite return_precond.
-  rewrite eval_precond_correct.
-  do 15 (more_fuel; simpl).
+  rewrite eval_seq_precond_correct.
+  unfold eval_seq_precond.
+  do 3 (more_fuel; simpl).
   rewrite match_if_exchange.
   rewrite if_false_not.
   apply and_both_0.
@@ -105,7 +106,6 @@ Proof.
   - (* Enough tez sent to contract *)
     destruct (map.get str Z string_compare param storage) eqn:mapget.
     + (* Key is in the map *)
-      more_fuel; simpl.
       split; intros.
       * (* ->  *)
         simpl in *.

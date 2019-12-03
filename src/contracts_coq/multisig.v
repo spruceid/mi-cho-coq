@@ -28,6 +28,7 @@ Require Import semantics.
 Require Import util.
 Import error.
 Require List.
+Require Import Lia.
 
 Module annots.
   Import String.
@@ -55,53 +56,53 @@ Definition pack_ty := pair (pair chain_id address) (pair nat action_ty).
 
 Definition multisig : full_contract _ parameter_ty None storage_ty :=
   (
-    UNPAIR ;; SWAP ;; DUP ;; DIP1 SWAP ;;
+    UNPAIR ;; SWAP ;; DUP ;; DIP1 { SWAP } ;;
     DIP1
       (
         UNPAIR ;;
         DUP ;; SELF (self_type := parameter_ty) (self_annot := None) None I ;; ADDRESS ;; CHAIN_ID ;; PAIR ;; PAIR ;;
         PACK ;;
-        DIP1 ( UNPAIR ;; DIP1 SWAP ) ;; SWAP
+        DIP1 ( UNPAIR ;; DIP1 (SWAP ;; NOOP) ;; NOOP) ;; SWAP ;; NOOP
       ) ;;
 
-    UNPAIR ;; DIP1 SWAP ;;
+    UNPAIR ;; DIP1 (SWAP ;; NOOP) ;;
     ASSERT_CMPEQ ;;
 
-    DIP1 SWAP ;; UNPAIR ;;
+    DIP1 (SWAP ;; NOOP) ;; UNPAIR ;;
     DIP1
       (
         PUSH nat (nat_constant 0%N) ;; SWAP ;;
         ITER
           (
-            DIP1 SWAP ;; SWAP ;;
+            DIP1 (SWAP ;; NOOP) ;; (SWAP) ;;
             IF_CONS
               (
                 IF_SOME
                   ( SWAP ;;
                     DIP1
                       (
-                        SWAP ;; DIIP ( DIP1 DUP ;; SWAP ) ;;
+                        SWAP ;; DIIP ( DIP1 (DUP ;; NOOP) ;; SWAP ;; NOOP) ;;
                         CHECK_SIGNATURE ;; ASSERT ;;
-                        PUSH nat (nat_constant 1%N) ;; ADD_nat))
-                  ( SWAP ;; DROP1 )
+                        PUSH nat (nat_constant 1%N) ;; ADD_nat ;; NOOP) ;; NOOP)
+                  ( SWAP ;; DROP1 ;; NOOP ) ;; NOOP
               )
               (
-                FAIL
+                FAIL ;; NOOP
               ) ;;
-            SWAP
-          )
+            SWAP ;; NOOP
+          ) ;; NOOP
       ) ;;
     ASSERT_CMPLE ;;
     DROP1 ;; DROP1 ;;
 
-    DIP1 ( UNPAIR ;; PUSH nat (nat_constant 1%N) ;; ADD ;; PAIR ) ;;
+    DIP1 ( UNPAIR ;; PUSH nat (nat_constant 1%N) ;; ADD ;; PAIR ;; NOOP ) ;;
 
     NIL operation ;; SWAP ;;
     IF_LEFT
-      ( UNPAIR ;; UNIT ;; TRANSFER_TOKENS ;; CONS )
-      ( IF_LEFT (SET_DELEGATE ;; CONS )
-                ( DIP1 ( SWAP ;; CAR ) ;; SWAP ;; PAIR ;; SWAP )) ;;
-    PAIR ).
+      ( UNPAIR ;; UNIT ;; TRANSFER_TOKENS ;; CONS ;; NOOP )
+      ( IF_LEFT (SET_DELEGATE ;; CONS ;; NOOP )
+                ( DIP1 ( SWAP ;; CAR ;; NOOP ) ;; SWAP ;; PAIR ;; SWAP ;; NOOP ) ;; NOOP) ;;
+    PAIR ;; NOOP )%michelson.
 
 Fixpoint check_all_signatures (sigs : Datatypes.list (Datatypes.option (data signature)))
          (keys : Datatypes.list (data key))
@@ -166,24 +167,24 @@ Definition multisig_spec
       returned_operations = nil
     end.
 
-Definition multisig_head (then_ : instruction (Some (parameter_ty, None)) Datatypes.false (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) (pair (list operation) storage_ty ::: nil)) :
-  instruction _ _
-              (pair parameter_ty storage_ty ::: nil)
-              (pair (list operation) storage_ty ::: nil)
+Definition multisig_head :
+  instruction_seq _ _
+                  (pair parameter_ty storage_ty ::: nil)
+                  (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil)
 :=
-    UNPAIR ;; SWAP ;; DUP ;; DIP1 SWAP ;;
+    UNPAIR ;; SWAP ;; DUP ;; DIP1 (SWAP ;; NOOP) ;;
     DIP1
       (
         UNPAIR ;;
         DUP ;; SELF (self_type := parameter_ty) (self_annot := None) None I ;; ADDRESS ;; CHAIN_ID ;; PAIR ;; PAIR ;;
         PACK ;;
-        DIP1 ( UNPAIR ;; DIP1 SWAP ) ;; SWAP
+        DIP1 ( UNPAIR ;; DIP1 (SWAP ;; NOOP) ;; NOOP ) ;; SWAP ;; NOOP
       ) ;;
 
-    UNPAIR ;; DIP1 SWAP ;;
+    UNPAIR ;; DIP1 (SWAP ;; NOOP) ;;
     ASSERT_CMPEQ ;;
 
-    DIP1 SWAP ;; UNPAIR ;; then_.
+    DIP1 (SWAP ;; NOOP) ;; UNPAIR ;; NOOP.
 
 Definition multisig_head_spec
            (env : @proto_env (Some (parameter_ty, None)))
@@ -194,29 +195,28 @@ Definition multisig_head_spec
            (threshold : N)
            (keys : Datatypes.list (data key))
            (fuel : Datatypes.nat)
-           (then_ :
-              instruction _ Datatypes.false
-                (nat ::: list key ::: list (option signature) ::: bytes :::
-                     action_ty ::: storage_ty ::: nil)
-                (pair (list operation) storage_ty ::: nil))
-           (psi : stack (pair (list operation) storage_ty ::: nil) -> Prop)
+           (psi : stack (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) -> Prop)
   :=
   let params : data parameter_ty := ((counter, action), sigs) in
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
   counter = stored_counter /\
-  precond
-    (eval env
-       then_ fuel
-       (threshold,
+  psi (threshold,
         (keys,
          (sigs,
           (pack env pack_ty
                 ((chain_id_ env, address_ env parameter_ty (self env None I)), (counter, action)),
-           (action, (storage, tt))))))) psi.
+           (action, (storage, tt)))))).
 
 Lemma fold_eval_precond fuel :
   eval_precond_body (@semantics.eval_precond fuel) =
   @semantics.eval_precond (S fuel) (Some (parameter_ty, None)).
+Proof.
+  reflexivity.
+Qed.
+
+Lemma fold_eval_seq_precond fuel :
+  eval_seq_precond_body (@semantics.eval_precond fuel) =
+  @semantics.eval_seq_precond fuel (Some (parameter_ty, None)).
 Proof.
   reflexivity.
 Qed.
@@ -229,26 +229,20 @@ Lemma multisig_head_correct
       (stored_counter : N)
       (threshold : N)
       (keys : Datatypes.list (data key))
-      (then_ :
-         instruction _ _
-           (nat ::: list key ::: list (option signature) ::: bytes :::
-                action_ty ::: storage_ty ::: nil)
-           (pair (list operation) storage_ty ::: nil))
-      (psi : stack (pair (list operation) storage_ty ::: nil) -> Prop) :
+      (psi : stack (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) -> Prop) :
   let params : data parameter_ty := ((counter, action), sigs) in
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
-  forall fuel, 11 <= fuel ->
-    (precond (eval env (multisig_head then_) (10 + fuel) ((params, storage), tt)) psi)
+  forall fuel, 5 <= fuel ->
+    eval_seq_precond fuel env multisig_head psi ((params, storage), tt)
         <->
     multisig_head_spec env counter action sigs stored_counter threshold keys
-                       fuel then_ psi.
+                       fuel psi.
 Proof.
   intros params storage fuel Hfuel.
-  rewrite eval_precond_correct.
   unfold multisig_head.
   unfold "+", params, storage, multisig_head_spec.
-  rewrite eval_precond_correct.
-  repeat (more_fuel; simpl).
+  unfold eval_seq_precond.
+  do 5 (more_fuel; simpl).
   rewrite match_if_exchange.
   rewrite if_false_is_and.
   rewrite (eqb_eq nat).
@@ -256,33 +250,33 @@ Proof.
 Qed.
 
 Definition multisig_iter_body :
-  instruction _ _
+  instruction_seq _ _
     (key ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
     (nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
   :=
-  (DIP1 SWAP ;; SWAP ;;
+  (DIP1 (SWAP ;; NOOP) ;; SWAP ;;
        IF_CONS
        (
          IF_SOME
            ( SWAP ;;
                   DIP1
                   (
-                    SWAP ;; DIIP ( DIP1 DUP ;; SWAP ) ;;
+                    SWAP ;; DIIP ( DIP1 (DUP ;; NOOP) ;; SWAP ;; NOOP ) ;;
                          CHECK_SIGNATURE ;; ASSERT ;;
-                         PUSH nat (nat_constant 1%N) ;; ADD_nat))
-           ( SWAP ;; DROP1 )
+                         PUSH nat (nat_constant 1%N) ;; ADD_nat ;; NOOP) ;; NOOP)
+           ( SWAP ;; DROP1 ;; NOOP ) ;; NOOP
        )
        (
-         FAIL
+         FAIL ;; NOOP
        ) ;;
-       SWAP).
+       SWAP ;; NOOP).
 
 Lemma multisig_iter_body_correct env k n sigs packed
       (st : stack (action_ty ::: storage_ty ::: nil)) fuel psi :
-    14 <= fuel ->
-    precond (eval env multisig_iter_body fuel (k, (n, (sigs, (packed, st))))) psi
+    6 <= fuel ->
+    precond (eval_seq env multisig_iter_body fuel (k, (n, (sigs, (packed, st))))) psi
     <->
     match sigs with
     | nil => false
@@ -293,9 +287,9 @@ Lemma multisig_iter_body_correct env k n sigs packed
     end.
 Proof.
   intro Hfuel.
-  rewrite eval_precond_correct.
-  repeat more_fuel.
-  simpl.
+  rewrite eval_seq_precond_correct.
+  unfold eval_seq_precond.
+  repeat (more_fuel; simpl).
   destruct sigs as [|[sig|] sigs].
   - reflexivity.
   - rewrite match_if_exchange.
@@ -319,7 +313,7 @@ Definition multisig_iter :
 
 Lemma multisig_iter_correct env keys n sigs packed
       (st : stack (action_ty ::: storage_ty ::: nil)) fuel psi :
-    length keys * 14 + 1 <= fuel ->
+    length keys + 6 <= fuel ->
     precond (eval env multisig_iter fuel (keys, (n, (sigs, (packed, st))))) psi <->
     (exists first_sigs remaining_sigs,
         length first_sigs = length keys /\
@@ -349,10 +343,12 @@ Proof.
       exact H.
   - simpl in Hfuel.
     more_fuel.
-    change (13 + (length keys * 14 + 1) <= fuel) in Hfuel.
-    assert (length keys * 14 + 1 <= fuel) as Hfuel2 by (transitivity (13 + (length keys * 14 + 1)); [repeat constructor| apply Hfuel]).
+    unfold multisig_iter.
+    remember multisig_iter_body as mib.
     simpl.
-    rewrite <- eval_precond_correct.
+    rewrite fold_eval_seq_precond.
+    rewrite <- eval_seq_precond_correct.
+    subst mib.
     rewrite multisig_iter_body_correct.
     + destruct sigs as [|[sig|] sigs].
       * split; [intro H; inversion H|].
@@ -365,7 +361,7 @@ Proof.
         discriminate.
       * split.
         -- intros (Hcheck, Hrec).
-           specialize (IHkeys (1 + n)%N sigs packed fuel Hfuel2).
+           specialize (IHkeys (1 + n)%N sigs packed fuel Hfuel).
            rewrite IHkeys in Hrec.
            destruct Hrec as (first_sigs, (remaining_sigs, (Hlen, (Happ, (Hchecks, H))))).
            exists (Some sig :: first_sigs)%list.
@@ -391,7 +387,7 @@ Proof.
               destruct (check_signature env key sig packed).
               ** simpl in Hchecks.
                  split; [reflexivity|].
-                 apply (IHkeys _ _ _ _ Hfuel2).
+                 apply (IHkeys _ _ _ _ Hfuel).
                  exists first_sigs; exists remaining_sigs.
                  simpl in Hlen.
                  apply NPeano.Nat.succ_inj in Hlen.
@@ -405,7 +401,7 @@ Proof.
                  inversion Hchecks.
            ++ simpl in Happ.
               discriminate.
-      * rewrite (IHkeys _ _ _ _ Hfuel2).
+      * rewrite (IHkeys _ _ _ _ Hfuel).
         split;
           intros (first_sigs, (remaining_sigs, (Hlen, (Happ, (Hchecks, H))))).
         -- exists (None :: first_sigs)%list.
@@ -427,40 +423,35 @@ Proof.
               split; [injection Happ; auto|].
               split; [exact Hchecks|].
               exact H.
-    + transitivity (13 + (length keys * 14 + 1)).
-      * destruct (length keys).
-        -- simpl. constructor.
-        -- simpl. repeat (apply Le.le_n_S).
-           apply le_0_n.
-      * assumption.
+    + lia.
 Qed.
 
 Definition multisig_tail :
-  instruction _ _
+  instruction_seq _ _
     (nat ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
     (pair (list operation) storage_ty ::: nil) :=
       ASSERT_CMPLE ;;
     DROP1 ;; DROP1 ;;
 
-    DIP1 ( UNPAIR ;; PUSH nat (nat_constant 1%N) ;; ADD_nat ;; PAIR ) ;;
+    DIP1 ( UNPAIR ;; PUSH nat (nat_constant 1%N) ;; ADD_nat ;; PAIR ;; NOOP ) ;;
 
     NIL operation ;; SWAP ;;
     IF_LEFT
-      ( UNPAIR ;; UNIT ;; TRANSFER_TOKENS ;; CONS )
-      ( IF_LEFT (SET_DELEGATE ;; CONS )
-                ( DIP1 ( SWAP ;; CAR ) ;; SWAP ;; PAIR ;; SWAP )) ;;
-    PAIR.
+      ( UNPAIR ;; UNIT ;; TRANSFER_TOKENS ;; CONS ;; NOOP )
+      ( IF_LEFT (SET_DELEGATE ;; CONS ;; NOOP )
+                ( DIP1 ( SWAP ;; CAR ;; NOOP ) ;; SWAP ;; PAIR ;; SWAP ;; NOOP ) ;; NOOP) ;;
+    PAIR ;; NOOP.
 
-Lemma multisig_split : multisig = multisig_head (DIP1 (PUSH nat (nat_constant 0%N);; SWAP;; multisig_iter);; multisig_tail).
+Lemma multisig_split : multisig = (multisig_head ;;; DIP1 (PUSH nat (nat_constant 0%N);; SWAP;; multisig_iter ;; NOOP);; multisig_tail).
 Proof.
   reflexivity.
 Qed.
 
 Lemma multisig_tail_correct
       env threshold n sigs packed action counter keys psi fuel :
-    13 <= fuel ->
-    precond (eval env multisig_tail fuel (threshold, (n, (sigs, (packed, (action, ((counter, (threshold, keys)), tt))))))) psi <->
+    4 <= fuel ->
+    precond (eval_seq env multisig_tail fuel (threshold, (n, (sigs, (packed, (action, ((counter, (threshold, keys)), tt))))))) psi <->
     ((threshold <= n)%N /\
      match action with
      | inl (amout, contr) =>
@@ -473,9 +464,10 @@ Lemma multisig_tail_correct
 Proof.
   intro Hfuel.
   change (data (list key)) in keys.
-  rewrite eval_precond_correct.
+  rewrite eval_seq_precond_correct.
   unfold multisig_tail.
-  do 6 more_fuel.
+  repeat more_fuel.
+  unfold eval_seq_precond.
   simpl.
   rewrite match_if_exchange.
   rewrite if_false_is_and.
@@ -484,11 +476,10 @@ Proof.
   rewrite N.compare_lt_iff.
   rewrite <- N.le_lteq.
   apply and_both.
-  repeat more_fuel.
-  simpl.
   destruct action as [(amount, contract)|[delegate_key_hash|(new_threshold, new_keys)]];
       reflexivity.
 Qed.
+
 
 Lemma multisig_correct
       (env : @proto_env (Some (parameter_ty, None)))
@@ -506,100 +497,81 @@ Lemma multisig_correct
   let params : data parameter_ty := ((counter, action), sigs) in
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
   let new_storage : data storage_ty := (new_stored_counter, (new_threshold, new_keys)) in
-  14 * length keys + 37 <= fuel ->
-  eval env multisig fuel ((params, storage), tt) = Return ((returned_operations, new_storage), tt) <->
+  length keys + 7 <= fuel ->
+  eval_seq env multisig fuel ((params, storage), tt) = Return ((returned_operations, new_storage), tt) <->
   multisig_spec env counter action sigs stored_counter threshold keys new_stored_counter new_threshold new_keys returned_operations.
 Proof.
   intros params storage new_storage Hfuel.
-  rewrite return_precond.
   rewrite multisig_split.
+  rewrite return_precond.
   rewrite PeanoNat.Nat.add_comm in Hfuel.
-  do 10 more_fuel.
-  change (S (S (S (S (S (S (S (S (S (S fuel)))))))))) with (10 + fuel).
   unfold params, storage.
-  rewrite multisig_head_correct.
-  - unfold multisig_head_spec, multisig_spec.
-    apply and_both_2.
-    intro; subst counter.
-    clear params.
-    unfold eval.
-    rewrite eval_precond_correct.
-    more_fuel; simpl.
-    match goal with
-    | |- eval_precond fuel env ?i ?t ?st <-> ?r =>
-      pose (t) as then_; change (eval_precond fuel env i then_ st <-> r)
-    end.
-    more_fuel; simpl.
-    more_fuel; simpl.
-    more_fuel; simpl.
-    simpl.
-    match goal with
-    | |- eval_precond fuel env ?i ?t ?st <-> ?r =>
-      pose (t) as iter; change (eval_precond fuel env i iter st <-> r)
-    end.
-    more_fuel. simpl.
-    subst iter.
-    rewrite <- eval_precond_correct.
-    rewrite multisig_iter_correct.
-    apply forall_ex; intro first_sigs.
-    apply forall_ex; intro remaining_sigs.
-    rewrite and_comm_3.
-    apply and_both.
-    apply and_both.
-    apply and_both.
-    unfold then_.
-    rewrite <- eval_precond_correct.
-    rewrite multisig_tail_correct.
-    rewrite N.add_0_r.
-    rewrite N.ge_le_iff.
-    apply and_both.
-    destruct action as [(amount, contr)|[delegate_key_hash|(new_t, new_k)]].
-    + split.
-      * intro H.
-        injection H.
-        intro; subst keys.
-        intro; subst threshold.
-        intro; subst new_stored_counter.
-        intro; subst returned_operations.
-        intuition reflexivity.
-      * intros (Hcounter, (Hthreshold, (Hkeys, Hoper))).
-        subst new_stored_counter; subst keys; subst threshold; subst returned_operations.
-        reflexivity.
-    + split.
-      * intros H.
-        injection H.
-        intro; subst keys.
-        intro; subst threshold.
-        intro; subst new_stored_counter.
-        intro; subst returned_operations.
-        intuition reflexivity.
-      * intros (Hcounter, (Hthreshold, (Hkeys, Hoper))).
-        subst new_stored_counter; subst keys; subst threshold; subst returned_operations.
-        reflexivity.
-    + split.
-      * intro H.
-        injection H.
-        intro; subst new_keys.
-        intro; subst new_threshold.
-        intro; subst new_stored_counter.
-        intro; subst returned_operations.
-        intuition reflexivity.
-      * intros (Hcounter, (Hthreshold, (Hkeys, Hoper))).
-        subst new_stored_counter; subst new_keys; subst new_threshold; subst returned_operations.
-        reflexivity.
-    + repeat apply Le.le_n_S.
-      refine (NPeano.Nat.le_trans _ _ _ _ Hfuel).
-      repeat apply Le.le_n_S.
-      apply le_0_n.
-    + rewrite PeanoNat.Nat.add_comm.
-      apply Le.le_n_S.
-      refine (NPeano.Nat.le_trans _ _ _ _ Hfuel).
-      repeat constructor.
-      rewrite PeanoNat.Nat.mul_comm.
-      constructor.
-  - refine (NPeano.Nat.le_trans _ _ _ _ Hfuel).
-    repeat apply Le.le_n_S.
-    apply le_0_n.
+  rewrite eval_seq_precond_correct.
+  rewrite eval_seq_assoc.
+  rewrite multisig_head_correct; [|lia].
+  unfold multisig_head_spec, multisig_spec.
+  apply and_both_2.
+  intro; subst counter.
+  clear params.
+  unfold eval_seq_precond.
+  remember multisig_iter as iter.
+  remember multisig_tail as tail.
+  simpl.
+  more_fuel; simpl.
+  more_fuel; simpl.
+  subst iter.
+  rewrite fold_eval_precond.
+  rewrite <- eval_precond_correct.
+  rewrite multisig_iter_correct; [|rewrite NPeano.Nat.add_comm; apply Le.le_n_S; apply Hfuel].
+  apply forall_ex; intro first_sigs.
+  apply forall_ex; intro remaining_sigs.
+  rewrite and_comm_3.
+  apply and_both.
+  apply and_both.
+  apply and_both.
+  change (@eval_precond_body (@eval_precond fuel)) with (@eval_precond (S fuel)).
+  change (@eval_precond_body (@eval_precond (S fuel))) with (@eval_precond (S (S fuel))).
+  rewrite fold_eval_seq_precond.
+  rewrite <- eval_seq_precond_correct.
+  subst tail.
+  rewrite multisig_tail_correct; [|lia].
+  rewrite N.add_0_r.
+  rewrite N.ge_le_iff.
+  apply and_both.
+  destruct action as [(amount, contr)|[delegate_key_hash|(new_t, new_k)]].
+  - split.
+    + intro H.
+      injection H.
+      intro; subst keys.
+      intro; subst threshold.
+      intro; subst new_stored_counter.
+      intro; subst returned_operations.
+      intuition reflexivity.
+    + intros (Hcounter, (Hthreshold, (Hkeys, Hoper))).
+      subst new_stored_counter; subst keys; subst threshold; subst returned_operations.
+      reflexivity.
+  - split.
+    + intros H.
+      injection H.
+      intro; subst keys.
+      intro; subst threshold.
+      intro; subst new_stored_counter.
+      intro; subst returned_operations.
+      intuition reflexivity.
+    + intros (Hcounter, (Hthreshold, (Hkeys, Hoper))).
+      subst new_stored_counter; subst keys; subst threshold; subst returned_operations.
+      reflexivity.
+  - split.
+    + intro H.
+      injection H.
+      intro; subst new_keys.
+      intro; subst new_threshold.
+      intro; subst new_stored_counter.
+      intro; subst returned_operations.
+      intuition reflexivity.
+    + intros (Hcounter, (Hthreshold, (Hkeys, Hoper))).
+      subst new_stored_counter; subst new_keys; subst new_threshold; subst returned_operations.
+      reflexivity.
 Qed.
 
 End multisig.

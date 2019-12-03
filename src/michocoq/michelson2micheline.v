@@ -164,29 +164,16 @@ Definition michelson2micheline_opcode (o : opcode) : loc_micheline :=
   | CHAIN_ID => dummy_prim "CHAIN_ID" []
   end.
 
-Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
+Fixpoint michelson2micheline_instruction (i : instruction) : loc_micheline :=
   match i with
-  | NOOP => dummy_mich (SEQ [])
-  | untyped_syntax.SEQ i1 i2 =>
-    let m1 := michelson2micheline_ins i1 in
-    let m2 := michelson2micheline_ins i2 in
-    let ls1 :=
-        match m1 with
-        | Mk_loc_micheline (_, _, (SEQ ls1)) => ls1
-        | _ => [m1]%list
-        end in
-    let ls2 :=
-        match m2 with
-        | Mk_loc_micheline (_, _, (SEQ ls2)) => ls2
-        | _ => [m2]%list
-        end in
-    dummy_mich (SEQ (List.app ls1 ls2))
+  | Instruction_seq i =>
+    dummy_mich (SEQ (michelson2micheline_ins_seq i))
   | FAILWITH => dummy_prim "FAILWITH" []
   | CREATE_CONTRACT t1 t2 an i => dummy_prim "CREATE_CONTRACT"
                                           [michelson2micheline_type t1;
                                              michelson2micheline_atype
                                                michelson2micheline_type t2 an;
-                                             michelson2micheline_ins i]
+                                             dummy_mich (SEQ (michelson2micheline_ins_seq i))]
   | IF_ f i1 i2 =>
     let s := match f with
              | IF_bool => "IF"
@@ -194,34 +181,41 @@ Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
              | IF_option => "IF_NONE"
              | IF_list => "IF_CONS"
              end in
-    dummy_prim s [dummy_seq (michelson2micheline_ins i1);
-                    dummy_seq (michelson2micheline_ins i2)]
+    dummy_prim s [dummy_mich (SEQ (michelson2micheline_ins_seq i1));
+                    dummy_mich (SEQ (michelson2micheline_ins_seq i2))]
   | LOOP_ f i =>
     let s := match f with LOOP_bool => "LOOP" | LOOP_or => "LOOP_LEFT" end in
-    dummy_prim s [dummy_seq (michelson2micheline_ins i)]
+    dummy_prim s [dummy_mich (SEQ (michelson2micheline_ins_seq i))]
   | ITER i =>
-    dummy_prim "ITER" [dummy_seq (michelson2micheline_ins i)]
+    dummy_prim "ITER" [dummy_mich (SEQ (michelson2micheline_ins_seq i))]
   | MAP i =>
-    dummy_prim "MAP" [dummy_seq (michelson2micheline_ins i)]
+    dummy_prim "MAP" [dummy_mich (SEQ (michelson2micheline_ins_seq i))]
   | PUSH t d =>
     let t' := (michelson2micheline_type t) in
     match d with
     | Instruction d' =>
-      dummy_prim "PUSH" [t'; dummy_seq (michelson2micheline_ins d')]
+      dummy_prim "PUSH" [t'; dummy_mich (SEQ (michelson2micheline_ins_seq d'))]
     | _ =>
       dummy_prim "PUSH" [t'; michelson2micheline_data d]
     end
   | LAMBDA t1 t2 i =>
     dummy_prim "LAMBDA" [ michelson2micheline_type t1;
                             michelson2micheline_type t2;
-                            dummy_seq (michelson2micheline_ins i)]
+                            dummy_mich (SEQ (michelson2micheline_ins_seq i))]
   | DIP n i => dummy_prim "DIP" [dummy_mich (NUMBER (BinInt.Z.of_nat n));
-                                   dummy_seq (michelson2micheline_ins i)]
+                                   dummy_mich (SEQ (michelson2micheline_ins_seq i))]
   | SELF None => dummy_prim "SELF" []
   | SELF (Some an) => dummy_prim "SELF" [dummy_prim an []]
   | EXEC => dummy_prim "EXEC" []
   | instruction_opcode o =>
     michelson2micheline_opcode o
+  end
+with
+michelson2micheline_ins_seq (i : instruction_seq) : Datatypes.list loc_micheline :=
+  match i with
+  | NOOP => []
+  | untyped_syntax.SEQ i1 i2 =>
+    michelson2micheline_instruction i1 :: michelson2micheline_ins_seq i2
   end.
 
 Definition eqb_ascii (a b : ascii) : Datatypes.bool :=
@@ -238,6 +232,3 @@ Fixpoint eqb_string (s1 s2 : String.string) : Datatypes.bool :=
   | String a1 s1, String a2 s2 => andb (eqb_ascii a1 a2) (eqb_string s1 s2)
   | _, _ => false
   end.
-
-Definition michelson2micheline_instruction (i : instruction) : loc_micheline :=
-  dummy_seq (michelson2micheline_ins i).

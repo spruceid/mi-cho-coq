@@ -56,13 +56,13 @@ Definition manager : full_contract _ parameter_ty None storage_ty :=
      (* Execute the lambda argument *)
      UNIT ;;
      EXEC ;;
-     PAIR
+     PAIR ;; NOOP
    )
-   ( (* 'default' entrypoint *)
+   ((* 'default' entrypoint *)
      DROP1 ;;
      NIL operation ;;
-     PAIR
-   )
+     PAIR ;; NOOP
+   ) ;; NOOP
   ).
 
 Definition manager_spec
@@ -82,7 +82,7 @@ Definition manager_spec
     amount env = (0 ~Mutez) /\
     sender env = address_ env unit (implicit_account env storage) /\
     new_storage = storage /\
-    eval (no_self env) lam fuel (tt, tt) = Return (returned_operations, tt)
+    eval_seq (no_self env) lam fuel (tt, tt) = Return (returned_operations, tt)
   end.
 
 Lemma eqb_eq a c1 c2 :
@@ -141,33 +141,31 @@ Lemma manager_correct
       (returned_operations : data (list operation))
       (fuel : Datatypes.nat) :
   fuel >= 42 ->
-  eval env manager (13 + fuel) ((param, storage), tt) = Return ((returned_operations, new_storage), tt)
+  eval_seq env manager (2 + fuel) ((param, storage), tt) = Return ((returned_operations, new_storage), tt)
   <-> manager_spec env storage param new_storage returned_operations fuel.
 Proof.
   intro Hfuel.
-  remember (13 + fuel) as fuel2.
-  assert (30 <= fuel2) by lia.
+  unfold ">=" in Hfuel.
   rewrite return_precond.
-  rewrite eval_precond_correct.
+  rewrite eval_seq_precond_correct.
+  unfold eval_seq_precond.
   unfold manager_spec.
-  do 5 (more_fuel; simpl).
+  more_fuel; simpl.
+  more_fuel; simpl.
   destruct param as [(tff, lam)|[]].
-  - do 5 (more_fuel; simpl).
-    simpl.
+  - simpl.
     rewrite match_if_exchange.
+    more_fuel; simpl.
     rewrite if_false_is_and.
     rewrite (eqb_eq mutez).
     apply and_both.
-    do 5 (more_fuel; simpl).
     rewrite match_if_exchange.
     rewrite if_false_is_and.
     rewrite (eqb_eq address).
     apply and_both.
-    simpl in Heqfuel2.
     repeat rewrite fold_eval_precond.
-    assert (fuel = S (S fuel2)) by lia.
-    subst fuel. clear Hfuel.
-    rewrite <- eval_precond_correct.
+    fold (eval_seq_precond (S (S (S fuel))) (self_type := None)).
+    rewrite <- eval_seq_precond_correct.
     rewrite precond_exists.
     unfold precond_ex.
     split.

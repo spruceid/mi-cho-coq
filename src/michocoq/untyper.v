@@ -117,27 +117,33 @@ Require Import String.
       Concrete_seq (List.map
                       (fun '(syntax.Elt _ _ x y) => Elt (untype_data x) (untype_data y))
                       l)
-    | syntax.Instruction _ i => Instruction (untype_instruction i)
+    | syntax.Instruction _ i => Instruction (untype_instruction_seq i)
     | syntax.Chain_id_constant (Mk_chain_id c) => String_constant c
     end
   with
   untype_instruction {self_type tff0 A B} (i : syntax.instruction self_type tff0 A B) : instruction :=
     match i with
-    | syntax.NOOP => NOOP
+    | syntax.Instruction_seq i =>
+      Instruction_seq (untype_instruction_seq i)
     | syntax.FAILWITH => FAILWITH
-    | syntax.SEQ i1 i2 => SEQ (untype_instruction i1) (untype_instruction i2)
-    | syntax.IF_ f i1 i2 => IF_ (untype_if_family f) (untype_instruction i1) (untype_instruction i2)
-    | syntax.LOOP_ f i => LOOP_ (untype_loop_family f) (untype_instruction i)
-    | syntax.DIP n _ i => DIP n (untype_instruction i)
+    | syntax.IF_ f i1 i2 => IF_ (untype_if_family f) (untype_instruction_seq i1) (untype_instruction_seq i2)
+    | syntax.LOOP_ f i => LOOP_ (untype_loop_family f) (untype_instruction_seq i)
+    | syntax.DIP n _ i => DIP n (untype_instruction_seq i)
     | syntax.EXEC => EXEC
     | syntax.PUSH a x => PUSH a (untype_data x)
-    | syntax.LAMBDA a b i => LAMBDA a b (untype_instruction i)
-    | syntax.ITER i => ITER (untype_instruction i)
-    | syntax.MAP i => MAP (untype_instruction i)
-    | syntax.CREATE_CONTRACT g p an i => CREATE_CONTRACT g p an (untype_instruction i)
+    | syntax.LAMBDA a b i => LAMBDA a b (untype_instruction_seq i)
+    | syntax.ITER i => ITER (untype_instruction_seq i)
+    | syntax.MAP i => MAP (untype_instruction_seq i)
+    | syntax.CREATE_CONTRACT g p an i => CREATE_CONTRACT g p an (untype_instruction_seq i)
     | syntax.SELF an _ => SELF an
     | syntax.Instruction_opcode o => instruction_opcode (untype_opcode o)
-    end.
+    end
+  with untype_instruction_seq {self_type tff0 A B} (i : syntax.instruction_seq self_type tff0 A B) : instruction_seq :=
+    match i with
+    | syntax.NOOP => NOOP
+    | syntax.SEQ i1 i2 => SEQ (untype_instruction i1) (untype_instruction_seq i2)
+    | syntax.Tail_fail i => SEQ (untype_instruction i) NOOP
+  end.
 
   Lemma stype_dec_same A : stype_dec A A = left eq_refl.
   Proof.
@@ -162,55 +168,6 @@ Require Import String.
       try (right; intro contra; discriminate contra).
   Qed.
 
-  Fixpoint tail_fail_induction self_type A B (i : syntax.instruction self_type true A B)
-        (P : forall self_type A B, syntax.instruction self_type true A B -> Type)
-        (HFAILWITH : forall st a A B, P st (a ::: A) B syntax.FAILWITH)
-        (HSEQ : forall st A B C i1 i2,
-            P st B C i2 ->
-            P st A C (i1;; i2))
-        (HIF : forall st A B C1 C2 t (f : syntax.if_family C1 C2 t) i1 i2,
-            P st (C1 ++ A) B i1 ->
-            P st (C2 ++ A) B i2 ->
-            P st (t ::: A) B (syntax.IF_ f i1 i2))
-    : P self_type A B i :=
-    let P' st b A B : syntax.instruction st b A B -> Type :=
-        if b return syntax.instruction st b A B -> Type
-        then P st A B
-        else fun i => True
-    in
-    match i as i0 in syntax.instruction st b A B return P' st b A B i0
-    with
-    | syntax.FAILWITH => HFAILWITH _ _ _ _
-    | @syntax.SEQ _ A B C tff i1 i2 =>
-      (if tff return
-          forall i2 : syntax.instruction _ tff B C,
-            P' _ tff A C (syntax.SEQ i1 i2)
-       then
-         fun i2 =>
-           HSEQ _ _ _ _ i1 i2
-                (tail_fail_induction _ B C i2 P HFAILWITH HSEQ HIF)
-       else fun i2 => I)
-        i2
-    | @syntax.IF_ _ A B tffa tffb _ _ _ f i1 i2 =>
-      (if tffa as tffa return
-          forall i1, P' _ (tffa && tffb)%bool _ _ (syntax.IF_ f i1 i2)
-       then
-         fun i1 =>
-           (if tffb return
-               forall i2,
-                 P' _ tffb _ _ (syntax.IF_ f i1 i2)
-            then
-              fun i2 =>
-                HIF _ _ _ _ _ _ f i1 i2
-                    (tail_fail_induction _ _ _ i1 P HFAILWITH HSEQ HIF)
-                    (tail_fail_induction _ _ _ i2 P HFAILWITH HSEQ HIF)
-            else
-              fun _ => I) i2
-       else
-         fun _ => I) i1
-    | _ => I
-    end.
-
   Lemma bool_dec_same2 (x y : Datatypes.bool) (H1 H2 : x = y) (HH1 HH2 : H1 = H2) : HH1 = HH2.
   Proof.
     apply Eqdep_dec.UIP_dec.
@@ -231,24 +188,39 @@ Require Import String.
     f_equal; apply bool_dec_same.
   Qed.
 
-  Definition tail_fail_change_range {self_type} A B B' (i : syntax.instruction self_type true A B) :
-    syntax.instruction self_type true A B'.
+  Definition tail_fail_change_range_seq {self_type} A B B' (i : syntax.instruction_seq self_type true A B) :
+    syntax.instruction_seq self_type true A B'.
   Proof.
-    apply (tail_fail_induction self_type A B i (fun self_type A B i => syntax.instruction self_type true A B')); clear A B i.
+    apply (tail_fail_induction_seq self_type A B i (fun self_type A B i => syntax.instruction self_type true A B')
+                                   (fun self_type A B i => syntax.instruction_seq self_type true A B')); clear A B i.
     - intros st a A _.
       apply syntax.FAILWITH.
-    - intros st A B C i1 _ i2.
-      apply (syntax.SEQ i1 i2).
     - intros st A B C1 C2 t f _ _ i1 i2.
       apply (syntax.IF_ f i1 i2).
+    - intros st A B C i1 _ i2.
+      apply (syntax.SEQ i1 i2).
+    - intros st A B _ i.
+      apply (syntax.Tail_fail i).
+    - intros st A B _ i.
+      apply (syntax.Instruction_seq i).
   Defined.
-
 
   Lemma tail_fail_change_range_same {self_type} A B (i : syntax.instruction self_type true A B) :
     tail_fail_change_range A B B i = i.
   Proof.
-    apply (tail_fail_induction _ A B i); clear A B i;
-      intros; unfold tail_fail_change_range; simpl; f_equal; assumption.
+    apply (tail_fail_induction _ A B i
+                               (fun st A B i => tail_fail_change_range A B B i = i)
+                               (fun st A B i => tail_fail_change_range_seq A B B i = i)); clear A B i;
+      intros; unfold tail_fail_change_range, tail_fail_change_range_seq; simpl; f_equal; assumption.
+  Qed.
+
+  Lemma tail_fail_change_range_same_seq {self_type} A B (i : syntax.instruction_seq self_type true A B) :
+    tail_fail_change_range_seq A B B i = i.
+  Proof.
+    apply (tail_fail_induction_seq _ A B i
+                                   (fun st A B i => tail_fail_change_range A B B i = i)
+                                   (fun st A B i => tail_fail_change_range_seq A B B i = i)); clear A B i;
+      intros; unfold tail_fail_change_range, tail_fail_change_range_seq; simpl; f_equal; assumption.
   Qed.
 
   Definition untype_type_spec {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :=
@@ -260,10 +232,28 @@ Require Import String.
                else
                  typer.Inferred_type _ B) i).
 
+  Definition untype_type_spec_seq {self_type} tffi A B (i : syntax.instruction_seq self_type tffi A B) :=
+    typer.type_instruction_seq (untype_instruction_seq i) A =
+    Return ((if tffi return syntax.instruction_seq self_type tffi A B -> typer.typer_result_seq A
+               then
+                 fun i =>
+                   typer.Any_type_seq _ (fun B' => tail_fail_change_range_seq A B B' i)
+               else
+                 typer.Inferred_type_seq _ B) i).
+
   Lemma instruction_cast_same {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :
     typer.instruction_cast A A B B i = Return i.
   Proof.
     unfold typer.instruction_cast.
+    rewrite stype_dec_same.
+    rewrite stype_dec_same.
+    reflexivity.
+  Qed.
+
+  Lemma instruction_seq_cast_same {self_type} tffi A B (i : syntax.instruction_seq self_type tffi A B) :
+    typer.instruction_seq_cast A A B B i = Return i.
+  Proof.
+    unfold typer.instruction_seq_cast.
     rewrite stype_dec_same.
     rewrite stype_dec_same.
     reflexivity.
@@ -283,6 +273,12 @@ Require Import String.
     typer.instruction_cast_range A B B i = Return i.
   Proof.
     apply instruction_cast_same.
+  Qed.
+
+  Lemma instruction_seq_cast_range_same {self_type} tffi A B (i : syntax.instruction_seq self_type tffi A B) :
+    typer.instruction_seq_cast_range A B B i = Return i.
+  Proof.
+    apply instruction_seq_cast_same.
   Qed.
 
   Lemma instruction_cast_domain_same {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :
@@ -313,16 +309,32 @@ Require Import String.
       reflexivity.
   Qed.
 
-  Lemma untype_type_check_instruction_no_tail_fail {self_type} A B (i : syntax.instruction self_type false A B) :
-    untype_type_spec _ _ _ i ->
-    typer.type_check_instruction_no_tail_fail typer.type_instruction (untype_instruction i) A B =
+  Lemma untype_type_check_instruction_seq {self_type} tffi A B (i : syntax.instruction_seq self_type tffi A B) :
+    untype_type_spec_seq _ _ _ i ->
+    typer.type_check_instruction_seq typer.type_instruction_seq (untype_instruction_seq i) A B =
+    Return (existT _ tffi i).
+  Proof.
+    intro IH.
+    unfold typer.type_check_instruction_seq.
+    rewrite IH.
+    simpl.
+    destruct tffi.
+    - rewrite tail_fail_change_range_same_seq.
+      reflexivity.
+    - rewrite instruction_seq_cast_range_same.
+      reflexivity.
+  Qed.
+
+  Lemma untype_type_check_instruction_seq_no_tail_fail {self_type} A B (i : syntax.instruction_seq self_type false A B) :
+    untype_type_spec_seq _ _ _ i ->
+    typer.type_check_instruction_seq_no_tail_fail typer.type_instruction_seq (untype_instruction_seq i) A B =
     Return i.
   Proof.
     intro IH.
-    unfold typer.type_check_instruction_no_tail_fail.
+    unfold typer.type_check_instruction_seq_no_tail_fail.
     rewrite IH.
     simpl.
-    apply instruction_cast_range_same.
+    apply instruction_seq_cast_range_same.
   Qed.
 
   Lemma untype_type_instruction_no_tail_fail {self_type} A B (i : syntax.instruction self_type false A B) :
@@ -331,6 +343,16 @@ Require Import String.
   Proof.
     intro IH.
     unfold typer.type_instruction_no_tail_fail.
+    rewrite IH.
+    reflexivity.
+  Qed.
+
+  Lemma untype_type_instruction_seq_no_tail_fail {self_type} A B (i : syntax.instruction_seq self_type false A B) :
+    untype_type_spec_seq _ _ _ i ->
+    typer.type_instruction_seq_no_tail_fail typer.type_instruction_seq (untype_instruction_seq i) A = Return (existT _ _ i).
+  Proof.
+    intro IH.
+    unfold typer.type_instruction_seq_no_tail_fail.
     rewrite IH.
     reflexivity.
   Qed.
@@ -411,7 +433,10 @@ Require Import String.
     typer.type_data (untype_data d) a = Return d
   with
   untype_type_instruction {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :
-    untype_type_spec _ _ _ i.
+    untype_type_spec _ _ _ i
+  with
+  untype_type_instruction_seq {self_type} tffi A B (i : syntax.instruction_seq self_type tffi A B) :
+    untype_type_spec_seq _ _ _ i.
   Proof.
     - destruct d; try reflexivity.
       + simpl.
@@ -529,40 +554,27 @@ Require Import String.
           rewrite H.
           reflexivity.
       + simpl.
-        rewrite untype_type_check_instruction; auto.
+        rewrite untype_type_check_instruction_seq; auto.
       + simpl.
         destruct c.
         simpl.
         reflexivity.
     - destruct i; try reflexivity; simpl.
-      + trans_refl (
-          let! existT _ B i1 :=
-            typer.type_instruction_no_tail_fail typer.type_instruction
-              (untype_instruction i1) A in
-          let! r2 := typer.type_instruction (untype_instruction i2) B in
-          match r2 with
-          | typer.Inferred_type _ C i2 =>
-            Return (typer.Inferred_type _ _ (syntax.SEQ (i1 : syntax.instruction self_type _ _ _) i2))
-          | typer.Any_type _ i2 =>
-            Return (typer.Any_type _ (fun C => syntax.SEQ i1 (i2 C)))
-          end
-        ).
-        rewrite untype_type_instruction_no_tail_fail.
-        * simpl.
-          rewrite untype_type_instruction.
-          destruct tff; reflexivity.
-        * auto.
+      + unfold untype_type_spec.
+        simpl.
+        rewrite untype_type_instruction_seq.
+        destruct tff; reflexivity.
       + unfold untype_type_spec.
         simpl.
         unfold type_branches.
-        assert (type_if_family (untype_if_family i1) t = Return (existT _ C1 (existT _ C2 i1))) as Hi1.
-        * destruct i1; reflexivity.
-        * rewrite Hi1.
+        assert (type_if_family (untype_if_family i) t = Return (existT _ C1 (existT _ C2 i))) as Hi.
+        * destruct i; reflexivity.
+        * rewrite Hi.
           simpl.
-          rewrite untype_type_instruction; simpl.
-          rewrite untype_type_instruction; simpl.
+          rewrite untype_type_instruction_seq; simpl.
+          rewrite untype_type_instruction_seq; simpl.
           destruct tffa; destruct tffb;
-            try rewrite instruction_cast_range_same; simpl; repeat f_equal; apply tail_fail_change_range_same.
+            try rewrite instruction_seq_cast_range_same; simpl; repeat f_equal; apply tail_fail_change_range_same_seq.
       + unfold untype_type_spec.
         simpl.
         unfold type_loop.
@@ -570,9 +582,9 @@ Require Import String.
         * destruct i; reflexivity.
         * rewrite Hi.
           simpl.
-          rewrite untype_type_check_instruction_no_tail_fail.
+          rewrite untype_type_check_instruction_seq_no_tail_fail.
           -- reflexivity.
-          -- apply untype_type_instruction.
+          -- apply untype_type_instruction_seq.
       + trans_refl (
           let! d := typer.type_data (untype_data x) a in
           Return (@typer.Inferred_type self_type A _ (syntax.PUSH a d))
@@ -581,33 +593,33 @@ Require Import String.
         reflexivity.
       + trans_refl (
           let! existT _ tff i :=
-            typer.type_check_instruction
-              typer.type_instruction (untype_instruction i) (a :: nil) (b :: nil) in
+            typer.type_check_instruction_seq
+              typer.type_instruction_seq (untype_instruction_seq i) (a :: nil) (b :: nil) in
           Return (@typer.Inferred_type self_type _ (lambda a b ::: A) (syntax.LAMBDA a b i))
         ).
-        rewrite untype_type_check_instruction; auto.
+        rewrite untype_type_check_instruction_seq; auto.
       + destruct i as [c v]; destruct v.
         * unfold untype_type_spec; simpl.
-          rewrite untype_type_check_instruction_no_tail_fail; auto.
+          rewrite untype_type_check_instruction_seq_no_tail_fail; auto.
         * unfold untype_type_spec; simpl.
-          rewrite untype_type_check_instruction_no_tail_fail; auto.
+          rewrite untype_type_check_instruction_seq_no_tail_fail; auto.
         * unfold untype_type_spec; simpl.
-          rewrite untype_type_check_instruction_no_tail_fail; auto.
+          rewrite untype_type_check_instruction_seq_no_tail_fail; auto.
       + destruct i as [a c v]; destruct v.
         * unfold untype_type_spec; simpl.
-          rewrite untype_type_instruction_no_tail_fail.
+          rewrite untype_type_instruction_seq_no_tail_fail.
           -- simpl.
-             rewrite instruction_cast_range_same.
+             rewrite instruction_seq_cast_range_same.
              reflexivity.
           -- auto.
         * unfold untype_type_spec; simpl.
-          rewrite untype_type_instruction_no_tail_fail.
+          rewrite untype_type_instruction_seq_no_tail_fail.
           -- simpl.
-             rewrite instruction_cast_range_same.
+             rewrite instruction_seq_cast_range_same.
              reflexivity.
           -- auto.
       + unfold untype_type_spec; simpl.
-        rewrite untype_type_check_instruction.
+        rewrite untype_type_check_instruction_seq.
         -- simpl.
            rewrite instruction_cast_domain_same.
            reflexivity.
@@ -629,13 +641,26 @@ Require Import String.
         simpl.
         rewrite (take_n_length n A B e).
         simpl.
-        rewrite untype_type_instruction_no_tail_fail.
+        rewrite untype_type_instruction_seq_no_tail_fail.
         * simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
-        * apply untype_type_instruction.
+        * apply untype_type_instruction_seq.
       + unfold untype_type_spec.
         simpl.
         rewrite untype_type_opcode.
         reflexivity.
+    - destruct i; try reflexivity; simpl.
+      + unfold untype_type_spec_seq.
+        simpl.
+        rewrite untype_type_instruction.
+        simpl.
+        reflexivity.
+      + unfold untype_type_spec_seq.
+        simpl.
+        rewrite untype_type_instruction.
+        simpl.
+        rewrite untype_type_instruction_seq.
+        simpl.
+        destruct tff; reflexivity.
   Qed.

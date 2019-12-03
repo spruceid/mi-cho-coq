@@ -73,20 +73,22 @@ Inductive if_family : Set := IF_bool | IF_or | IF_option | IF_list.
 Inductive loop_family : Set := LOOP_bool | LOOP_or.
 
 Inductive instruction : Set :=
-| NOOP : instruction
+| Instruction_seq : instruction_seq -> instruction
 | FAILWITH : instruction
-| SEQ : instruction -> instruction -> instruction
-| IF_ : if_family -> instruction -> instruction -> instruction
-| LOOP_ : loop_family -> instruction -> instruction
+| IF_ : if_family -> instruction_seq -> instruction_seq -> instruction
+| LOOP_ : loop_family -> instruction_seq -> instruction
 | PUSH : type -> concrete_data -> instruction
-| LAMBDA : type -> type -> instruction -> instruction
-| ITER : instruction -> instruction
-| MAP : instruction -> instruction
-| CREATE_CONTRACT : type -> type -> annot_o -> instruction -> instruction
-| DIP : Datatypes.nat -> instruction -> instruction
+| LAMBDA : type -> type -> instruction_seq -> instruction
+| ITER : instruction_seq -> instruction
+| MAP : instruction_seq -> instruction
+| CREATE_CONTRACT : type -> type -> annot_o -> instruction_seq -> instruction
+| DIP : Datatypes.nat -> instruction_seq -> instruction
 | SELF : annot_o -> instruction
 | EXEC : instruction
 | instruction_opcode : opcode -> instruction
+with instruction_seq : Set :=
+| NOOP : instruction_seq
+| SEQ : instruction -> instruction_seq -> instruction_seq
 with
 concrete_data : Set :=
 | Int_constant : Z -> concrete_data
@@ -102,7 +104,8 @@ concrete_data : Set :=
 | None_ : concrete_data
 | Elt : concrete_data -> concrete_data -> concrete_data
 | Concrete_seq : Datatypes.list concrete_data -> concrete_data
-| Instruction : instruction -> concrete_data.
+| Instruction : instruction_seq -> concrete_data.
+
 
 Coercion instruction_opcode : opcode >-> instruction.
 
@@ -113,8 +116,14 @@ Notation "'IF_CONS'" := (IF_ IF_list).
 Notation "'LOOP'" := (LOOP_ LOOP_bool).
 Notation "'LOOP_LEFT'" := (LOOP_ LOOP_or).
 
+Fixpoint instruction_app i1 i2 :=
+  match i1 with
+  | NOOP => i2
+  | SEQ i11 i12 => SEQ i11 (instruction_app i12 i2)
+  end.
+
 (* Some macros *)
-Definition UNPAIR : instruction :=
-  SEQ DUP (SEQ CAR (DIP 1 CDR)).
-Definition UNPAPAIR : instruction :=
-  SEQ UNPAIR (DIP 1 UNPAIR).
+Definition UNPAIR : instruction_seq :=
+  SEQ DUP (SEQ CAR (SEQ (DIP 1 (SEQ CDR NOOP)) NOOP)).
+Definition UNPAPAIR : instruction_seq :=
+  instruction_app UNPAIR (SEQ (DIP 1 UNPAIR) NOOP).

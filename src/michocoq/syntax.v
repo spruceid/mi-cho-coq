@@ -450,28 +450,28 @@ Inductive loop_family : forall (A B : Datatypes.list type) (a : type), Set :=
 | LOOP_or a an b bn : loop_family (a :: nil) (b :: nil) (or a an b bn).
 
 Inductive instruction :
-  forall (self_i : self_info) (tail_fail_flag : Datatypes.bool) (A B : Datatypes.list type), Set :=
-| NOOP {self_type A} : instruction self_type Datatypes.false A A    (* Undocumented *)
+  forall (self_type : self_info) (tail_fail_flag : Datatypes.bool) (A B : Datatypes.list type), Set :=
+| Instruction_seq {self_type tff A B} :
+    instruction_seq self_type tff A B ->
+    instruction self_type tff A B
 | FAILWITH {self_type A B a} : instruction self_type Datatypes.true (a ::: A) B
-| SEQ {self_type A B C tff} : instruction self_type Datatypes.false A B -> instruction self_type tff B C -> instruction self_type tff A C
-(* The instruction self_type SEQ I C is written "{ I ; C }" in Michelson *)
 | IF_ {self_type A B tffa tffb C1 C2 t} (i : if_family C1 C2 t) :
-    instruction self_type tffa (C1 ++ A) B -> instruction self_type tffb (C2 ++ A) B ->
+    instruction_seq self_type tffa (C1 ++ A) B -> instruction_seq self_type tffb (C2 ++ A) B ->
     instruction self_type (tffa && tffb) (t ::: A) B
 | LOOP_ {self_type C1 C2 t A} (i : loop_family C1 C2 t) :
-    instruction self_type Datatypes.false (C1 ++ A) (t :: A) ->
+    instruction_seq self_type Datatypes.false (C1 ++ A) (t :: A) ->
     instruction self_type Datatypes.false (t :: A) (C2 ++ A)
 | PUSH (a : type) (x : concrete_data a) {self_type A} : instruction self_type Datatypes.false A (a :: A)
 | LAMBDA (a b : type) {self_type A tff} :
-    instruction None tff (a :: nil) (b :: nil) ->
+    instruction_seq None tff (a :: nil) (b :: nil) ->
     instruction self_type Datatypes.false A (lambda a b :: A)
 | ITER {self_type collection} {i : iter_struct collection} {A} :
-    instruction self_type Datatypes.false (iter_elt_type _ i ::: A) A -> instruction self_type Datatypes.false (collection :: A) A
+    instruction_seq self_type Datatypes.false (iter_elt_type _ i ::: A) A -> instruction self_type Datatypes.false (collection :: A) A
 | MAP {self_type collection b} {i : map_struct collection b} {A} :
-    instruction self_type Datatypes.false (map_in_type _ _ i :: A) (b :: A) ->
+    instruction_seq self_type Datatypes.false (map_in_type _ _ i :: A) (b :: A) ->
     instruction self_type Datatypes.false (collection :: A) (map_out_collection_type _ _ i :: A)
 | CREATE_CONTRACT {self_type S tff} (g p : type) (an : annot_o) :
-    instruction (Some (p, an)) tff (pair p g :: nil) (pair (list operation) g :: nil) ->
+    instruction_seq (Some (p, an)) tff (pair p g :: nil) (pair (list operation) g :: nil) ->
     instruction self_type Datatypes.false
                 (option key_hash ::: mutez ::: g ::: S)
                 (operation ::: address ::: S)
@@ -481,11 +481,16 @@ Inductive instruction :
                                        (a ::: lambda a b ::: C) (b :: C)
 | DIP (n : Datatypes.nat) {self_type A B C} :
     length A = n ->
-    instruction self_type Datatypes.false B C ->
+    instruction_seq self_type Datatypes.false B C ->
     instruction self_type Datatypes.false (A +++ B) (A +++ C)
 | Instruction_opcode {self_type A B} : opcode (self_type := self_type) A B -> instruction self_type Datatypes.false A B
-with
-concrete_data : type -> Set :=
+with instruction_seq :
+       forall (self_type : self_info) (tail_fail_flag : Datatypes.bool) (A B : Datatypes.list type), Set :=
+| NOOP {self_type A} : instruction_seq self_type Datatypes.false A A
+| Tail_fail {self_type A B} : instruction self_type Datatypes.true A B -> instruction_seq self_type Datatypes.true A B
+(* The instruction self_type SEQ I C is written "{ I ; C }" in Michelson *)
+| SEQ {self_type A B C tff} : instruction self_type Datatypes.false A B -> instruction_seq self_type tff B C -> instruction_seq self_type tff A C
+with concrete_data : type -> Set :=
 | Int_constant : Z -> concrete_data int
 | Nat_constant : N -> concrete_data nat
 | String_constant : String.string -> concrete_data string
@@ -510,19 +515,126 @@ concrete_data : type -> Set :=
 | Concrete_map {a : comparable_type} {b} :
     Datatypes.list (elt_pair (concrete_data a) (concrete_data b)) ->
     concrete_data (map a b)
-| Instruction {a b} tff : instruction (None) tff (a ::: nil) (b ::: nil) ->
+| Instruction {a b} tff : instruction_seq None tff (a ::: nil) (b ::: nil) ->
                           concrete_data (lambda a b)
 | Chain_id_constant : chain_id_constant -> concrete_data chain_id.
 
 Coercion Instruction_opcode : opcode >-> instruction.
 
+Fixpoint tail_fail_induction self_type A B
+         (i : instruction self_type true A B)
+         (P : forall self_type A B, instruction self_type true A B -> Type)
+         (Q : forall self_type A B, instruction_seq self_type true A B -> Type)
+         (HFAILWITH : forall st a A B, P st (a ::: A) B FAILWITH)
+         (HIF : forall st A B C1 C2 t (f : if_family C1 C2 t) i1 i2,
+             Q st (C1 ++ A)%list B i1 ->
+             Q st (C2 ++ A)%list B i2 ->
+             P st (t ::: A) B (IF_ f i1 i2))
+         (HSEQ : forall st A B C i1 i2,
+             Q st B C i2 -> Q st A C (SEQ i1 i2))
+         (HTF : forall st A B i, P st A B i -> Q st A B (Tail_fail i))
+         (HIS : forall st A B i, Q st A B i -> P st A B (Instruction_seq i))
+  : P self_type A B i :=
+  let P' st b A B : instruction st b A B -> Type :=
+      if b return instruction st b A B -> Type
+      then P st A B
+      else fun i => True
+  in
+  match i as i0 in instruction st b A B return P' st b A B i0
+  with
+  | FAILWITH => HFAILWITH _ _ _ _
+  | @IF_ _ A B tffa tffb _ _ _ f i1 i2 =>
+    (if tffa as tffa return
+        forall i1, P' _ (tffa && tffb)%bool _ _ (IF_ f i1 i2)
+     then
+       fun i1 =>
+         (if tffb return
+             forall i2,
+               P' _ tffb _ _ (IF_ f i1 i2)
+          then
+            fun i2 =>
+              HIF _ _ _ _ _ _ f i1 i2
+                  (tail_fail_induction_seq _ _ _ i1 P Q HFAILWITH HIF HSEQ HTF HIS)
+                  (tail_fail_induction_seq _ _ _ i2 P Q HFAILWITH HIF HSEQ HTF HIS)
+          else
+            fun _ => I) i2
+     else
+       fun _ => I) i1
+  | @Instruction_seq _ true _ _ i =>
+    HIS _ _ _ _ (tail_fail_induction_seq _ _ _ i P Q HFAILWITH HIF HSEQ HTF HIS)
+  | _ => I
+  end
+with tail_fail_induction_seq self_type A B
+                             (i : instruction_seq self_type true A B)
+                             (P : forall self_type A B, instruction self_type true A B -> Type)
+                             (Q : forall self_type A B, instruction_seq self_type true A B -> Type)
+                             (HFAILWITH : forall st a A B, P st (a ::: A) B FAILWITH)
+                             (HIF : forall st A B C1 C2 t (f : if_family C1 C2 t) i1 i2,
+                                 Q st (C1 ++ A)%list B i1 ->
+                                 Q st (C2 ++ A)%list B i2 ->
+                                 P st (t ::: A) B (IF_ f i1 i2))
+                             (HSEQ : forall st A B C i1 i2,
+                                 Q st B C i2 -> Q st A C (SEQ i1 i2))
+                             (HTF : forall st A B i, P st A B i -> Q st A B (Tail_fail i))
+                             (HIS : forall st A B i, Q st A B i -> P st A B (Instruction_seq i))
+     : Q self_type A B i  :=
+       let Q' st b A B : instruction_seq st b A B -> Type :=
+           if b return instruction_seq st b A B -> Type
+           then Q st A B
+           else fun i => True
+       in
+       match i as i0 in instruction_seq st b A B return Q' st b A B i0
+       with
+       | @SEQ _ A B C tff i1 i2 =>
+         (if tff return
+             forall i2 : instruction_seq _ tff B C,
+               Q' _ tff A C (SEQ i1 i2)
+          then
+            fun i2 =>
+              HSEQ _ _ _ _ i1 i2
+                   (tail_fail_induction_seq _ B C i2 P Q HFAILWITH HIF HSEQ HTF HIS)
+          else fun i2 => I)
+           i2
+       | @Tail_fail _ A B i => HTF _ _ _ i (tail_fail_induction _ A B i P Q HFAILWITH HIF HSEQ HTF HIS)
+       | _ => I
+       end .
+
+Definition tail_fail_change_range {self_type} A B B' (i : instruction self_type true A B) :
+  instruction self_type true A B'.
+Proof.
+  apply (tail_fail_induction self_type A B i (fun self_type A B i => instruction self_type true A B')
+                             (fun self_type A B i => instruction_seq self_type true A B')); clear A B i.
+  - intros st a A _.
+    apply FAILWITH.
+  - intros st A B C1 C2 t f _ _ i1 i2.
+    apply (IF_ f i1 i2).
+  - intros st A B C i1 _ i2.
+    apply (SEQ i1 i2).
+  - intros st A B _ i.
+    apply (Tail_fail i).
+  - intros st A B _ i.
+    apply (Instruction_seq i).
+Defined.
+
+Definition seq_aux {self_type A B C tffa tffb} :
+  instruction self_type tffa A B ->
+  instruction_seq self_type tffb B C ->
+  instruction_seq self_type (tffa || tffb)%bool A C :=
+  if tffa
+     return
+     (instruction self_type tffa A B ->
+      instruction_seq self_type tffb B C ->
+      instruction_seq self_type (tffa || tffb) A C)
+  then
+    fun i _ => Tail_fail (tail_fail_change_range A B C i)
+  else SEQ.
 
 Coercion int_constant := Int_constant.
 Coercion nat_constant := Nat_constant.
 Coercion string_constant := String_constant.
 
 Definition full_contract tff param annot storage :=
-  instruction (Some (param, annot)) tff
+  instruction_seq (Some (param, annot)) tff
     ((pair param storage) ::: nil)
     ((pair (list operation) storage) ::: nil).
 
@@ -541,14 +653,51 @@ Record contract_file : Set :=
           contract_file_storage;
     }.
 
-Notation "'IF'" := (IF_ IF_bool).
-Notation "'IF_LEFT'" := (IF_ (IF_or _ _ _ _)).
-Notation "'IF_NONE'" := (IF_ (IF_option _)).
-Notation "'IF_CONS'" := (IF_ (IF_list _)).
-Notation "'LOOP'" := (LOOP_ LOOP_bool).
-Notation "'LOOP_LEFT'" := (LOOP_ (LOOP_or _ _)).
+Notation "'IF'" := (IF_ IF_bool) : michelson_scope.
+Notation "'IF_TRUE'" := (IF_ IF_bool) : michelson_scope.
+Notation "'IF_LEFT'" := (IF_ (IF_or _ _ _ _)) : michelson_scope.
+Notation "'IF_NONE'" := (IF_ (IF_option _)) : michelson_scope.
+Notation "'IF_CONS'" := (IF_ (IF_list _)) : michelson_scope.
+Notation "'LOOP'" := (LOOP_ LOOP_bool) : michelson_scope.
+Notation "'LOOP_LEFT'" := (LOOP_ (LOOP_or _ _)) : michelson_scope.
 
-Notation "A ;; B" := (SEQ A B) (at level 100, right associativity).
+Delimit Scope michelson_scope with michelson.
+Bind Scope michelson_scope with instruction.
+Bind Scope michelson_scope with instruction_seq.
+Bind Scope michelson_scope with full_contract.
+
+Definition instruction_wrap {A B : stack_type} {self_type tff}
+  : instruction self_type tff A B ->
+    instruction_seq self_type tff A B :=
+  if tff return instruction self_type tff A B -> instruction_seq self_type tff A B then
+    Tail_fail
+  else fun i => SEQ i NOOP.
+
+Fixpoint instruction_app_aux
+         {A B C : stack_type} {self_type tff1 tff2}
+         (i1 : instruction_seq self_type tff1 A B) :
+  tff1 = false -> instruction_seq self_type tff2 B C -> instruction_seq self_type tff2 A C :=
+  match i1 with
+  | NOOP => fun _ i2 => i2
+  | SEQ i11 i12 =>
+    fun H i2 => SEQ i11 (instruction_app_aux i12 H i2)
+  | Tail_fail i =>
+    fun H => False_rec _ (Bool.diff_true_false H)
+  end.
+
+Definition instruction_app {A B C : stack_type} {self_type tff}
+           (i1 : instruction_seq self_type false A B)
+           (i2 : instruction_seq self_type tff B C) :
+  instruction_seq self_type tff A C :=
+  instruction_app_aux i1 eq_refl i2.
+
+Notation "A ;;; B" := (instruction_app A B) (at level 100, right associativity).
+
+Notation "A ;; B" := (seq_aux A B) (at level 100, right associativity).
+
+Notation "{ }" := NOOP : michelson_scope.
+
+Notation "{ A ; .. ; B }" := (seq_aux A .. (seq_aux B NOOP) ..) : michelson_scope.
 
 Notation "n ~Mutez" := (exist _ (int64bv.of_Z n) eq_refl) (at level 100).
 

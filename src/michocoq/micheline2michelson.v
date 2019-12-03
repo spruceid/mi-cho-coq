@@ -35,6 +35,7 @@ Fixpoint micheline2michelson_ctype (bem : loc_micheline) : M comparable_type :=
   end.
 
 Notation "A ;; B" := (untyped_syntax.SEQ A B) (at level 100, right associativity).
+Notation "A ;;; B" := (untyped_syntax.instruction_app A B) (at level 100, right associativity).
 
 Fixpoint micheline2michelson_type (bem : loc_micheline) : M type :=
   try (let! ty := micheline2michelson_sctype bem in Return (Comparable_type ty))
@@ -130,14 +131,14 @@ Definition op_of_string (s : String.string) b e :=
   | _ => Failed _ (Expansion b e)
   end.
 
-Definition FAIL := UNIT ;; FAILWITH.
+Definition FAIL := UNIT ;; FAILWITH ;; NOOP.
 Definition ASSERT := (IF_ IF_bool) NOOP FAIL.
 
 Definition IF_op_of_string (s : String.string) b e bt bf :=
   match s with
   | String "I" (String "F" s) =>
     let! op := op_of_string s b e in
-    Return (op ;; IF_ IF_bool bt bf)
+    Return (op ;; IF_ IF_bool bt bf ;; NOOP)
   | _ => Failed _ (Expansion b e)
   end.
 
@@ -145,7 +146,7 @@ Definition ASSERT_op_of_string (s : String.string) b e :=
   match s with
   | String "A" (String "S" (String "S" (String "E" (String "R" (String "T" (String "_" s)))))) =>
     let! op := op_of_string s b e in
-    Return (op ;; ASSERT)
+    Return (op ;; ASSERT ;; NOOP)
   | _ => Failed _ (Expansion b e)
   end.
 
@@ -154,16 +155,10 @@ Definition ASSERT_SOME := IF_NONE FAIL NOOP.
 Definition ASSERT_LEFT := IF_LEFT NOOP FAIL.
 Definition ASSERT_RIGHT := IF_LEFT FAIL NOOP.
 
-Fixpoint DIPn n code :=
-  match n with
-  | 0 => code
-  | S n => DIP 1 (DIPn n code)
-  end.
-
 Fixpoint DUP_Sn n :=
   match n with
-  | 0 => instruction_opcode DUP
-  | S n => DIP 1 (DUP_Sn n) ;; instruction_opcode SWAP
+  | 0 => instruction_opcode DUP ;; NOOP
+  | S n => DIP 1 (DUP_Sn n) ;; instruction_opcode SWAP ;; NOOP
   end.
 
 Definition IF_SOME bt bf := IF_NONE bf bt.
@@ -175,36 +170,36 @@ Inductive cadr : Set :=
 | Cadr_CDR : cadr -> cadr
 | Cadr_nil : cadr.
 
-Fixpoint micheline2michelson_cadr (x : cadr) : instruction :=
+Fixpoint micheline2michelson_cadr (x : cadr) : instruction_seq :=
   match x with
   | Cadr_CAR x => CAR ;; micheline2michelson_cadr x
   | Cadr_CDR x => CDR ;; micheline2michelson_cadr x
   | Cadr_nil => NOOP
   end.
 
-Fixpoint micheline2michelson_set_cadr (x : cadr) : instruction :=
+Fixpoint micheline2michelson_set_cadr (x : cadr) : instruction_seq :=
   match x with
   | Cadr_CAR Cadr_nil =>
-    CDR ;; SWAP ;; PAIR
+    CDR ;; SWAP ;; PAIR ;; NOOP
   | Cadr_CDR Cadr_nil =>
-    CAR ;; PAIR
+    CAR ;; PAIR ;; NOOP
   | Cadr_CAR x =>
-    DUP ;; DIP 1 (CAR;; micheline2michelson_set_cadr x) ;; CDR ;; SWAP ;; PAIR
+    DUP ;; DIP 1 (CAR;; micheline2michelson_set_cadr x) ;; CDR ;; SWAP ;; PAIR ;; NOOP
   | Cadr_CDR x =>
-    DUP ;; DIP 1 (CDR;; micheline2michelson_set_cadr x) ;; CAR ;; PAIR
+    DUP ;; DIP 1 (CDR;; micheline2michelson_set_cadr x) ;; CAR ;; PAIR ;; NOOP
   | Cadr_nil => NOOP (* Should not happen *)
   end.
 
-Fixpoint micheline2michelson_map_cadr (x : cadr) (code : instruction) : instruction :=
+Fixpoint micheline2michelson_map_cadr (x : cadr) (code : instruction_seq) : instruction_seq :=
   match x with
   | Cadr_CAR Cadr_nil =>
-    DUP ;; CDR ;; DIP 1 ( CAR ;; code ) ;; SWAP ;; PAIR
+    DUP ;; CDR ;; DIP 1 ( CAR ;; code ) ;; SWAP ;; PAIR ;; NOOP
   | Cadr_CDR Cadr_nil =>
-    DUP ;; CDR ;; code ;; SWAP ;; CAR ;; PAIR
+    DUP ;; CDR ;; code ;;; SWAP ;; CAR ;; PAIR ;; NOOP
   | Cadr_CAR x =>
-    DUP ;; DIP 1 (CAR;; micheline2michelson_map_cadr x code) ;; CDR ;; SWAP ;; PAIR
+    DUP ;; DIP 1 (CAR;; micheline2michelson_map_cadr x code) ;; CDR ;; SWAP ;; PAIR ;; NOOP
   | Cadr_CDR x =>
-    DUP ;; DIP 1 (CDR;; micheline2michelson_map_cadr x code) ;; CAR ;; PAIR
+    DUP ;; DIP 1 (CDR;; micheline2michelson_map_cadr x code) ;; CAR ;; PAIR ;; NOOP
   | Cadr_nil => code (* Should not happen *)
   end.
 
@@ -319,29 +314,30 @@ Next Obligation.
   lia.
 Defined.
 
-Fixpoint micheline2michelson_papair (x : papair) : instruction :=
+Fixpoint micheline2michelson_papair (x : papair) : instruction_seq :=
   match x with
-  | Papair_PAIR => PAIR
-  | Papair_A y => DIP 1 (micheline2michelson_papair y) ;; PAIR
-  | Papair_I x => micheline2michelson_papair x ;; PAIR
-  | Papair_P x y => micheline2michelson_papair x ;;
+  | Papair_PAIR => PAIR ;; NOOP
+  | Papair_A y => DIP 1 (micheline2michelson_papair y) ;; PAIR ;; NOOP
+  | Papair_I x => micheline2michelson_papair x ;;; PAIR ;; NOOP
+  | Papair_P x y => micheline2michelson_papair x ;;;
                     DIP 1 (micheline2michelson_papair y) ;;
-                    PAIR
+                    PAIR ;; NOOP
   end.
 
-Definition UNPAIR := DUP ;; CAR ;; DIP 1 CDR.
+Definition UNPAIR := DUP ;; CAR ;; DIP 1 (CDR ;; NOOP) ;; NOOP.
 
-Fixpoint micheline2michelson_unpapair (x : papair) : instruction :=
+Fixpoint micheline2michelson_unpapair (x : papair) : instruction_seq :=
   match x with
   | Papair_PAIR => UNPAIR
-  | Papair_A y => UNPAIR ;; DIP 1 (micheline2michelson_unpapair y)
-  | Papair_I x => UNPAIR ;; micheline2michelson_unpapair x
-  | Papair_P x y => UNPAIR ;;
+  | Papair_A y => UNPAIR ;;; DIP 1 (micheline2michelson_unpapair y) ;; NOOP
+  | Papair_I x => UNPAIR ;;; micheline2michelson_unpapair x
+  | Papair_P x y => UNPAIR ;;;
                     DIP 1 (micheline2michelson_unpapair y) ;;
                     micheline2michelson_unpapair x
   end.
 
-Definition parse_papair_full (s : String.string) (fail : exception): M instruction :=
+Definition parse_papair_full (s : String.string) (fail : exception) :
+  M instruction_seq :=
   let! toks : Datatypes.list papair_token := lex_papair s fail in
   let! (l, exist _ toks2 Htoks2) := parse_papair Left toks fail (S (List.length toks)) ltac:(simpl; lia) in
   let! (r, exist _ toks3 Htoks3) := parse_papair Right toks2 fail (S (List.length toks2)) ltac:(simpl; lia) in
@@ -354,7 +350,8 @@ Definition parse_papair_full (s : String.string) (fail : exception): M instructi
   | _ => Failed _ fail
   end.
 
-Definition parse_unpapair_full (s : String.string) (fail : exception): M instruction :=
+Definition parse_unpapair_full (s : String.string) (fail : exception)
+  : M instruction_seq :=
   let! toks : Datatypes.list papair_token := lex_papair s fail in
   let! (l, exist _ toks2 Htoks2) := parse_papair Left toks fail (S (List.length toks)) ltac:(simpl; lia) in
   let! (r, exist _ toks3 Htoks3) := parse_papair Right toks2 fail (S (List.length toks2)) ltac:(simpl; lia) in
@@ -367,117 +364,125 @@ Definition parse_unpapair_full (s : String.string) (fail : exception): M instruc
   | _ => Failed _ fail
   end.
 
-Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
+
+Definition return_instruction (i : instruction) : M instruction_seq :=
+  Return (i ;; NOOP).
+
+Definition return_opcode (op : opcode) : M instruction_seq :=
+  return_instruction (instruction_opcode op).
+
+Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction_seq :=
   match m with
   | Mk_loc_micheline (_, SEQ l) =>
-    (fix micheline2michelson_instr_seq (l : Datatypes.list loc_micheline) : M instruction :=
+    (fix micheline2michelson_instr_seq (l : Datatypes.list loc_micheline) : M instruction_seq :=
        match l with
        | nil => Return NOOP
-       | cons i nil => micheline2michelson_instruction i
-       | i1 :: l =>
+       | i1 :: i2 =>
         let! i1 := micheline2michelson_instruction i1 in
-        let! i2 := micheline2michelson_instr_seq l in
-        Return (i1 ;; i2)
+        let! i2 := micheline2michelson_instr_seq i2 in
+        Return (i1 ;;; i2)
        end) l
-  | Mk_loc_micheline (_, PRIM (_, "FAILWITH") nil) => Return FAILWITH
-  | Mk_loc_micheline (_, PRIM (_, "EXEC") nil) => Return EXEC
-  | Mk_loc_micheline (_, PRIM (_, "APPLY") nil) => Return (instruction_opcode APPLY)
-  | Mk_loc_micheline (_, PRIM (_, "DROP") nil) => Return (instruction_opcode (DROP 1))
+  | Mk_loc_micheline (_, PRIM (_, "FAILWITH") nil) => return_instruction FAILWITH
+  | Mk_loc_micheline (_, PRIM (_, "EXEC") nil) => return_instruction EXEC
+  | Mk_loc_micheline (_, PRIM (_, "APPLY") nil) => return_opcode APPLY
+  | Mk_loc_micheline (_, PRIM (_, "DROP") nil) => return_opcode (DROP 1)
   | Mk_loc_micheline (_, PRIM (_, "DROP")
                               (Mk_loc_micheline (_, NUMBER n) :: nil)) =>
-    Return (instruction_opcode (DROP (BinInt.Z.to_nat n)))
-  | Mk_loc_micheline (_, PRIM (_, "DUP") nil) => Return (instruction_opcode DUP)
-  | Mk_loc_micheline (_, PRIM (_, "SWAP") nil) => Return (instruction_opcode SWAP)
-  | Mk_loc_micheline (_, PRIM (_, "UNIT") nil) => Return (instruction_opcode UNIT)
-  | Mk_loc_micheline (_, PRIM (_, "EQ") nil) => Return (instruction_opcode EQ)
-  | Mk_loc_micheline (_, PRIM (_, "NEQ") nil) => Return (instruction_opcode NEQ)
-  | Mk_loc_micheline (_, PRIM (_, "LT") nil) => Return (instruction_opcode LT)
-  | Mk_loc_micheline (_, PRIM (_, "GT") nil) => Return (instruction_opcode GT)
-  | Mk_loc_micheline (_, PRIM (_, "LE") nil) => Return (instruction_opcode LE)
-  | Mk_loc_micheline (_, PRIM (_, "GE") nil) => Return (instruction_opcode GE)
-  | Mk_loc_micheline (_, PRIM (_, "OR") nil) => Return (instruction_opcode OR)
-  | Mk_loc_micheline (_, PRIM (_, "AND") nil) => Return (instruction_opcode AND)
-  | Mk_loc_micheline (_, PRIM (_, "XOR") nil) => Return (instruction_opcode XOR)
-  | Mk_loc_micheline (_, PRIM (_, "NOT") nil) => Return (instruction_opcode NOT)
-  | Mk_loc_micheline (_, PRIM (_, "NEG") nil) => Return (instruction_opcode NEG)
-  | Mk_loc_micheline (_, PRIM (_, "ABS") nil) => Return (instruction_opcode ABS)
-  | Mk_loc_micheline (_, PRIM (_, "ISNAT") nil) => Return (instruction_opcode ISNAT)
-  | Mk_loc_micheline (_, PRIM (_, "INT") nil) => Return (instruction_opcode INT)
-  | Mk_loc_micheline (_, PRIM (_, "ADD") nil) => Return (instruction_opcode ADD)
-  | Mk_loc_micheline (_, PRIM (_, "SUB") nil) => Return (instruction_opcode SUB)
-  | Mk_loc_micheline (_, PRIM (_, "MUL") nil) => Return (instruction_opcode MUL)
-  | Mk_loc_micheline (_, PRIM (_, "EDIV") nil) => Return (instruction_opcode EDIV)
-  | Mk_loc_micheline (_, PRIM (_, "LSL") nil) => Return (instruction_opcode LSL)
-  | Mk_loc_micheline (_, PRIM (_, "LSR") nil) => Return (instruction_opcode LSR)
-  | Mk_loc_micheline (_, PRIM (_, "COMPARE") nil) => Return (instruction_opcode COMPARE)
-  | Mk_loc_micheline (_, PRIM (_, "CONCAT") nil) => Return (instruction_opcode CONCAT)
-  | Mk_loc_micheline (_, PRIM (_, "SIZE") nil) => Return (instruction_opcode SIZE)
-  | Mk_loc_micheline (_, PRIM (_, "SLICE") nil) => Return (instruction_opcode SLICE)
-  | Mk_loc_micheline (_, PRIM (_, "PAIR") nil) => Return (instruction_opcode PAIR)
-  | Mk_loc_micheline (_, PRIM (_, "CAR") nil) => Return (instruction_opcode CAR)
-  | Mk_loc_micheline (_, PRIM (_, "CDR") nil) => Return (instruction_opcode CDR)
-  | Mk_loc_micheline (_, PRIM (_, "GET") nil) => Return (instruction_opcode GET)
-  | Mk_loc_micheline (_, PRIM (_, "SOME") nil) => Return (instruction_opcode SOME)
+    return_opcode (DROP (BinInt.Z.to_nat n))
+  | Mk_loc_micheline (_, PRIM (_, "DUP") nil) => return_opcode DUP
+  | Mk_loc_micheline (_, PRIM (_, "SWAP") nil) => return_opcode SWAP
+  | Mk_loc_micheline (_, PRIM (_, "UNIT") nil) => return_opcode UNIT
+  | Mk_loc_micheline (_, PRIM (_, "EQ") nil) => return_opcode EQ
+  | Mk_loc_micheline (_, PRIM (_, "NEQ") nil) => return_opcode NEQ
+  | Mk_loc_micheline (_, PRIM (_, "LT") nil) => return_opcode LT
+  | Mk_loc_micheline (_, PRIM (_, "GT") nil) => return_opcode GT
+  | Mk_loc_micheline (_, PRIM (_, "LE") nil) => return_opcode LE
+  | Mk_loc_micheline (_, PRIM (_, "GE") nil) => return_opcode GE
+  | Mk_loc_micheline (_, PRIM (_, "OR") nil) => return_opcode OR
+  | Mk_loc_micheline (_, PRIM (_, "AND") nil) => return_opcode AND
+  | Mk_loc_micheline (_, PRIM (_, "XOR") nil) => return_opcode XOR
+  | Mk_loc_micheline (_, PRIM (_, "NOT") nil) => return_opcode NOT
+  | Mk_loc_micheline (_, PRIM (_, "NEG") nil) => return_opcode NEG
+  | Mk_loc_micheline (_, PRIM (_, "ABS") nil) => return_opcode ABS
+  | Mk_loc_micheline (_, PRIM (_, "ISNAT") nil) => return_opcode ISNAT
+  | Mk_loc_micheline (_, PRIM (_, "INT") nil) => return_opcode INT
+  | Mk_loc_micheline (_, PRIM (_, "ADD") nil) => return_opcode ADD
+  | Mk_loc_micheline (_, PRIM (_, "SUB") nil) => return_opcode SUB
+  | Mk_loc_micheline (_, PRIM (_, "MUL") nil) => return_opcode MUL
+  | Mk_loc_micheline (_, PRIM (_, "EDIV") nil) => return_opcode EDIV
+  | Mk_loc_micheline (_, PRIM (_, "LSL") nil) => return_opcode LSL
+  | Mk_loc_micheline (_, PRIM (_, "LSR") nil) => return_opcode LSR
+  | Mk_loc_micheline (_, PRIM (_, "COMPARE") nil) => return_opcode COMPARE
+  | Mk_loc_micheline (_, PRIM (_, "CONCAT") nil) => return_opcode CONCAT
+  | Mk_loc_micheline (_, PRIM (_, "SIZE") nil) => return_opcode SIZE
+  | Mk_loc_micheline (_, PRIM (_, "SLICE") nil) => return_opcode SLICE
+  | Mk_loc_micheline (_, PRIM (_, "PAIR") nil) => return_opcode PAIR
+  | Mk_loc_micheline (_, PRIM (_, "CAR") nil) => return_opcode CAR
+  | Mk_loc_micheline (_, PRIM (_, "CDR") nil) => return_opcode CDR
+  | Mk_loc_micheline (_, PRIM (_, "GET") nil) => return_opcode GET
+  | Mk_loc_micheline (_, PRIM (_, "SOME") nil) => return_opcode SOME
   | Mk_loc_micheline (_, PRIM (_, "NONE") (ty :: nil)) =>
     let! ty := micheline2michelson_type ty in
-    Return (instruction_opcode (NONE ty))
+    return_opcode (NONE ty)
   | Mk_loc_micheline (_, PRIM (_, "LEFT") (ty :: nil)) =>
     let! ty := micheline2michelson_type ty in
-    Return (instruction_opcode (LEFT ty))
+    return_opcode (LEFT ty)
   | Mk_loc_micheline (_, PRIM (_, "RIGHT") (ty :: nil)) =>
     let! ty := micheline2michelson_type ty in
-    Return (instruction_opcode (RIGHT ty))
-  | Mk_loc_micheline (_, PRIM (_, "CONS") nil) => Return (instruction_opcode CONS)
+    return_opcode (RIGHT ty)
+  | Mk_loc_micheline (_, PRIM (_, "CONS") nil) => return_opcode CONS
   | Mk_loc_micheline (_, PRIM (_, "NIL") (ty :: nil)) =>
     let! ty := micheline2michelson_type ty in
-    Return (instruction_opcode (NIL ty))
-  | Mk_loc_micheline (_, PRIM (_, "TRANSFER_TOKENS") nil) => Return (instruction_opcode TRANSFER_TOKENS)
-  | Mk_loc_micheline (_, PRIM (_, "SET_DELEGATE") nil) => Return (instruction_opcode SET_DELEGATE)
-  | Mk_loc_micheline (_, PRIM (_, "BALANCE") nil) => Return (instruction_opcode BALANCE)
-  | Mk_loc_micheline (_, PRIM (_, "ADDRESS") nil) => Return (instruction_opcode ADDRESS)
+    return_opcode (NIL ty)
+  | Mk_loc_micheline (_, PRIM (_, "TRANSFER_TOKENS") nil) =>
+    return_opcode TRANSFER_TOKENS
+  | Mk_loc_micheline (_, PRIM (_, "SET_DELEGATE") nil) => return_opcode SET_DELEGATE
+  | Mk_loc_micheline (_, PRIM (_, "BALANCE") nil) => return_opcode BALANCE
+  | Mk_loc_micheline (_, PRIM (_, "ADDRESS") nil) => return_opcode ADDRESS
   | Mk_loc_micheline (_, PRIM (_, "CONTRACT") (ty :: nil)) =>
     let! ty := micheline2michelson_type ty in
-    Return (instruction_opcode (CONTRACT None ty))
-  | Mk_loc_micheline (_, PRIM (_, "SOURCE") nil) => Return (instruction_opcode SOURCE)
-  | Mk_loc_micheline (_, PRIM (_, "SENDER") nil) => Return (instruction_opcode SENDER)
-  | Mk_loc_micheline (_, PRIM (_, "SELF") nil) => Return (SELF None)
-  | Mk_loc_micheline (_, PRIM (_, "AMOUNT") nil) => Return (instruction_opcode AMOUNT)
-  | Mk_loc_micheline (_, PRIM (_, "IMPLICIT_ACCOUNT") nil) => Return (instruction_opcode IMPLICIT_ACCOUNT)
-  | Mk_loc_micheline (_, PRIM (_, "NOW") nil) => Return (instruction_opcode NOW)
-  | Mk_loc_micheline (_, PRIM (_, "PACK") nil) => Return (instruction_opcode PACK)
+    return_opcode (CONTRACT None ty)
+  | Mk_loc_micheline (_, PRIM (_, "SOURCE") nil) => return_opcode SOURCE
+  | Mk_loc_micheline (_, PRIM (_, "SENDER") nil) => return_opcode SENDER
+  | Mk_loc_micheline (_, PRIM (_, "SELF") nil) => return_instruction (SELF None)
+  | Mk_loc_micheline (_, PRIM (_, "AMOUNT") nil) => return_opcode AMOUNT
+  | Mk_loc_micheline (_, PRIM (_, "IMPLICIT_ACCOUNT") nil) => return_opcode IMPLICIT_ACCOUNT
+  | Mk_loc_micheline (_, PRIM (_, "NOW") nil) => return_opcode NOW
+  | Mk_loc_micheline (_, PRIM (_, "PACK") nil) => return_opcode PACK
   | Mk_loc_micheline (_, PRIM (_, "UNPACK") (ty :: nil)) =>
     let! ty := micheline2michelson_type ty in
-    Return (instruction_opcode (UNPACK ty))
-  | Mk_loc_micheline (_, PRIM (_, "HASH_KEY") nil) => Return (instruction_opcode HASH_KEY)
-  | Mk_loc_micheline (_, PRIM (_, "BLAKE2B") nil) => Return (instruction_opcode BLAKE2B)
-  | Mk_loc_micheline (_, PRIM (_, "SHA256") nil) => Return (instruction_opcode SHA256)
-  | Mk_loc_micheline (_, PRIM (_, "SHA512") nil) => Return (instruction_opcode SHA512)
-  | Mk_loc_micheline (_, PRIM (_, "CHECK_SIGNATURE") nil) => Return (instruction_opcode CHECK_SIGNATURE)
-  | Mk_loc_micheline (_, PRIM (_, "MEM") nil) => Return (instruction_opcode MEM)
-  | Mk_loc_micheline (_, PRIM (_, "UPDATE") nil) => Return (instruction_opcode UPDATE)
-  | Mk_loc_micheline (_, PRIM (_, "CHAIN_ID") nil) => Return (instruction_opcode CHAIN_ID)
+    return_opcode (UNPACK ty)
+  | Mk_loc_micheline (_, PRIM (_, "HASH_KEY") nil) => return_opcode HASH_KEY
+  | Mk_loc_micheline (_, PRIM (_, "BLAKE2B") nil) => return_opcode BLAKE2B
+  | Mk_loc_micheline (_, PRIM (_, "SHA256") nil) => return_opcode SHA256
+  | Mk_loc_micheline (_, PRIM (_, "SHA512") nil) => return_opcode SHA512
+  | Mk_loc_micheline (_, PRIM (_, "CHECK_SIGNATURE") nil) =>
+    return_opcode CHECK_SIGNATURE
+  | Mk_loc_micheline (_, PRIM (_, "MEM") nil) => return_opcode MEM
+  | Mk_loc_micheline (_, PRIM (_, "UPDATE") nil) => return_opcode UPDATE
+  | Mk_loc_micheline (_, PRIM (_, "CHAIN_ID") nil) => return_opcode CHAIN_ID
   | Mk_loc_micheline (_, PRIM (_, "LOOP") (i :: nil)) =>
     let! i := micheline2michelson_instruction i in
-    Return (LOOP i)
+    return_instruction (LOOP i)
   | Mk_loc_micheline (_, PRIM (_, "LOOP_LEFT") (i :: nil)) =>
     let! i := micheline2michelson_instruction i in
-    Return (LOOP_LEFT i)
+    return_instruction (LOOP_LEFT i)
   | Mk_loc_micheline (_, PRIM (_, "DIP") (i :: nil)) =>
     let! i := micheline2michelson_instruction i in
-    Return (DIP 1 i)
+    return_instruction (DIP 1 i)
   | Mk_loc_micheline (_, PRIM (_, "DIP") (Mk_loc_micheline (_, NUMBER n) :: i :: nil)) =>
     let! i := micheline2michelson_instruction i in
-    Return (DIP (BinInt.Z.to_nat n) i)
+    return_instruction (DIP (BinInt.Z.to_nat n) i)
   | Mk_loc_micheline (_, PRIM (_, "DIG") (Mk_loc_micheline (_, NUMBER n) :: nil)) =>
-    Return (instruction_opcode (DIG (BinInt.Z.to_nat n)))
+    return_opcode (DIG (BinInt.Z.to_nat n))
   | Mk_loc_micheline (_, PRIM (_, "DUG") (Mk_loc_micheline (_, NUMBER n) :: nil)) =>
-    Return (instruction_opcode (DUG (BinInt.Z.to_nat n)))
+    return_opcode (DUG (BinInt.Z.to_nat n))
   | Mk_loc_micheline (_, PRIM (_, "ITER") (i :: nil)) =>
     let! i := micheline2michelson_instruction i in
-    Return (ITER i)
+    return_instruction (ITER i)
   | Mk_loc_micheline (_, PRIM (_, "MAP") (i :: nil)) =>
     let! i := micheline2michelson_instruction i in
-    Return (MAP i)
+    return_instruction (MAP i)
   | Mk_loc_micheline
       (_, PRIM (_, "CREATE_CONTRACT")
                (Mk_loc_micheline
@@ -489,7 +494,7 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
     let! i := micheline2michelson_instruction i in
     let! sty := micheline2michelson_type storage_ty in
     let! pty := micheline2michelson_type params_ty in
-    Return (CREATE_CONTRACT sty pty None i)
+    return_instruction (CREATE_CONTRACT sty pty None i)
   | Mk_loc_micheline
       (_, PRIM (_, "CREATE_CONTRACT")
                (Mk_loc_micheline
@@ -501,39 +506,39 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
     let! i := micheline2michelson_instruction i in
     let! sty := micheline2michelson_type storage_ty in
     let! pty := micheline2michelson_type params_ty in
-    Return (CREATE_CONTRACT sty pty None i)
+    return_instruction (CREATE_CONTRACT sty pty None i)
   | Mk_loc_micheline (_, PRIM (_, "EMPTY_SET") (cty :: nil)) =>
     let! cty := micheline2michelson_ctype cty in
-    Return (instruction_opcode (EMPTY_SET cty))
+    return_opcode (EMPTY_SET cty)
   | Mk_loc_micheline (_, PRIM (_, "EMPTY_MAP") (kty :: vty :: nil)) =>
     let! kty := micheline2michelson_ctype kty in
     let! vty := micheline2michelson_type vty in
-    Return (instruction_opcode (EMPTY_MAP kty vty))
+    return_opcode (EMPTY_MAP kty vty)
   | Mk_loc_micheline (_, PRIM (_, "EMPTY_BIG_MAP") (kty :: vty :: nil)) =>
     let! kty := micheline2michelson_ctype kty in
     let! vty := micheline2michelson_type vty in
-    Return (instruction_opcode (EMPTY_BIG_MAP kty vty))
+    return_opcode (EMPTY_BIG_MAP kty vty)
   | Mk_loc_micheline (_, PRIM (_, "IF") (i1 :: i2 :: nil)) =>
     let! i1 := micheline2michelson_instruction i1 in
     let! i2 := micheline2michelson_instruction i2 in
-    Return (IF_ IF_bool i1 i2)
+    return_instruction (IF_ IF_bool i1 i2)
   | Mk_loc_micheline (_, PRIM (_, "IF_NONE") (i1 :: i2 :: nil)) =>
     let! i1 := micheline2michelson_instruction i1 in
     let! i2 := micheline2michelson_instruction i2 in
-    Return (IF_NONE i1 i2)
+    return_instruction (IF_NONE i1 i2)
   | Mk_loc_micheline (_, PRIM (_, "IF_LEFT") (i1 :: i2 :: nil)) =>
     let! i1 := micheline2michelson_instruction i1 in
     let! i2 := micheline2michelson_instruction i2 in
-    Return (IF_LEFT i1 i2)
+    return_instruction (IF_LEFT i1 i2)
   | Mk_loc_micheline (_, PRIM (_, "IF_CONS") (i1 :: i2 :: nil)) =>
     let! i1 := micheline2michelson_instruction i1 in
     let! i2 := micheline2michelson_instruction i2 in
-    Return (IF_CONS i1 i2)
+    return_instruction (IF_CONS i1 i2)
   | Mk_loc_micheline (_, PRIM (_, "LAMBDA") (a :: b :: i :: nil)) =>
     let! a := micheline2michelson_type a in
     let! b := micheline2michelson_type b in
     let! i := micheline2michelson_instruction i in
-    Return (LAMBDA a b i)
+    return_instruction (LAMBDA a b i)
   | Mk_loc_micheline (_, PRIM (_, "PUSH") (a :: v :: nil)) =>
     let! a := micheline2michelson_type a in
     let! v :=
@@ -543,7 +548,7 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
         Return (Instruction i)
       | _ => micheline2michelson_data v
       end in
-    Return (PUSH a v)
+    return_instruction (PUSH a v)
 
   | Mk_loc_micheline (_, PRIM (_, "RENAME") _) => Return NOOP
   | Mk_loc_micheline (_, PRIM (_, "CAST") _) => Return NOOP
@@ -551,51 +556,51 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
 
   (* Macros *)
   | Mk_loc_micheline ((b, e), PRIM (_, "FAIL") nil) => Return FAIL
-  | Mk_loc_micheline ((b, e), PRIM (_, "ASSERT") nil) => Return ASSERT
-  | Mk_loc_micheline ((b, e), PRIM (_, "ASSERT_NONE") nil) => Return ASSERT_NONE
-  | Mk_loc_micheline ((b, e), PRIM (_, "ASSERT_SOME") nil) => Return ASSERT_SOME
-  | Mk_loc_micheline ((b, e), PRIM (_, "ASSERT_LEFT") nil) => Return ASSERT_LEFT
-  | Mk_loc_micheline ((b, e), PRIM (_, "ASSERT_RIGHT") nil) => Return ASSERT_RIGHT
+  | Mk_loc_micheline ((b, e), PRIM (_, "ASSERT") nil) => return_instruction ASSERT
+  | Mk_loc_micheline ((b, e), PRIM (_, "ASSERT_NONE") nil) => return_instruction ASSERT_NONE
+  | Mk_loc_micheline ((b, e), PRIM (_, "ASSERT_SOME") nil) => return_instruction ASSERT_SOME
+  | Mk_loc_micheline ((b, e), PRIM (_, "ASSERT_LEFT") nil) => return_instruction ASSERT_LEFT
+  | Mk_loc_micheline ((b, e), PRIM (_, "ASSERT_RIGHT") nil) => return_instruction ASSERT_RIGHT
 
   | Mk_loc_micheline (_, PRIM (_, "IF_SOME") (i1 :: i2 :: nil)) =>
     let! i1 := micheline2michelson_instruction i1 in
     let! i2 := micheline2michelson_instruction i2 in
-    Return (IF_SOME i1 i2)
+    return_instruction (IF_SOME i1 i2)
   | Mk_loc_micheline (_, PRIM (_, "IF_RIGHT") (i1 :: i2 :: nil)) =>
     let! i1 := micheline2michelson_instruction i1 in
     let! i2 := micheline2michelson_instruction i2 in
-    Return (IF_RIGHT i1 i2)
+    return_instruction (IF_RIGHT i1 i2)
   | Mk_loc_micheline (_, PRIM (_, "IF_NIL") (i1 :: i2 :: nil)) =>
     let! i1 := micheline2michelson_instruction i1 in
     let! i2 := micheline2michelson_instruction i2 in
-    Return (IF_NIL i1 i2)
+    return_instruction (IF_NIL i1 i2)
 
   | Mk_loc_micheline ((b, e), PRIM (_, String "C" (String "M" (String "P" s))) nil) =>
     let! op := op_of_string s b e in
-    Return (COMPARE ;; op)
+    Return (COMPARE ;; op ;; NOOP)
   | Mk_loc_micheline ((b, e), PRIM (_,
        String "I" (String "F" (String "C" (String "M" (String "P" s))))) (i1 :: i2 :: nil)) =>
     let! i1 := micheline2michelson_instruction i1 in
     let! i2 := micheline2michelson_instruction i2 in
     let! op := op_of_string s b e in
-    Return (COMPARE ;; op ;; IF_ IF_bool i1 i2)
+    Return (COMPARE ;; op ;; IF_ IF_bool i1 i2 ;; NOOP)
   | Mk_loc_micheline ((b, e), PRIM (_,
        String "I" (String "F" s)) (i1 :: i2 :: nil)) =>
     let! i1 := micheline2michelson_instruction i1 in
     let! i2 := micheline2michelson_instruction i2 in
     let! op := op_of_string s b e in
-    Return (op ;; IF_ IF_bool i1 i2)
+    Return (op ;; IF_ IF_bool i1 i2 ;; NOOP)
   | Mk_loc_micheline ((b, e), PRIM (_,
       String "A" (String "S" (String "S" (String "E" (String "R" (String "T"
       (String "_" (String "C" (String "M" (String "P" s)))))))))) nil) =>
     let! op := op_of_string s b e in
-    Return (COMPARE;; op ;; IF_ IF_bool NOOP FAIL)
+    Return (COMPARE ;; op ;; IF_ IF_bool NOOP FAIL ;; NOOP)
 
   | Mk_loc_micheline ((b, e), PRIM (_,
       String "A" (String "S" (String "S" (String "E" (String "R" (String "T"
       (String "_" s))))))) nil) =>
     let! op := op_of_string s b e in
-    Return (op ;; IF_ IF_bool NOOP FAIL)
+    Return (op ;; IF_ IF_bool NOOP FAIL ;; NOOP)
 
   | Mk_loc_micheline ((b, e), PRIM (_, "CR") nil) =>
     Failed _ (Expansion_prim b e "CR")
@@ -667,7 +672,7 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
                      end in
     if is_diip s then
       let! a := micheline2michelson_instruction a in
-      Return (DIPn (String.length s) a)
+      return_instruction (DIP (String.length s) a)
     else Failed _ (Expansion_prim b e (String "D" (String "I" s)))
   | Mk_loc_micheline ((b, e), PRIM (_, "DUP") (Mk_loc_micheline (_, NUMBER n) :: nil)) =>
     match BinInt.Z.to_nat n with
@@ -705,13 +710,13 @@ Record untyped_michelson_file :=
   Mk_untyped_michelson_file
     { parameter : type;
       storage : type;
-      code : instruction }.
+      code : instruction_seq }.
 
 Record untyped_michelson_file_opt :=
   Mk_untyped_michelson_file_opt
     { parameter_opt : Datatypes.option type;
       storage_opt : Datatypes.option type;
-      code_opt : Datatypes.option instruction }.
+      code_opt : Datatypes.option instruction_seq }.
 
 Definition read_parameter (ty : type) (f : untyped_michelson_file_opt) :=
   match f.(parameter_opt) with
@@ -729,7 +734,7 @@ Definition read_storage (ty : type) (f : untyped_michelson_file_opt) :=
   | Some _ => Failed _ Parsing
   end.
 
-Definition read_code (c : instruction) (f : untyped_michelson_file_opt) :=
+Definition read_code (c : instruction_seq) (f : untyped_michelson_file_opt) :=
   match f.(code_opt) with
   | None => Return {| parameter_opt := f.(parameter_opt);
                         storage_opt := f.(storage_opt);
