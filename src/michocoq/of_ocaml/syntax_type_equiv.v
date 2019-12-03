@@ -1,34 +1,77 @@
+Require Import Coq.Lists.List.
 Require of_ocaml.script_typed_ir_ml syntax_type.
+
+Import ListNotations.
+
+Module Option.
+  Definition bind {A B : Type}
+    (x : Datatypes.option A) (f : A -> Datatypes.option B)
+    : Datatypes.option B :=
+    match x with
+    | Some x => f x
+    | None => None
+    end.
+
+  (** Notation for the bind with a typed answer. *)
+  Notation "'let?' x : A ':=' X 'in' Y" :=
+    (bind X (fun (x : A) => Y))
+    (at level 200, x pattern, X at level 100, A at level 200, Y at level 200).
+
+  (** Notation for the bind. *)
+  Notation "'let?' x ':=' X 'in' Y" :=
+    (bind X (fun x => Y))
+    (at level 200, x pattern, X at level 100, Y at level 200).
+
+  Definition true_or_None (A : Datatypes.option Prop) : Prop :=
+    match A with
+    | Some A => A
+    | None => True
+    end.
+
+  Lemma true_or_None_case_eq
+    {T : Type} {e1 : Datatypes.option T} {e2 : T -> Prop}
+    (A : true_or_None (let? x := e1 in Some (e2 x)))
+    {x : T}
+    (H : e1 = Some x)
+    : e2 x.
+    rewrite H in A; simpl in A.
+    exact A.
+  Qed.
+End Option.
+
+Import Option.
 
 Module comparable.
   Import script_typed_ir_ml syntax_type.
 
   Definition ocaml_leaf_to_coq {A Kind : Type}
     (comparable : script_typed_ir_ml.comparable_struct A Kind)
-    : syntax_type.simple_comparable_type :=
+    : Datatypes.option syntax_type.simple_comparable_type :=
     match comparable with
-    | Int_key _ => int
-    | Nat_key _ => nat
-    | String_key _ => string
-    | Bytes_key _ => bytes
-    | Mutez_key _ => mutez
-    | Bool_key _ => bool
-    | Key_hash_key _ => key_hash
-    | Timestamp_key _ => timestamp
-    | Address_key _ => address
+    | Int_key _ => Some int
+    | Nat_key _ => Some nat
+    | String_key _ => Some string
+    | Bytes_key _ => Some bytes
+    | Mutez_key _ => Some mutez
+    | Bool_key _ => Some bool
+    | Key_hash_key _ => Some key_hash
+    | Timestamp_key _ => Some timestamp
+    | Address_key _ => Some address
     (* This case should not be used with GADTs *)
-    | Pair_key _ _ _ => bool
+    | Pair_key _ _ _ => None
     end.
 
   Fixpoint ocaml_to_coq {A Kind : Type}
     (comparable : script_typed_ir_ml.comparable_struct A Kind)
-    : syntax_type.comparable_type :=
+    : Datatypes.option syntax_type.comparable_type :=
     match comparable with
     | Pair_key (comparable_a, _) (comparable_b, _) _ =>
-      Cpair
-        (ocaml_leaf_to_coq comparable_a)
-        (ocaml_to_coq comparable_b)
-    | _ => Comparable_type_simple (ocaml_leaf_to_coq comparable)
+      let? comparable_a' := ocaml_leaf_to_coq comparable_a in
+      let? comparable_b' := ocaml_to_coq comparable_b in
+      Some (Cpair comparable_a' comparable_b')
+    | _ =>
+      let? comparable' := ocaml_leaf_to_coq comparable in
+      Some (Comparable_type_simple comparable')
     end.
 
   Definition coq_simple_to_ocaml_typ
@@ -79,12 +122,6 @@ Module comparable.
       coq_simple_to_ocaml_typ comparable_a * coq_to_ocaml_typ comparable_b
     end.
 
-  Definition coq_to_ocaml_kind (comparable : syntax_type.comparable_type) : Type :=
-    match comparable with
-    | Comparable_type_simple _ => leaf
-    | Cpair _ _ => comb
-    end.
-
   Fixpoint coq_to_ocaml (comparable : syntax_type.comparable_type)
     : script_typed_ir_ml.comparable_ty (coq_to_ocaml_typ comparable) :=
     match comparable with
@@ -99,17 +136,122 @@ Module comparable.
 
   Fixpoint coq_simple_to_ocaml_to_coq_eq {Kind : Type}
     (comparable : syntax_type.simple_comparable_type)
-    : ocaml_leaf_to_coq (coq_simple_to_ocaml Kind comparable) = comparable.
+    : ocaml_leaf_to_coq (coq_simple_to_ocaml Kind comparable) = Some comparable.
     destruct comparable; reflexivity.
   Qed.
 
   Fixpoint coq_to_ocaml_to_coq_eq (comparable : syntax_type.comparable_type)
-    : ocaml_to_coq (coq_to_ocaml comparable) = comparable.
+    : ocaml_to_coq (coq_to_ocaml comparable) = Some comparable.
     destruct comparable as [simple | simple comparable]; simpl.
     - destruct simple; reflexivity.
     - rewrite coq_simple_to_ocaml_to_coq_eq.
       rewrite coq_to_ocaml_to_coq_eq.
       reflexivity.
+  Qed.
+
+  Definition ocaml_leaf_to_coq_to_ocaml_typ_eq {A : Type}
+    (comparable : comparable_struct A leaf)
+    : true_or_None (
+        let? comparable' := ocaml_leaf_to_coq comparable in
+        Some (coq_simple_to_ocaml_typ comparable' = A)
+      ).
+    destruct comparable; simpl; reflexivity.
+  Qed.
+
+  Fixpoint ocaml_to_coq_to_ocaml_typ_eq {A Kind : Type}
+    (comparable : script_typed_ir_ml.comparable_struct A Kind)
+    : true_or_None (
+        let? comparable' := ocaml_to_coq comparable in
+        Some (coq_to_ocaml_typ comparable' = A)
+      ).
+    destruct comparable; simpl; try reflexivity.
+    destruct p; destruct p0; simpl.
+    case_eq (ocaml_leaf_to_coq c); simpl; trivial.
+    intros s Hs.
+    case_eq (ocaml_to_coq c0); simpl; trivial.
+    intros c1 Hc1.
+    rewrite (true_or_None_case_eq (ocaml_leaf_to_coq_to_ocaml_typ_eq c) Hs).
+    rewrite (true_or_None_case_eq (ocaml_to_coq_to_ocaml_typ_eq _ _ c0) Hc1).
+    reflexivity.
+  Qed.
+
+  Module eq.
+    Import script_typed_ir_ml.
+
+    Inductive t :
+      forall {A B : Type} (Kind_A Kind_B : Type),
+        script_typed_ir_ml.comparable_struct A Kind_A ->
+        script_typed_ir_ml.comparable_struct B Kind_B ->
+        Prop :=
+    | Int :
+      forall Kind_A Kind_B annot_a annot_b,
+      t Kind_A Kind_B (Int_key annot_a) (Int_key annot_b)
+    | Nat :
+      forall Kind_A Kind_B annot_a annot_b,
+      t Kind_A Kind_B (Nat_key annot_a) (Nat_key annot_b)
+    | String_key :
+      forall Kind_A Kind_B annot_a annot_b,
+      t Kind_A Kind_B (String_key annot_a) (String_key annot_b)
+    | Bytes_key :
+      forall Kind_A Kind_B annot_a annot_b,
+      t Kind_A Kind_B (Bytes_key annot_a) (Bytes_key annot_b)
+    | Mutez_key :
+      forall Kind_A Kind_B annot_a annot_b,
+      t Kind_A Kind_B (Mutez_key annot_a) (Mutez_key annot_b)
+    | Bool_key :
+      forall Kind_A Kind_B annot_a annot_b,
+      t Kind_A Kind_B (Bool_key annot_a) (Bool_key annot_b)
+    | Key_hash_key :
+      forall Kind_A Kind_B annot_a annot_b,
+      t Kind_A Kind_B (Key_hash_key annot_a) (Key_hash_key annot_b)
+    | Timestamp_key :
+      forall Kind_A Kind_B annot_a annot_b,
+      t Kind_A Kind_B (Timestamp_key annot_a) (Timestamp_key annot_b)
+    | Address_key :
+      forall Kind_A Kind_B annot_a annot_b,
+      t Kind_A Kind_B (Address_key annot_a) (Address_key annot_b)
+    | Pair :
+      forall {A_A A_B B_A B_B : Type},
+      forall Kind_A Kind_B,
+      forall annot_a_a annot_a_b annot_a annot_b_a annot_b_b annot_b,
+      forall
+        (comparable_a_a : script_typed_ir_ml.comparable_struct A_A leaf)
+        (comparable_a_b : script_typed_ir_ml.comparable_struct A_B Kind_A)
+        (comparable_b_a : script_typed_ir_ml.comparable_struct B_A leaf)
+        (comparable_b_b : script_typed_ir_ml.comparable_struct B_B Kind_B),
+      t leaf leaf comparable_a_a comparable_b_a ->
+      t Kind_A Kind_B comparable_a_b comparable_b_b ->
+      t
+        comb comb
+        (Pair_key (comparable_a_a, annot_a_a) (comparable_a_b, annot_a_b) annot_a)
+        (Pair_key (comparable_b_a, annot_b_a) (comparable_b_b, annot_b_b) annot_b).
+    Arguments t {_ _ _ _} _ _.
+  End eq.
+
+  Definition ocaml_leaf_to_coq_to_ocaml_eq {A Kind : Type}
+    (comparable : script_typed_ir_ml.comparable_struct A Kind)
+    : true_or_None (
+        let? comparable' := ocaml_leaf_to_coq comparable in
+        Some (eq.t (coq_simple_to_ocaml Kind comparable') comparable)
+      ).
+    destruct comparable; simpl; constructor.
+  Qed.
+
+  Fixpoint ocaml_to_coq_to_ocaml_eq {A Kind : Type}
+    (comparable : script_typed_ir_ml.comparable_struct A Kind)
+    : true_or_None (
+        let? comparable' := ocaml_to_coq comparable in
+        Some (eq.t (coq_to_ocaml comparable') comparable)
+      ).
+    destruct comparable; simpl; try constructor.
+    destruct p; destruct p0; simpl.
+    case_eq (ocaml_leaf_to_coq c); simpl; trivial.
+    intros s Hs.
+    case_eq (ocaml_to_coq c0); simpl; trivial.
+    intros c1 Hc1.
+    constructor.
+    - apply (true_or_None_case_eq (ocaml_leaf_to_coq_to_ocaml_eq c) Hs).
+    - apply (true_or_None_case_eq (ocaml_to_coq_to_ocaml_eq _ _ c0) Hc1).
   Qed.
 End comparable.
 
@@ -117,33 +259,47 @@ Module typ.
   Import script_typed_ir_ml syntax_type.
 
   Fixpoint ocaml_to_coq {ty : Type} (typ : script_typed_ir_ml.Ty ty)
-    : syntax_type.type :=
+    : Datatypes.option syntax_type.type :=
     match typ with
-    | Unit_t _ => unit
-    | Int_t _ => Comparable_type int
-    | Nat_t _ => Comparable_type nat
-    | Signature_t _ => signature
-    | String_t _ => Comparable_type string
-    | Bytes_t _ => Comparable_type bytes
-    | Mutez_t _ => Comparable_type mutez
-    | Key_hash_t _ => Comparable_type key_hash
-    | Key_t _ => key
-    | Timestamp_t _ => Comparable_type timestamp
-    | Address_t _ => Comparable_type address
-    | Bool_t _ => Comparable_type bool
+    | Unit_t _ => Some (unit)
+    | Int_t _ => Some (Comparable_type int)
+    | Nat_t _ => Some (Comparable_type nat)
+    | Signature_t _ => Some (signature)
+    | String_t _ => Some (Comparable_type string)
+    | Bytes_t _ => Some (Comparable_type bytes)
+    | Mutez_t _ => Some (Comparable_type mutez)
+    | Key_hash_t _ => Some (Comparable_type key_hash)
+    | Key_t _ => Some (key)
+    | Timestamp_t _ => Some (Comparable_type timestamp)
+    | Address_t _ => Some (Comparable_type address)
+    | Bool_t _ => Some (Comparable_type bool)
     | Pair_t (typ_a, _, _) (typ_b, _, _) _ _ =>
-      pair (ocaml_to_coq typ_a) (ocaml_to_coq typ_b)
+      let? typ_a' := ocaml_to_coq typ_a in
+      let? typ_b' := ocaml_to_coq typ_b in
+      Some (pair typ_a' typ_b')
     | Union_t (typ_a, _) (typ_b, _) _ _ =>
-      or (ocaml_to_coq typ_a) (ocaml_to_coq typ_b)
+      let? typ_a' := ocaml_to_coq typ_a in
+      let? typ_b' := ocaml_to_coq typ_b in
+      Some (or typ_a' typ_b')
     | Lambda_t typ_arg typ_ret _ =>
-      lambda (ocaml_to_coq typ_arg) (ocaml_to_coq typ_ret)
-    | Option_t typ _ _ => option (ocaml_to_coq typ)
-    | List_t typ _ _ => list (ocaml_to_coq typ)
-    | Set_t typ_key _ => set (comparable.ocaml_to_coq typ_key)
+      let? typ_arg' := ocaml_to_coq typ_arg in
+      let? typ_ret' := ocaml_to_coq typ_ret in
+      Some (lambda typ_arg' typ_ret')
+    | Option_t typ _ _ =>
+      let? typ' := ocaml_to_coq typ in
+      Some (option typ')
+    | List_t typ _ _ =>
+      let? typ' := ocaml_to_coq typ in
+      Some (list typ')
+    | Set_t typ_key _ =>
+      let? typ_key' := comparable.ocaml_to_coq typ_key in
+      Some (set typ_key')
     | Map_t typ_key typ _ _ =>
-      map (comparable.ocaml_to_coq typ_key) (ocaml_to_coq typ)
-    | Operation_t _ => operation
-    | Chain_id_t _ => chain_id
+      let? typ_key' := comparable.ocaml_to_coq typ_key in
+      let? typ' := ocaml_to_coq typ in
+      Some (map typ_key' typ')
+    | Operation_t _ => Some operation
+    | Chain_id_t _ => Some chain_id
     end.
 
   Fixpoint coq_to_ocaml_typ (typ : syntax_type.type) : Type :=
@@ -176,6 +332,16 @@ Module typ.
     | chain_id => Tezos_protocol_environment_alpha.Environment.Chain_id.t
     end.
 
+  Fixpoint coq_comparable_to_ocaml_typ_eq
+    (comparable : syntax_type.comparable_type)
+    : comparable.coq_to_ocaml_typ comparable =
+      coq_to_ocaml_typ (syntax_type.comparable_type_to_type comparable).
+    destruct comparable; simpl.
+    - reflexivity.
+    - rewrite coq_comparable_to_ocaml_typ_eq.
+      reflexivity.
+  Qed.
+
   Fixpoint coq_to_ocaml (typ : syntax_type.type)
     : Datatypes.option (script_typed_ir_ml.Ty (coq_to_ocaml_typ typ)) :=
     match typ with
@@ -199,85 +365,99 @@ Module typ.
     | unit => Some (Unit_t None)
     | signature => Some (Signature_t None)
     | option typ =>
-      match coq_to_ocaml typ with
-      | Some typ => Some (Option_t typ None false)
-      | _ => None
-      end
+      let? typ' := coq_to_ocaml typ in
+      Some (Option_t typ' None false)
     | list typ =>
-      match coq_to_ocaml typ with
-      | Some typ => Some (List_t typ None false)
-      | _ => None
-      end
+      let? typ' := coq_to_ocaml typ in
+      Some (List_t typ' None false)
     | set typ_key =>
-      Some (Set_t (comparable.coq_to_ocaml typ_key) None)
+      let typ_key' := comparable.coq_to_ocaml typ_key in
+      Some (Set_t typ_key' None)
     | operation => Some (Operation_t None)
     | pair typ_a typ_b =>
-      match (coq_to_ocaml typ_a, coq_to_ocaml typ_b) with
-      | (Some typ_a, Some typ_b) =>
-        Some (Pair_t
-          (typ_a, None, None)
-          (typ_b, None, None)
-          None
-          false
-        )
-      | _ => None
-      end
+      let? typ_a' := coq_to_ocaml typ_a in
+      let? typ_b' := coq_to_ocaml typ_b in
+      Some (Pair_t
+        (typ_a', None, None)
+        (typ_b', None, None)
+        None
+        false
+      )
     | or typ_a typ_b =>
-      match (coq_to_ocaml typ_a, coq_to_ocaml typ_b) with
-      | (Some typ_a, Some typ_b) =>
-        Some (Union_t
-          (typ_a, None)
-          (typ_b, None)
-          None
-          false
-        )
-      | _ => None
-      end
+      let? typ_a' := coq_to_ocaml typ_a in
+      let? typ_b' := coq_to_ocaml typ_b in
+      Some (Union_t
+        (typ_a', None)
+        (typ_b', None)
+        None
+        false
+      )
     | lambda typ_arg typ_ret =>
-      match (coq_to_ocaml typ_arg, coq_to_ocaml typ_ret) with
-      | (Some typ_arg, Some typ_ret) =>
-        Some (Lambda_t typ_arg typ_ret None)
-      | _ => None
-      end
+      let? typ_arg' := coq_to_ocaml typ_arg in
+      let? typ_ret' := coq_to_ocaml typ_ret in
+      Some (Lambda_t typ_arg' typ_ret' None)
     | map typ_key typ =>
-      match coq_to_ocaml typ with
-      | Some typ =>
-        Some (Map_t (comparable.coq_to_ocaml typ_key) typ None false)
-      | _ => None
-      end
+      let typ_key' := comparable.coq_to_ocaml typ_key in
+      let? typ' := coq_to_ocaml typ in
+      Some (Map_t typ_key' typ' None false)
     | chain_id => Some (Chain_id_t None)
     | _ => None
     end.
 
+  Ltac case_eq_rewrite_in_H e e' He H:=
+    case_eq e; simpl; trivial;
+    intros e' He;
+    rewrite He in H; simpl in H;
+    clear He.
+
   Fixpoint coq_to_ocaml_to_coq_eq (typ : syntax_type.type)
-    : match coq_to_ocaml typ with
-      | Some typ' => ocaml_to_coq typ' = typ
-      | _ => True
-      end.
+    : true_or_None (
+        let? typ' := coq_to_ocaml typ in
+        let? typ'' := ocaml_to_coq typ' in
+        Some (typ'' = typ)
+      ).
     destruct typ; simpl;
       try reflexivity;
-      (* One recursive call *)
+      (* one recursive case *)
       try (
-        case_eq (coq_to_ocaml typ); trivial;
-        intros s Heq;
-        set (Heq' := coq_to_ocaml_to_coq_eq typ);
-        rewrite Heq in Heq'; simpl;
-        rewrite Heq'; trivial
+        assert (H_ind := coq_to_ocaml_to_coq_eq typ);
+        case_eq_rewrite_in_H (coq_to_ocaml typ) typ' Htyp H_ind;
+        case_eq_rewrite_in_H (ocaml_to_coq typ') typ'' Htyp' H_ind;
+        congruence
       );
-      (* Two recusive calls *)
+      (* two recursive cases *)
       try (
-        case_eq (coq_to_ocaml typ1); trivial;
-        intros ty1' Heq1;
-        case_eq (coq_to_ocaml typ2); trivial;
-        intros ty2' Heq2;
-        set (Heq1' := coq_to_ocaml_to_coq_eq typ1);
-        rewrite Heq1 in Heq1';
-        set (Heq2' := coq_to_ocaml_to_coq_eq typ2);
-        rewrite Heq2 in Heq2';
-        simpl; rewrite Heq1'; rewrite Heq2'; trivial
+        assert (H_ind_typ1 := coq_to_ocaml_to_coq_eq typ1);
+        assert (H_ind_typ2 := coq_to_ocaml_to_coq_eq typ2);
+        case_eq_rewrite_in_H (coq_to_ocaml typ1) typ1' Htyp1 H_ind_typ1;
+        case_eq_rewrite_in_H (coq_to_ocaml typ2) typ2' Htyp2 H_ind_typ2;
+        case_eq_rewrite_in_H (ocaml_to_coq typ1') typ1'' Htyp1' H_ind_typ1;
+        case_eq_rewrite_in_H (ocaml_to_coq typ2') typ2'' Htyp2' H_ind_typ2;
+        congruence
       ).
     - destruct s; simpl; reflexivity.
-    - now rewrite comparable.coq_to_ocaml_to_coq_eq.
-    - now rewrite comparable.coq_to_ocaml_to_coq_eq.
+    - rewrite comparable.coq_to_ocaml_to_coq_eq; simpl.
+      reflexivity.
+    - assert (H_ind_typ := coq_to_ocaml_to_coq_eq typ).
+      case_eq_rewrite_in_H (coq_to_ocaml typ) typ' Htyp H_ind_typ.
+      rewrite comparable.coq_to_ocaml_to_coq_eq; simpl.
+      case_eq_rewrite_in_H (ocaml_to_coq typ') typ'' Htyp' H_ind_typ.
+      congruence.
   Qed.
+
+  Fixpoint coq_to_ocaml_typs (typs : Datatypes.list syntax_type.type) : Type :=
+    match typs with
+    | [] => Datatypes.unit
+    | typ :: typs => coq_to_ocaml_typ typ * coq_to_ocaml_typs typs
+    end.
+
+  Fixpoint coq_to_ocamls (typs : Datatypes.list syntax_type.type)
+    : Datatypes.option (script_typed_ir_ml.stack_ty (coq_to_ocaml_typs typs)) :=
+    match typs with
+    | [] => Some Empty_t
+    | typ :: typs =>
+      let? typ' := coq_to_ocaml typ in
+      let? typs' := coq_to_ocamls typs in
+      Some (Item_t typ' typs' None)
+    end.
 End typ.

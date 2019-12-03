@@ -33,8 +33,11 @@ Module Tezos_raw_protocol_alpha.
 
     Module Script_int.
       Parameter n : Type.
+      Parameter n_sample : n.
       Parameter num : Type -> Type.
+      Parameter num_make : forall {A : Type}, A -> num A.
       Parameter z : Type.
+      Parameter z_sample : z.
     End Script_int.
 
     Module Script_timestamp.
