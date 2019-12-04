@@ -1,15 +1,11 @@
 Require Import String ZArith.
 Require micheline_lexer micheline_parser.
 Require micheline2michelson typer.
-Require syntax.
+Require Import syntax.
 Require Import syntax_type.
 Require dummy_contract_context.
 Require error_pp.
 Import error.Notations.
-
-Module syntax := syntax.Syntax(dummy_contract_context).
-Module typer := typer.Typer(dummy_contract_context).
-Import typer syntax.
 
 Section Main.
   Variable input : String.string.

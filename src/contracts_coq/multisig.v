@@ -38,19 +38,15 @@ Definition parameter_ty := (pair
 
 Definition storage_ty := pair nat (pair nat (list key)).
 
-Module ST : (SelfType with Definition self_type := parameter_ty).
-  Definition self_type := parameter_ty.
-End ST.
+Module multisig(C:ContractContext).
 
-Module multisig(C:ContractContext)(E:Env ST C).
+Module semantics := Semantics C. Import semantics.
 
-Module semantics := Semantics ST C E. Import semantics.
-
-Definition ADD_nat {S} : instruction (Some ST.self_type) _ (nat ::: nat ::: S) (nat ::: S) := ADD.
+Definition ADD_nat {S} : instruction (Some parameter_ty) _ (nat ::: nat ::: S) (nat ::: S) := ADD.
 
 Definition pack_ty := pair (pair chain_id address) (pair nat action_ty).
 
-Definition multisig : full_contract _ ST.self_type storage_ty :=
+Definition multisig : full_contract _ parameter_ty storage_ty :=
   (
     UNPAIR ;; SWAP ;; DUP ;; DIP1 SWAP ;;
     DIP1
@@ -122,6 +118,7 @@ Fixpoint count_signatures (sigs : Datatypes.list (Datatypes.option (data signatu
 
 
 Definition multisig_spec
+           (env : @proto_env (Some parameter_ty))
            (counter : N)
            (action : data action_ty)
            (sigs : Datatypes.list (Datatypes.option (data signature)))
@@ -143,7 +140,7 @@ Definition multisig_spec
       (fun k sig =>
          check_signature
            env k sig
-           (pack env pack_ty ((chain_id_ env, address_ env ST.self_type (self env)),
+           (pack env pack_ty ((chain_id_ env, address_ env parameter_ty (self env)),
                              (counter, action)))) /\
     (count_signatures first_sigs >= threshold)%N /\
     new_stored_counter = (1 + stored_counter)%N /\
@@ -162,7 +159,7 @@ Definition multisig_spec
       returned_operations = nil
     end.
 
-Definition multisig_head (then_ : instruction (Some ST.self_type) Datatypes.false (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) (pair (list operation) storage_ty ::: nil)) :
+Definition multisig_head (then_ : instruction (Some parameter_ty) Datatypes.false (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil) (pair (list operation) storage_ty ::: nil)) :
   instruction _ _
               (pair parameter_ty storage_ty ::: nil)
               (pair (list operation) storage_ty ::: nil)
@@ -182,6 +179,7 @@ Definition multisig_head (then_ : instruction (Some ST.self_type) Datatypes.fals
     DIP1 SWAP ;; UNPAIR ;; then_.
 
 Definition multisig_head_spec
+           (env : @proto_env (Some parameter_ty))
            (counter : N)
            (action : data action_ty)
            (sigs : Datatypes.list (Datatypes.option (data signature)))
@@ -206,17 +204,18 @@ Definition multisig_head_spec
         (keys,
          (sigs,
           (pack env pack_ty
-                ((chain_id_ env, address_ env ST.self_type (self env)), (counter, action)),
+                ((chain_id_ env, address_ env parameter_ty (self env)), (counter, action)),
            (action, (storage, tt))))))) psi.
 
 Lemma fold_eval_precond fuel :
   eval_precond_body (@semantics.eval_precond fuel) =
-  @semantics.eval_precond (S fuel) (Some ST.self_type).
+  @semantics.eval_precond (S fuel) (Some parameter_ty).
 Proof.
   reflexivity.
 Qed.
 
 Lemma multisig_head_correct
+      (env : @proto_env (Some parameter_ty))
       (counter : N)
       (action : data action_ty)
       (sigs : Datatypes.list (Datatypes.option (data signature)))
@@ -234,7 +233,7 @@ Lemma multisig_head_correct
   forall fuel, 11 <= fuel ->
     (precond (eval env (multisig_head then_) (10 + fuel) ((params, storage), tt)) psi)
         <->
-    multisig_head_spec counter action sigs stored_counter threshold keys
+    multisig_head_spec env counter action sigs stored_counter threshold keys
                        fuel then_ psi.
 Proof.
   intros params storage fuel Hfuel.
@@ -272,7 +271,7 @@ Definition multisig_iter_body :
        ) ;;
        SWAP).
 
-Lemma multisig_iter_body_correct k n sigs packed
+Lemma multisig_iter_body_correct env k n sigs packed
       (st : stack (action_ty ::: storage_ty ::: nil)) fuel psi :
     14 <= fuel ->
     precond (eval env multisig_iter_body fuel (k, (n, (sigs, (packed, st))))) psi
@@ -311,7 +310,7 @@ Definition multisig_iter :
 (* Executing on stack (keys, n, sigs, packed, st) returns (nb_valid_sigs + n, nb_excess_sigs, packed, st) *)
 (* Invariant: all_keys = verified_keys @ remaining *)
 
-Lemma multisig_iter_correct keys n sigs packed
+Lemma multisig_iter_correct env keys n sigs packed
       (st : stack (action_ty ::: storage_ty ::: nil)) fuel psi :
     length keys * 14 + 1 <= fuel ->
     precond (eval env multisig_iter fuel (keys, (n, (sigs, (packed, st))))) psi <->
@@ -452,7 +451,7 @@ Proof.
 Qed.
 
 Lemma multisig_tail_correct
-      threshold n sigs packed action counter keys psi fuel :
+      env threshold n sigs packed action counter keys psi fuel :
     13 <= fuel ->
     precond (eval env multisig_tail fuel (threshold, (n, (sigs, (packed, (action, ((counter, (threshold, keys)), tt))))))) psi <->
     ((threshold <= n)%N /\
@@ -484,6 +483,7 @@ Proof.
 Qed.
 
 Lemma multisig_correct
+      (env : @proto_env (Some parameter_ty))
       (counter : N)
       (action : data action_ty)
       (sigs : Datatypes.list (Datatypes.option (data signature)))
@@ -500,7 +500,7 @@ Lemma multisig_correct
   let new_storage : data storage_ty := (new_stored_counter, (new_threshold, new_keys)) in
   14 * length keys + 37 <= fuel ->
   eval env multisig fuel ((params, storage), tt) = Return ((returned_operations, new_storage), tt) <->
-  multisig_spec counter action sigs stored_counter threshold keys new_stored_counter new_threshold new_keys returned_operations.
+  multisig_spec env counter action sigs stored_counter threshold keys new_stored_counter new_threshold new_keys returned_operations.
 Proof.
   intros params storage new_storage Hfuel.
   rewrite return_precond.

@@ -34,15 +34,11 @@ Require Import Lia.
 Definition parameter_ty := or (lambda unit (list operation)) unit.
 Definition storage_ty := key_hash.
 
-Module ST : (SelfType with Definition self_type := parameter_ty).
-  Definition self_type := parameter_ty.
-End ST.
+Module manager(C:ContractContext).
 
-Module manager(C:ContractContext)(E:Env ST C).
+Module semantics := Semantics C. Import semantics.
 
-Module semantics := Semantics ST C E. Import semantics.
-
-Definition manager : full_contract _ ST.self_type storage_ty :=
+Definition manager : full_contract _ parameter_ty storage_ty :=
   (UNPAIR ;;
    IF_LEFT
    ( (* 'do' entrypoint *)
@@ -70,6 +66,7 @@ Definition manager : full_contract _ ST.self_type storage_ty :=
   ).
 
 Definition manager_spec
+           (env : @proto_env (Some parameter_ty))
            (storage : data storage_ty)
            (param : data parameter_ty)
            (new_storage : data storage_ty)
@@ -137,6 +134,7 @@ Proof.
 Qed.
 
 Lemma manager_correct
+      (env : @proto_env (Some parameter_ty))
       (storage : data storage_ty)
       (param : data parameter_ty)
       (new_storage : data storage_ty)
@@ -144,7 +142,7 @@ Lemma manager_correct
       (fuel : Datatypes.nat) :
   fuel >= 42 ->
   eval env manager (13 + fuel) ((param, storage), tt) = Return ((returned_operations, new_storage), tt)
-  <-> manager_spec storage param new_storage returned_operations fuel.
+  <-> manager_spec env storage param new_storage returned_operations fuel.
 Proof.
   intro Hfuel.
   remember (13 + fuel) as fuel2.

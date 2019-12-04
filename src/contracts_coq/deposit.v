@@ -32,15 +32,11 @@ Require List.
 Definition parameter_ty := (or unit mutez).
 Definition storage_ty := address.
 
-Module ST : (SelfType with Definition self_type := parameter_ty).
-  Definition self_type := parameter_ty.
-End ST.
+Module deposit(C:ContractContext).
 
-Module deposit(C:ContractContext)(E:Env ST C).
+Module semantics := Semantics C. Import semantics.
 
-Module semantics := Semantics ST C E. Import semantics.
-
-Definition deposit : full_contract _ ST.self_type storage_ty :=
+Definition deposit : full_contract _ parameter_ty storage_ty :=
   ( DUP;; CAR;; DIP1 CDR;;
     IF_LEFT
       ( DROP1;; NIL operation )
@@ -52,7 +48,8 @@ Definition deposit : full_contract _ ST.self_type storage_ty :=
     PAIR ).
 
 Lemma deposit_correct :
-  forall (input : data (or unit mutez)) storage_in
+  forall (env : @proto_env (Some parameter_ty))
+         (input : data (or unit mutez)) storage_in
          (ops : data (list operation)) storage_out
          (fuel : Datatypes.nat),
   fuel >= 42 ->
@@ -67,7 +64,7 @@ Lemma deposit_correct :
                   ops = cons (transfer_tokens env unit tt am c) nil)
    end).
 Proof.
-  intros input storage_in ops storage_out fuel Hfuel.
+  intros env input storage_in ops storage_out fuel Hfuel.
   rewrite return_precond.
   unfold eval.
   rewrite eval_precond_correct.

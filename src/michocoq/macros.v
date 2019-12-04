@@ -22,11 +22,6 @@
 Require Import syntax syntax_type.
 Require Import comparable.
 
-Module Macros(C : ContractContext).
-
-Module syntax := Syntax C.
-Export syntax.
-
 Section macros.
   Context {self_type : Datatypes.option type}.
 
@@ -167,4 +162,3 @@ Definition MAP_CDR {a b1 b2 S} (code : instruction self_type Datatypes.false (b1
 Definition UNPAPAIR {a b c S} : instruction self_type Datatypes.false (pair a (pair b c) :: S) (a ::: b ::: c ::: S) := UNPAIR ;; DIP1 UNPAIR.
 Definition PAPAIR {a b c S} : instruction self_type Datatypes.false (a ::: b ::: c ::: S) (pair a (pair b c) :: S) := DIP1 PAIR;; PAIR.
 End macros.
-End Macros.

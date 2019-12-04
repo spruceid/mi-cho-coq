@@ -31,14 +31,10 @@ Require List.
 Definition parameter_ty := unit.
 Definition storage_ty := unit.
 
-Module ST : (SelfType with Definition self_type := parameter_ty).
-  Definition self_type := parameter_ty.
-End ST.
+Module boomerang(C:ContractContext).
+Module semantics := Semantics C. Import semantics.
 
-Module boomerang(C:ContractContext)(E:Env ST C).
-Module semantics := Semantics ST C E. Import semantics.
-
-Definition boomerang : full_contract _ ST.self_type storage_ty :=
+Definition boomerang : full_contract _ parameter_ty storage_ty :=
   (
     CDR ;;
     NIL operation ;;
@@ -80,7 +76,7 @@ Proof.
 Qed.
 
 Lemma boomerang_correct :
-  forall (ops : data (list operation)) (fuel : Datatypes.nat),
+  forall env (ops : data (list operation)) (fuel : Datatypes.nat),
   fuel >= 42 ->
   eval env boomerang fuel ((tt, tt), tt) = Return ((ops, tt), tt)
   <->
@@ -89,7 +85,7 @@ Lemma boomerang_correct :
     exists ctr, contract_ env unit (source env) = Some ctr /\
            ops = ((transfer_tokens env unit tt (amount env) ctr) :: nil)%list).
 Proof.
-  intros ops fuel Hfuel.
+  intros env ops fuel Hfuel.
   rewrite return_precond.
   unfold eval.
   rewrite eval_precond_correct.

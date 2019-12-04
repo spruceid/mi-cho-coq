@@ -29,16 +29,10 @@ Require map.
 
 Definition parameter_ty : type := string.
 Definition storage_ty := map string int.
+Module vote(C:ContractContext).
+Module semantics := Semantics C. Import semantics.
 
-Module ST : (SelfType with Definition self_type := parameter_ty).
-  Definition self_type := parameter_ty.
-End ST.
-
-Module vote(C:ContractContext)(E:Env ST C).
-
-Module semantics := Semantics ST C E. Import semantics.
-
-Definition vote : full_contract _ ST.self_type storage_ty :=
+Definition vote : full_contract _ parameter_ty storage_ty :=
   (
     AMOUNT ;;
     PUSH mutez (5000000 ~mutez);;
@@ -53,6 +47,7 @@ Definition vote : full_contract _ ST.self_type storage_ty :=
     NIL operation;; PAIR ).
 
 Definition vote_spec
+           (env : @proto_env (Some parameter_ty))
            (storage: data storage_ty)
            (param : data parameter_ty)
            (new_storage : data storage_ty)
@@ -84,6 +79,7 @@ Proof.
 Defined.
 
 Theorem vote_correct
+      (env : @proto_env (Some parameter_ty))
       (storage : data storage_ty)
       (param : data parameter_ty)
       (new_storage : data storage_ty)
@@ -91,7 +87,7 @@ Theorem vote_correct
       (fuel : Datatypes.nat) :
   fuel >= 42 ->
   eval env vote fuel ((param, storage), tt) = Return ((returned_operations, new_storage), tt)
-  <-> vote_spec storage param new_storage returned_operations.
+  <-> vote_spec env storage param new_storage returned_operations.
 Proof.
   intro Hfuel. unfold ">=" in Hfuel.
   unfold eval.

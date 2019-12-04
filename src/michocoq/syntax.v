@@ -281,12 +281,6 @@ Inductive operation_constant : Set := Mk_operation : str -> operation_constant.
 Inductive mutez_constant : Set := Mk_mutez : tez.mutez -> mutez_constant.
 Inductive chain_id_constant : Set := Mk_chain_id : str -> chain_id_constant.
 
-Module Type ContractContext.
-  Parameter get_contract_type : contract_constant -> Datatypes.option type.
-End ContractContext.
-
-Module Syntax(C : ContractContext).
-
 Inductive elt_pair (a b : Set) : Set :=
 | Elt : a -> b -> elt_pair a b.
 
@@ -641,5 +635,3 @@ Proof.
     specialize (stacktype_dug_aux_proof_irrelevant (l1+++l2) n (length_app_cons_dug n l1 l2 H0)) as Hpi.
     rewrite <- Hpi. rewrite IHl1. reflexivity.
 Qed.
-
-End Syntax.

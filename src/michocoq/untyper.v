@@ -1,19 +1,12 @@
 Require Import ZArith List.
 Require Import syntax.
+Require Import typer.
 Require Import untyped_syntax error.
-Require typer.
 Require Eqdep_dec.
 Import error.Notations.
 
 (* Not really needed but eases reading of proof states. *)
 Require Import String.
-
-Module Untyper(C : ContractContext).
-
-  Module syntax := Syntax C.
-  Module typer := typer.Typer C.
-  Import typer. Import syntax. Import untyped_syntax.
-
 
   Fixpoint untype_data {a} (d : syntax.concrete_data a) : concrete_data :=
     match d with
@@ -591,7 +584,7 @@ Module Untyper(C : ContractContext).
         rewrite untype_type_instruction_no_tail_fail.
         * simpl.
           rewrite untype_type_instruction.
-          destruct tff0; reflexivity.
+          destruct tff; reflexivity.
         * auto.
       + simpl.
         trans_refl
@@ -603,13 +596,13 @@ Module Untyper(C : ContractContext).
         rewrite untype_type_branches; auto.
       + trans_refl (
           let! i := typer.type_check_instruction_no_tail_fail
-            typer.type_instruction (untype_instruction i0) A (bool ::: A) in
+            typer.type_instruction (untype_instruction i) A (bool ::: A) in
           Return (@typer.Inferred_type self_type _ _ (syntax.LOOP i))
         ).
         rewrite untype_type_check_instruction_no_tail_fail; auto.
       + trans_refl (
           let! i := typer.type_check_instruction_no_tail_fail
-            typer.type_instruction (untype_instruction i0) _ (or a b ::: A) in
+            typer.type_instruction (untype_instruction i) _ (or a b ::: A) in
           Return (@typer.Inferred_type self_type _ _ (syntax.LOOP_LEFT i))
         ).
         rewrite untype_type_check_instruction_no_tail_fail; auto.
@@ -626,7 +619,7 @@ Module Untyper(C : ContractContext).
                       let! i := instruction_cast_domain A A _ (@syntax.APPLY self_type _ _ _ _ (IT_eq_rev _ i)) in
                       Return (Inferred_type _ _ i)
                     else fun _ => Failed _ (Typing _ "APPLY"%string)) i1
-                   = Return (Inferred_type A _ (@syntax.APPLY _ _ _ _ _ i0))).
+                   = Return (Inferred_type A _ (@syntax.APPLY _ _ _ _ _ i))).
         * intros b0 i1.
           destruct b0.
           -- rewrite instruction_cast_domain_same.
@@ -634,8 +627,8 @@ Module Untyper(C : ContractContext).
              repeat f_equal.
              apply Is_true_UIP.
           -- exfalso.
-             rewrite i1 in i0.
-             exact i0.
+             rewrite i1 in i.
+             exact i.
         * apply H.
       + trans_refl (
           let! d := typer.type_data (untype_data x) a in
@@ -646,7 +639,7 @@ Module Untyper(C : ContractContext).
       + trans_refl (
           let! existT _ tff i :=
             typer.type_check_instruction
-              typer.type_instruction (untype_instruction i0) (a :: nil) (b :: nil) in
+              typer.type_instruction (untype_instruction i) (a :: nil) (b :: nil) in
           Return (@typer.Inferred_type self_type _ (lambda a b ::: A) (syntax.LAMBDA a b i))
         ).
         rewrite untype_type_check_instruction; auto.
@@ -668,11 +661,11 @@ Module Untyper(C : ContractContext).
         * rewrite instruction_cast_domain_same.
           simpl.
           reflexivity.
-      + destruct i0 as [v]; destruct v; reflexivity.
-      + destruct i0 as [v]; destruct v; reflexivity.
-      + destruct i0 as [v]; destruct v; reflexivity.
-      + destruct i0 as [v]; destruct v; reflexivity.
-      + destruct i0 as [v]; destruct v.
+      + destruct i as [v]; destruct v; reflexivity.
+      + destruct i as [v]; destruct v; reflexivity.
+      + destruct i as [v]; destruct v; reflexivity.
+      + destruct i as [v]; destruct v; reflexivity.
+      + destruct i as [v]; destruct v.
         * unfold untype_type_spec; simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
@@ -682,7 +675,7 @@ Module Untyper(C : ContractContext).
         * unfold untype_type_spec; simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
-      + destruct i0 as [v]; destruct v.
+      + destruct i as [v]; destruct v.
         * unfold untype_type_spec; simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
@@ -692,21 +685,21 @@ Module Untyper(C : ContractContext).
         * unfold untype_type_spec; simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
-      + destruct i0 as [c v]; destruct v.
+      + destruct i as [c v]; destruct v.
         * unfold untype_type_spec; simpl.
           rewrite untype_type_check_instruction_no_tail_fail; auto.
         * unfold untype_type_spec; simpl.
           rewrite untype_type_check_instruction_no_tail_fail; auto.
         * unfold untype_type_spec; simpl.
           rewrite untype_type_check_instruction_no_tail_fail; auto.
-      + destruct i0 as [c v]; destruct v.
+      + destruct i as [c v]; destruct v.
         * unfold untype_type_spec; simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
         * unfold untype_type_spec; simpl.
           rewrite instruction_cast_domain_same.
           reflexivity.
-      + destruct i0 as [a c v]; destruct v.
+      + destruct i as [a c v]; destruct v.
         * unfold untype_type_spec; simpl.
           rewrite untype_type_instruction_no_tail_fail.
           -- simpl.
@@ -782,5 +775,3 @@ Module Untyper(C : ContractContext).
         rewrite instruction_cast_domain_same.
         reflexivity.
   Qed.
-
-End Untyper.

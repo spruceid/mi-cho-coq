@@ -30,13 +30,13 @@ Require NPeano.
 Require Import comparable error.
 Import error.Notations.
 
-Module Type SelfType.
-  Parameter self_type : type.
-End SelfType.
+Module Type ContractContext.
+  Parameter get_contract_type : contract_constant -> Datatypes.option type.
+End ContractContext.
 
-Module EnvDef(C : ContractContext).
+Module Semantics(C : ContractContext).
   Export C.
-  Module macros := Macros(C). Export macros.
+
   Fixpoint data (a : type) {struct a} : Set :=
     match a with
     | Comparable_type b => comparable_data b
@@ -120,17 +120,6 @@ Module EnvDef(C : ContractContext).
                  (sha512 e)
                  (check_signature e)
                  (chain_id_ e).
-
-End EnvDef.
-
-Module Type Env(ST : SelfType)(C:ContractContext).
-  Include EnvDef C.
-  Parameter env : @proto_env (Some ST.self_type).
-End Env.
-
-Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
-
-  Export E.
 
   Fixpoint stack (t : stack_type) : Set :=
     match t with

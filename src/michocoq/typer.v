@@ -1,5 +1,6 @@
 Require Import ZArith List Nat String.
-Require Import syntax semantics.
+Require syntax semantics.
+Require Import syntax_type.
 Require Import untyped_syntax error.
 Import error.Notations.
 
@@ -10,11 +11,6 @@ Proof.
   - apply Bool.andb_prop_elim.
   - apply Bool.andb_prop_intro.
 Qed.
-
-Module Typer(C : ContractContext).
-
-  Module syntax := Syntax C.
-  Import syntax. Import untyped_syntax.
 
   Definition instruction := syntax.instruction.
 
@@ -119,14 +115,14 @@ Module Typer(C : ContractContext).
                               IF_instr B true true (i1 B) (i2 B)))
     end.
 
-  Definition take_one (S : stack_type) : M (type * stack_type) :=
+  Definition take_one (S : syntax.stack_type) : M (type * syntax.stack_type) :=
     match S with
     | nil => Failed _ (Typing _ "take_one"%string)
     | cons a l => Return (a, l)
     end.
 
-  Fixpoint take_n (A : stack_type) n : M ({B | List.length B = n} * stack_type) :=
-    match n as n return M ({B | List.length B = n} * stack_type) with
+  Fixpoint take_n (A : syntax.stack_type) n : M ({B | List.length B = n} * syntax.stack_type) :=
+    match n as n return M ({B | List.length B = n} * syntax.stack_type) with
     | 0 => Return (exist (fun B => List.length B = 0) nil eq_refl, A)
     | S n =>
       let! (a, A) := take_one A in
@@ -153,13 +149,13 @@ Module Typer(C : ContractContext).
         repeat decide equality.
   Qed.
 
-  Definition type_check_dig {self_type} n (S:stack_type) : M (typer_result (self_type := self_type) S) :=
+  Definition type_check_dig {self_type} n (S:syntax.stack_type) : M (typer_result (self_type := self_type) S) :=
     let! (exist _ S1 H1, tS2) := take_n S n in
     let! (t, S2) := take_one tS2 in
     let! i := instruction_cast_domain (S1 +++ t ::: S2) S _ (syntax.DIG n H1) in
     Return (Inferred_type S (t ::: S1 +++ S2) i).
 
-  Definition type_check_dug {self_type} n (S:stack_type) : M (typer_result (self_type := self_type) S) :=
+  Definition type_check_dug {self_type} n (S:syntax.stack_type) : M (typer_result (self_type := self_type) S) :=
     let! (t, S12) := take_one S in
     let! (exist _ S1 H1, S2) := take_n S12 n in
     let! i := instruction_cast_domain (t ::: S1 +++ S2) S _ (syntax.DUG n H1) in
@@ -196,7 +192,7 @@ Module Typer(C : ContractContext).
           else Failed _ (Typing _ ("Negative value cannot be typed in nat"%string, d))
         | Comparable_type mutez =>
           let! m := tez.of_Z z in
-          Return (syntax.Mutez_constant (Mk_mutez m))
+          Return (syntax.Mutez_constant (syntax.Mk_mutez m))
         | Comparable_type timestamp => Return (syntax.Timestamp_constant z)
         | _ => Failed _ (Typing _ (d, ty))
         end
@@ -487,27 +483,27 @@ Module Typer(C : ContractContext).
       let! i := instruction_cast_domain A' A (int ::: B) (syntax.COMPARE (a := a)) in
       Return (Inferred_type _ _ i)
     | CONCAT, Comparable_type string :: Comparable_type string :: B =>
-      Return (Inferred_type _ _ (@syntax.CONCAT _ _ stringlike_string _))
+      Return (Inferred_type _ _ (@syntax.CONCAT _ _ syntax.stringlike_string _))
     | CONCAT, Comparable_type bytes :: Comparable_type bytes :: B =>
-      Return (Inferred_type _ _ (@syntax.CONCAT _ _ stringlike_bytes _))
+      Return (Inferred_type _ _ (@syntax.CONCAT _ _ syntax.stringlike_bytes _))
     | CONCAT, list (Comparable_type string) :: B =>
-      Return (Inferred_type _ _ (@syntax.CONCAT_list _ _ stringlike_string _))
+      Return (Inferred_type _ _ (@syntax.CONCAT_list _ _ syntax.stringlike_string _))
     | CONCAT, list (Comparable_type bytes) :: B =>
-      Return (Inferred_type _ _ (@syntax.CONCAT_list _ _ stringlike_bytes _))
+      Return (Inferred_type _ _ (@syntax.CONCAT_list _ _ syntax.stringlike_bytes _))
     | SIZE, set a :: A =>
-      Return (Inferred_type _ _ (@syntax.SIZE _ _ (size_set a) _))
+      Return (Inferred_type _ _ (@syntax.SIZE _ _ (syntax.size_set a) _))
     | SIZE, cons (list a) A =>
-      Return (Inferred_type _ _ (@syntax.SIZE _ _ (size_list a) _))
+      Return (Inferred_type _ _ (@syntax.SIZE _ _ (syntax.size_list a) _))
     | SIZE, cons (map a b) A =>
-      Return (Inferred_type _ _ (@syntax.SIZE _ _ (size_map a b) _))
+      Return (Inferred_type _ _ (@syntax.SIZE _ _ (syntax.size_map a b) _))
     | SIZE, Comparable_type string :: A =>
-      Return (Inferred_type _ _ (@syntax.SIZE _ _ size_string _))
+      Return (Inferred_type _ _ (@syntax.SIZE _ _ syntax.size_string _))
     | SIZE, Comparable_type bytes :: A =>
-      Return (Inferred_type _ _ (@syntax.SIZE _ _ size_bytes _))
+      Return (Inferred_type _ _ (@syntax.SIZE _ _ syntax.size_bytes _))
     | SLICE, Comparable_type nat :: Comparable_type nat :: Comparable_type string :: A =>
-      Return (Inferred_type _ _ (@syntax.SLICE _ _ stringlike_string _))
+      Return (Inferred_type _ _ (@syntax.SLICE _ _ syntax.stringlike_string _))
     | SLICE, Comparable_type nat :: Comparable_type nat :: Comparable_type bytes :: A =>
-      Return (Inferred_type _ _ (@syntax.SLICE _ _ stringlike_bytes _))
+      Return (Inferred_type _ _ (@syntax.SLICE _ _ syntax.stringlike_bytes _))
     | PAIR, a :: b :: A =>
       Return (Inferred_type _ _ syntax.PAIR)
     | CAR, pair a b :: A =>
@@ -520,47 +516,47 @@ Module Typer(C : ContractContext).
       let A := elt' :: set elt :: B in
       let A' := elt ::: set elt :: B in
       let! i := instruction_cast_domain
-        A' A _ (@syntax.MEM _ _ _ (mem_set elt) _) in
+        A' A _ (@syntax.MEM _ _ _ (syntax.mem_set elt) _) in
       Return (Inferred_type _ _ i)
     | MEM, kty' :: map kty vty :: B =>
       let A := kty' :: map kty vty :: B in
       let A' := kty ::: map kty vty :: B in
       let! i := instruction_cast_domain
-        A' A _ (@syntax.MEM _ _ _ (mem_map kty vty) _) in
+        A' A _ (@syntax.MEM _ _ _ (syntax.mem_map kty vty) _) in
       Return (Inferred_type _ _ i)
     | MEM, kty' :: big_map kty vty :: B =>
       let A := kty' :: big_map kty vty :: B in
       let A' := kty ::: big_map kty vty :: B in
       let! i := instruction_cast_domain
-        A' A _ (@syntax.MEM _ _ _ (mem_bigmap kty vty) _) in
+        A' A _ (@syntax.MEM _ _ _ (syntax.mem_bigmap kty vty) _) in
       Return (Inferred_type _ _ i)
     | UPDATE, elt' :: Comparable_type bool :: set elt :: B =>
       let A := elt' ::: bool ::: set elt :: B in
       let A' := elt ::: bool ::: set elt :: B in
       let! i := instruction_cast_domain
-        A' A _ (@syntax.UPDATE _ _ _ _ (update_set elt) _) in
+        A' A _ (@syntax.UPDATE _ _ _ _ (syntax.update_set elt) _) in
       Return (Inferred_type _ _ i)
     | UPDATE, kty' :: option vty' :: map kty vty :: B =>
       let A := kty' ::: option vty' ::: map kty vty :: B in
       let A' := kty ::: option vty ::: map kty vty :: B in
       let! i := instruction_cast_domain
-        A' A _ (@syntax.UPDATE _ _ _ _ (update_map kty vty) _) in
+        A' A _ (@syntax.UPDATE _ _ _ _ (syntax.update_map kty vty) _) in
       Return (Inferred_type _ _ i)
     | UPDATE, kty' :: option vty' :: big_map kty vty :: B =>
       let A := kty' ::: option vty' ::: big_map kty vty :: B in
       let A' := kty ::: option vty ::: big_map kty vty :: B in
       let! i := instruction_cast_domain
-        A' A _ (@syntax.UPDATE _ _ _ _ (update_bigmap kty vty) _) in
+        A' A _ (@syntax.UPDATE _ _ _ _ (syntax.update_bigmap kty vty) _) in
       Return (Inferred_type _ _ i)
     | ITER i, list a :: A =>
       let! i := type_check_instruction_no_tail_fail type_instruction i (a :: A) A in
-      Return (Inferred_type _ _ (syntax.ITER i))
+      Return (Inferred_type _ _ (syntax.ITER (i := syntax.iter_list _) i))
     | ITER i, set a :: A =>
       let! i := type_check_instruction_no_tail_fail type_instruction i (a ::: A) A in
-      Return (Inferred_type _ _ (syntax.ITER i))
+      Return (Inferred_type _ _ (syntax.ITER (i := syntax.iter_set _)i))
     | ITER i, map kty vty :: A =>
       let! i := type_check_instruction_no_tail_fail type_instruction i (pair kty vty :: A) A in
-      Return (Inferred_type _ _ (syntax.ITER i))
+      Return (Inferred_type _ _ (syntax.ITER (i := syntax.iter_map _ _) i))
     | EMPTY_MAP kty vty, A =>
       Return (Inferred_type _ _ (syntax.EMPTY_MAP kty vty))
     | EMPTY_BIG_MAP kty vty, A =>
@@ -569,20 +565,20 @@ Module Typer(C : ContractContext).
       let A := kty' :: map kty vty :: B in
       let A' := kty ::: map kty vty :: B in
       let! i := instruction_cast_domain
-        A' A _ (@syntax.GET _ _ _ (get_map kty vty) _) in
+        A' A _ (@syntax.GET _ _ _ (syntax.get_map kty vty) _) in
       Return (Inferred_type _ _ i)
     | GET, kty' :: big_map kty vty :: B =>
       let A := kty' :: big_map kty vty :: B in
       let A' := kty ::: big_map kty vty :: B in
       let! i := instruction_cast_domain
-        A' A _ (@syntax.GET _ _ _ (get_bigmap kty vty) _) in
+        A' A _ (@syntax.GET _ _ _ (syntax.get_bigmap kty vty) _) in
       Return (Inferred_type _ _ i)
     | MAP i, list a :: A =>
       let! r := type_instruction_no_tail_fail type_instruction i (a :: A) in
       match r with
       | existT _ (b :: A') i =>
         let! i := instruction_cast_range (a :: A) (b :: A') (b :: A) i in
-        Return (Inferred_type _ _ (syntax.MAP i))
+        Return (Inferred_type _ _ (syntax.MAP (i := syntax.map_list _ _) i))
       | _ => Failed _ (Typing _ tt)
       end
     | MAP i, map kty vty :: A =>
@@ -590,7 +586,7 @@ Module Typer(C : ContractContext).
       match r with
       | existT _ (b :: A') i =>
         let! i := instruction_cast_range (pair kty vty :: A) (b :: A') (b :: A) i in
-        Return (Inferred_type _ _ (syntax.MAP i))
+        Return (Inferred_type _ _ (syntax.MAP (i := syntax.map_map _ _ _) i))
       | _ => Failed _ (Typing _ tt)
       end
     | SOME, a :: A => Return (Inferred_type _ _ syntax.SOME)
@@ -670,4 +666,3 @@ Module Typer(C : ContractContext).
       Return (Inferred_type _ _ syntax.CHAIN_ID)
     | _, _ => Failed _ (Typing _ (i, A))
     end.
-End Typer.
