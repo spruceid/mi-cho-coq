@@ -437,8 +437,6 @@ concrete_data : type -> Set :=
 | Key_hash_constant : String.string -> concrete_data key_hash
 | Mutez_constant : mutez_constant -> concrete_data mutez
 | Address_constant : address_constant -> concrete_data address
-| Contract_constant {a} : forall cst : contract_constant,
-    C.get_contract_type cst = Some a -> concrete_data (contract a)
 | Unit : concrete_data unit
 | True_ : concrete_data bool
 | False_ : concrete_data bool

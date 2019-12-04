@@ -26,7 +26,6 @@ Module Untyper(C : ContractContext).
     | syntax.Signature_constant s => String_constant s
     | syntax.Key_constant s => String_constant s
     | syntax.Key_hash_constant s => String_constant s
-    | syntax.Contract_constant (Mk_contract c) _ => String_constant c
     | syntax.Address_constant (Mk_address c) => String_constant c
     | syntax.Unit => Unit
     | syntax.True_ => True_
@@ -474,23 +473,6 @@ Module Untyper(C : ContractContext).
         destruct a.
         simpl.
         reflexivity.
-      + simpl.
-        destruct cst.
-        simpl.
-        unfold type_contract_data.
-        cut (forall tyopt H, type_contract_data_aux (Mk_contract s) a tyopt H =
-                             Return (Contract_constant (Mk_contract s) e)).
-        * intro H. apply H.
-        * intros tyopt H.
-          destruct tyopt.
-          -- simpl.
-             destruct (type_dec a t).
-             ++ unfold contract_cast.
-                repeat f_equal.
-                apply Eqdep_dec.eq_proofs_unicity.
-                intros; repeat decide equality.
-             ++ congruence.
-          -- congruence.
       + simpl.
         trans_refl (
           let! x := typer.type_data (untype_data d1) a in

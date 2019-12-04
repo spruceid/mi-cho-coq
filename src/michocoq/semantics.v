@@ -223,7 +223,6 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
     | Key_hash_constant x => Mk_key_hash x
     | Mutez_constant (Mk_mutez x) => x
     | Address_constant x => x
-    | @Contract_constant a x H => exist _ x H
     | Unit => tt
     | True_ => true
     | False_ => false
@@ -309,8 +308,7 @@ Module Semantics(ST : SelfType)(C:ContractContext)(E:Env ST C).
                                     (comparable_data_to_concrete_data _ k)
                                     (data_to_concrete_data b H v))
                              l)
-    | contract _, H, exist _ x Hx =>
-      Contract_constant x Hx
+    | contract _, H, _ => match H with end
     | operation, H, _ => match H with end
     | big_map _ _, H, _ => match H with end
     | pair a b, H, (x, y) =>

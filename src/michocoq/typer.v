@@ -49,12 +49,6 @@ Module Typer(C : ContractContext).
   Definition instruction_cast_domain {self_type tff} A A' B (i : instruction self_type tff A B)
     : M (instruction self_type tff A' B) := instruction_cast A A' B B i.
 
-  Definition contract_cast (c : contract_constant) (a b : type)
-             (H : C.get_contract_type c = Some b)
-             (He : a = b)
-    : syntax.concrete_data (contract a) :=
-    syntax.Contract_constant c (eq_trans H (f_equal Some (eq_sym He))).
-
   Inductive typer_result {self_type} A : Set :=
   | Inferred_type B : instruction self_type false A B -> typer_result A
   | Any_type : (forall B, instruction self_type true A B) -> typer_result A.
@@ -190,18 +184,6 @@ Module Typer(C : ContractContext).
       reflexivity.
   Qed.
 
-  Definition type_contract_data_aux c a tyopt :=
-    match tyopt return C.get_contract_type c = tyopt -> error.M (syntax.concrete_data (contract a)) with
-    | Some b =>
-      match type_dec a b with
-      | left He => fun H => Return (contract_cast c a b H He)
-      | right _ => fun _ => Failed _ (Typing _ ("ill-typed contract"%string, c, a, b))
-      end
-    | None => fun _ => Failed _ (Typing _ ("contract not found"%string, c))
-    end.
-
-  Definition type_contract_data c a := type_contract_data_aux c a _ eq_refl.
-
   Fixpoint type_data (d : concrete_data) {struct d}
     : forall ty, M (syntax.concrete_data ty) :=
     match d with
@@ -225,9 +207,6 @@ Module Typer(C : ContractContext).
         | signature => Return (syntax.Signature_constant s)
         | key => Return (syntax.Key_constant s)
         | Comparable_type key_hash => Return (syntax.Key_hash_constant s)
-        | contract a =>
-          let c := Mk_contract s in
-          type_contract_data c a
         | Comparable_type address => Return (syntax.Address_constant (syntax.Mk_address s))
         | chain_id => Return (syntax.Chain_id_constant (syntax.Mk_chain_id s))
         | _ => Failed _ (Typing _ (d, ty))
