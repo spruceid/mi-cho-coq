@@ -16,6 +16,7 @@ stages:
     - shellcheck-"${scversion}"/shellcheck `find -name 'configure'`
     - emacs --batch -l scripts/org-lint-README.el --kill
     - opam pin add -k git -y -j ${NJOBS} coq-mi-cho-coq .
+    - which michocoq
 
 coq:8.8:
   extends: .build
