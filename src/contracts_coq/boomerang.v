@@ -35,23 +35,23 @@ Module boomerang(C:ContractContext).
 Module semantics := Semantics C. Import semantics.
 
 Definition boomerang : full_contract _ parameter_ty None storage_ty :=
-  (
-    CDR ;;
-    NIL operation ;;
-       AMOUNT;;
-       PUSH mutez (0 ~mutez);;
-       IFCMPEQ NOOP
-         (
-           SOURCE ;;
-           CONTRACT None unit ;;
-           ASSERT_SOME ;;
-           AMOUNT ;;
-           UNIT ;;
-           TRANSFER_TOKENS ;;
-           CONS ;; NOOP
-         );;
-       PAIR ;; NOOP
-  ).
+  {
+    CDR;
+    NIL operation;
+    AMOUNT;
+    PUSH mutez (0 ~mutez);
+    IFCMPEQ {}
+    {
+      SOURCE ;
+      CONTRACT None unit ;
+      ASSERT_SOME ;
+      AMOUNT ;
+      UNIT ;
+      TRANSFER_TOKENS ;
+      CONS
+    };
+    PAIR
+  }.
 
 Lemma eqb_eq a c1 c2 :
   BinInt.Z.eqb (comparison_to_int (compare a c1 c2)) Z0 = true <->

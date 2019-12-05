@@ -39,31 +39,31 @@ Module manager(C:ContractContext).
 Module semantics := Semantics C. Import semantics.
 
 Definition manager : full_contract _ parameter_ty None storage_ty :=
-  (UNPAIR ;;
-   IF_LEFT
-   ( (* 'do' entrypoint *)
-     (* Assert no token was sent: *)
-     (* to send tokens, the default entry point should be used *)
-     PUSH mutez (0 ~mutez) ;;
-     AMOUNT ;;
-     ASSERT_CMPEQ ;;
-     (* Assert that the sender is the manager *)
-     DUUP ;;
-     IMPLICIT_ACCOUNT ;;
-     ADDRESS ;;
-     SENDER ;;
-     ASSERT_CMPEQ ;;
-     (* Execute the lambda argument *)
-     UNIT ;;
-     EXEC ;;
-     PAIR ;; NOOP
-   )
-   ((* 'default' entrypoint *)
-     DROP1 ;;
-     NIL operation ;;
-     PAIR ;; NOOP
-   ) ;; NOOP
-  ).
+  { UNPAIR;
+    IF_LEFT
+      { (* 'do' entrypoint *)
+        (* Assert no token was sent: *)
+        (* to send tokens, the default entry point should be used *)
+        PUSH mutez (0 ~mutez);
+        AMOUNT;
+        ASSERT_CMPEQ;
+        (* Assert that the sender is the manager *)
+        DUUP;
+        IMPLICIT_ACCOUNT;
+        ADDRESS;
+        SENDER;
+        ASSERT_CMPEQ;
+        (* Execute the lambda argument *)
+        UNIT;
+        EXEC;
+        PAIR
+      }
+      { (* 'default' entrypoint *)
+        DROP1 ;
+        NIL operation ;
+        PAIR
+      }
+  }.
 
 Definition manager_spec
            (env : @proto_env (Some (parameter_ty, None)))

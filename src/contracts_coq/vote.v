@@ -33,18 +33,18 @@ Module vote(C:ContractContext).
 Module semantics := Semantics C. Import semantics.
 
 Definition vote : full_contract _ parameter_ty None storage_ty :=
-  (
-    AMOUNT ;;
-    PUSH mutez (5000000 ~mutez);;
-    COMPARE;; GT;;
-    IF ( FAIL;; NOOP ) ( NOOP );;
-    DUP;; DIP1 ( CDR;; DUP;; NOOP );; CAR;; DUP;;
-    DIP1 (
-      GET (i := get_map string int);; ASSERT_SOME;;
-      PUSH int (Int_constant 1%Z);; ADD (s := add_int_int);; SOME;; NOOP
-    );;
-    UPDATE (i := Mk_update string (option int) (map string int) (Update_variant_map string int));;
-    NIL operation;; PAIR;; NOOP ).
+  {
+    AMOUNT ;
+    PUSH mutez (5000000 ~mutez);
+    COMPARE; GT;
+    IF_TRUE { FAIL } {};
+    DUP; DIP1 { CDR; DUP }; CAR; DUP;
+    DIP1 {
+      (GET (i := get_map string int)); ASSERT_SOME;
+      PUSH int (Int_constant 1%Z); (ADD (s := add_int_int)); SOME
+    };
+    (UPDATE (i := Mk_update string (option int) (map string int) (Update_variant_map string int)));
+    (NIL operation); PAIR }.
 
 Definition vote_spec
            (env : @proto_env (Some (parameter_ty, None)))

@@ -54,55 +54,66 @@ Definition ADD_nat {S} : instruction (Some (parameter_ty, None)) _ (nat ::: nat 
 
 Definition pack_ty := pair (pair chain_id address) (pair nat action_ty).
 
-Definition multisig : full_contract _ parameter_ty None storage_ty :=
-  (
-    UNPAIR ;; SWAP ;; DUP ;; DIP1 { SWAP } ;;
+Definition multisig : full_contract false parameter_ty None storage_ty :=
+  {
+    UNPAIR; SWAP; DUP; DIP1 { SWAP};
     DIP1
-      (
-        UNPAIR ;;
-        DUP ;; SELF (self_type := parameter_ty) (self_annot := None) None I ;; ADDRESS ;; CHAIN_ID ;; PAIR ;; PAIR ;;
-        PACK ;;
-        DIP1 ( UNPAIR ;; DIP1 (SWAP ;; NOOP) ;; NOOP) ;; SWAP ;; NOOP
-      ) ;;
+      {
+        UNPAIR;
+        DUP; SELF (self_type := parameter_ty) (self_annot := None) None I;
+        ADDRESS;
+        CHAIN_ID;
+        PAIR;
+        PAIR;
+        PACK;
+        DIP1 { UNPAIR; DIP1 { SWAP }};
+        SWAP
+      };
 
-    UNPAIR ;; DIP1 (SWAP ;; NOOP) ;;
-    ASSERT_CMPEQ ;;
+    UNPAIR; DIP1 { SWAP };
+    ASSERT_CMPEQ;
 
-    DIP1 (SWAP ;; NOOP) ;; UNPAIR ;;
+    DIP1 { SWAP }; UNPAIR;
     DIP1
-      (
-        PUSH nat (nat_constant 0%N) ;; SWAP ;;
+      {
+        PUSH nat (nat_constant 0%N);
+        SWAP;
         ITER
-          (
-            DIP1 (SWAP ;; NOOP) ;; (SWAP) ;;
+          {
+            DIP1 { SWAP }; SWAP;
             IF_CONS
-              (
+              {
                 IF_SOME
-                  ( SWAP ;;
+                  { SWAP;
                     DIP1
-                      (
-                        SWAP ;; DIIP ( DIP1 (DUP ;; NOOP) ;; SWAP ;; NOOP) ;;
-                        CHECK_SIGNATURE ;; ASSERT ;;
-                        PUSH nat (nat_constant 1%N) ;; ADD_nat ;; NOOP) ;; NOOP)
-                  ( SWAP ;; DROP1 ;; NOOP ) ;; NOOP
-              )
-              (
-                FAIL ;; NOOP
-              ) ;;
-            SWAP ;; NOOP
-          ) ;; NOOP
-      ) ;;
-    ASSERT_CMPLE ;;
-    DROP1 ;; DROP1 ;;
+                      {
+                        SWAP;
+                        DIIP { DIP1 { DUP };
+                               SWAP };
+                        CHECK_SIGNATURE; ASSERT;
+                        PUSH nat (nat_constant 1%N); ADD_nat}}
+                  { SWAP; DROP1 }
+              }
+              {
+                FAIL
+              };
+            SWAP
+          }
+      };
+    ASSERT_CMPLE;
+    DROP1; DROP1;
 
-    DIP1 ( UNPAIR ;; PUSH nat (nat_constant 1%N) ;; ADD ;; PAIR ;; NOOP ) ;;
+    DIP1 { UNPAIR; PUSH nat (nat_constant 1%N); ADD; PAIR };
 
-    NIL operation ;; SWAP ;;
+    NIL operation; SWAP;
     IF_LEFT
-      ( UNPAIR ;; UNIT ;; TRANSFER_TOKENS ;; CONS ;; NOOP )
-      ( IF_LEFT (SET_DELEGATE ;; CONS ;; NOOP )
-                ( DIP1 ( SWAP ;; CAR ;; NOOP ) ;; SWAP ;; PAIR ;; SWAP ;; NOOP ) ;; NOOP) ;;
-    PAIR ;; NOOP )%michelson.
+      { UNPAIR; UNIT; TRANSFER_TOKENS;
+        CONS }
+      { IF_LEFT { SET_DELEGATE; CONS }
+                { DIP1 { SWAP; CAR };
+                  SWAP; PAIR;
+                  SWAP }};
+    PAIR }.
 
 Fixpoint check_all_signatures (sigs : Datatypes.list (Datatypes.option (data signature)))
          (keys : Datatypes.list (data key))
@@ -172,19 +183,24 @@ Definition multisig_head :
                   (pair parameter_ty storage_ty ::: nil)
                   (nat ::: list key ::: list (option signature) ::: bytes ::: action_ty ::: storage_ty ::: nil)
 :=
-    UNPAIR ;; SWAP ;; DUP ;; DIP1 (SWAP ;; NOOP) ;;
+  {
+    UNPAIR; SWAP; DUP;
+    DIP1 { SWAP };
     DIP1
-      (
-        UNPAIR ;;
-        DUP ;; SELF (self_type := parameter_ty) (self_annot := None) None I ;; ADDRESS ;; CHAIN_ID ;; PAIR ;; PAIR ;;
-        PACK ;;
-        DIP1 ( UNPAIR ;; DIP1 (SWAP ;; NOOP) ;; NOOP ) ;; SWAP ;; NOOP
-      ) ;;
+      {
+        UNPAIR;
+        DUP; SELF (self_type := parameter_ty) (self_annot := None) None I;
+        ADDRESS; CHAIN_ID;
+        PAIR; PAIR;
+        PACK;
+        DIP1 { UNPAIR; DIP1 { SWAP } };
+        SWAP
+      };
 
-    UNPAIR ;; DIP1 (SWAP ;; NOOP) ;;
-    ASSERT_CMPEQ ;;
+    UNPAIR; DIP1 { SWAP };
+    ASSERT_CMPEQ;
 
-    DIP1 (SWAP ;; NOOP) ;; UNPAIR ;; NOOP.
+    DIP1 { SWAP }; UNPAIR}.
 
 Definition multisig_head_spec
            (env : @proto_env (Some (parameter_ty, None)))
@@ -256,22 +272,28 @@ Definition multisig_iter_body :
     (nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
   :=
-  (DIP1 (SWAP ;; NOOP) ;; SWAP ;;
-       IF_CONS
-       (
-         IF_SOME
-           ( SWAP ;;
-                  DIP1
-                  (
-                    SWAP ;; DIIP ( DIP1 (DUP ;; NOOP) ;; SWAP ;; NOOP ) ;;
-                         CHECK_SIGNATURE ;; ASSERT ;;
-                         PUSH nat (nat_constant 1%N) ;; ADD_nat ;; NOOP) ;; NOOP)
-           ( SWAP ;; DROP1 ;; NOOP ) ;; NOOP
-       )
-       (
-         FAIL ;; NOOP
-       ) ;;
-       SWAP ;; NOOP).
+    {
+      DIP1 { SWAP }; SWAP;
+      IF_CONS
+        {
+          IF_SOME
+            {
+              SWAP;
+              DIP1
+                {
+                  SWAP;
+                  DIIP { DIP1 { DUP }; SWAP };
+                  CHECK_SIGNATURE; ASSERT;
+                  PUSH nat (nat_constant 1%N); ADD_nat
+                }
+            }
+            { SWAP; DROP1 }
+        }
+        {
+          FAIL
+        };
+        SWAP
+    }.
 
 Lemma multisig_iter_body_correct env k n sigs packed
       (st : stack (action_ty ::: storage_ty ::: nil)) fuel psi :
@@ -431,19 +453,26 @@ Definition multisig_tail :
     (nat ::: nat ::: list (option signature) ::: bytes ::: action_ty :::
          storage_ty ::: nil)
     (pair (list operation) storage_ty ::: nil) :=
-      ASSERT_CMPLE ;;
-    DROP1 ;; DROP1 ;;
+  {
+    ASSERT_CMPLE;
+    DROP1; DROP1;
 
-    DIP1 ( UNPAIR ;; PUSH nat (nat_constant 1%N) ;; ADD_nat ;; PAIR ;; NOOP ) ;;
+    DIP1 { UNPAIR; PUSH nat (nat_constant 1%N); ADD_nat; PAIR };
 
-    NIL operation ;; SWAP ;;
+    NIL operation; SWAP;
     IF_LEFT
-      ( UNPAIR ;; UNIT ;; TRANSFER_TOKENS ;; CONS ;; NOOP )
-      ( IF_LEFT (SET_DELEGATE ;; CONS ;; NOOP )
-                ( DIP1 ( SWAP ;; CAR ;; NOOP ) ;; SWAP ;; PAIR ;; SWAP ;; NOOP ) ;; NOOP) ;;
-    PAIR ;; NOOP.
+      { UNPAIR; UNIT; TRANSFER_TOKENS;
+        CONS }
+      { IF_LEFT { SET_DELEGATE; CONS }
+                { DIP1 { SWAP; CAR };
+                  SWAP; PAIR;
+                  SWAP } };
+    PAIR }.
 
-Lemma multisig_split : multisig = (multisig_head ;;; DIP1 (PUSH nat (nat_constant 0%N);; SWAP;; multisig_iter ;; NOOP);; multisig_tail).
+Lemma multisig_split : multisig =
+                       (multisig_head ;;;
+                        DIP1 { PUSH nat (nat_constant 0%N); SWAP; multisig_iter };;
+                        multisig_tail).
 Proof.
   reflexivity.
 Qed.

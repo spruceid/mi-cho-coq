@@ -39,17 +39,17 @@ Module semantics := Semantics C. Import semantics.
 Open Scope michelson_scope.
 
 Definition deposit : full_contract _ parameter_ty None storage_ty :=
-  (
-    DUP;; CAR;; DIP1 ( CDR ;; NOOP );;
+  {
+    DUP; CAR; DIP1 { CDR };
     IF_LEFT
-      ( DROP1;; NIL operation;; NOOP )
-      ( DIP1 ( DUP;; DUP;;
-               SENDER;; COMPARE;;
-               EQ;; IF_TRUE NOOP ( FAILWITH ;; NOOP );;
-               (CONTRACT None unit);; IF_NONE (FAILWITH ;; NOOP) NOOP ;; NOOP );;
-        PUSH unit Unit;; TRANSFER_TOKENS;;
-        (NIL operation);; SWAP;; CONS;; NOOP );;
-    PAIR ;; NOOP).
+      { DROP1; (NIL operation) }
+      { DIP1 { DUP; DUP;
+               SENDER; COMPARE;
+               EQ; IF_TRUE {} { FAILWITH };
+               (CONTRACT None unit); IF_NONE { FAILWITH } {} };
+        PUSH unit Unit; TRANSFER_TOKENS;
+        (NIL operation); SWAP; CONS };
+    PAIR }.
 
 Lemma deposit_correct :
   forall (env : @proto_env (Some (parameter_ty, None)))
