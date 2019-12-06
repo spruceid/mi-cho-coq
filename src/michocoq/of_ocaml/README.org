@@ -1,0 +1,12 @@
+#+Title: Comparison to the Tezos implementation
+
+This folder contains proofs comparing the Mi-Cho-Coq formalization to the Tezos
+implementation. We use [[https://github.com/clarus/coq-of-ocaml][coq-of-ocaml]]
+to convert large chunks of the Tezos OCaml code to Coq. We amend this imported
+code by hand and then make some proofs.
+
+* What do we compare
+
+- comparable types (bijection);
+- types (injection);
+- syntax (partial injection).
