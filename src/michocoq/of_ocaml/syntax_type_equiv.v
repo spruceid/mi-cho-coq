@@ -1,8 +1,10 @@
+(** Comparison of the OCaml and MiChoCoq types. *)
 Require Import Coq.Lists.List.
 Require of_ocaml.script_typed_ir_ml syntax_type.
 
 Import ListNotations.
 
+(** Utilities and notations to manipulate the option type. *)
 Module Option.
   Definition bind {A B : Type}
     (x : Datatypes.option A) (f : A -> Datatypes.option B)
@@ -41,6 +43,14 @@ End Option.
 
 Import Option.
 
+(** Bijection between OCaml and MiChoCoq comparable types. This bijection is
+    not a true bijection for the following reasons:
+    * some cases from OCaml are not imported by coq-of-ocaml;
+    * most of the annotations are missing in MiChoCoq;
+    * we define the equality on OCaml terms with an inductive, as this equality
+      is heterogeneous and we did not achieve to use the heterogeneous equality
+      of the Coq standard library with success.
+*)
 Module comparable.
   Import script_typed_ir_ml syntax_type.
 
@@ -255,6 +265,10 @@ Module comparable.
   Qed.
 End comparable.
 
+(** Injection from MiChoCoq types to OCaml types. We should be able to show that
+    this injection is actually a bijection. This bijection would be partial, for
+    the same reasons as for the comparable types.
+*)
 Module typ.
   Import script_typed_ir_ml syntax_type.
 

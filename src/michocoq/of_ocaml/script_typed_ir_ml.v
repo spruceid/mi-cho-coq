@@ -1,3 +1,11 @@
+(** File imported from the Tezos protocol Babylon in the file
+  ` proto_alpha/lib_protocol/script_typed_ir.ml`. We did the following changes:
+  * add dependencies as axioms at the beginning of the file;
+  * comment what is not supported:
+    * cases generating positivity checking errors;
+    * set and map first-class modules.
+    In particular we do not support instructions related to lambdas.
+*)
 Require Import Coq.Strings.String.
 Require Import ZArith.
 
