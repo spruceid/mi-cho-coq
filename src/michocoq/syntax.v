@@ -599,6 +599,26 @@ with tail_fail_induction_seq self_type A B
        | _ => I
        end .
 
+Corollary tail_fail_induction_and_seq
+         (P : forall self_type A B, instruction self_type true A B -> Type)
+         (Q : forall self_type A B, instruction_seq self_type true A B -> Type)
+         (HFAILWITH : forall st a A B, P st (a ::: A) B FAILWITH)
+         (HIF : forall st A B C1 C2 t (f : if_family C1 C2 t) i1 i2,
+             Q st (C1 ++ A)%list B i1 ->
+             Q st (C2 ++ A)%list B i2 ->
+             P st (t ::: A) B (IF_ f i1 i2))
+         (HSEQ : forall st A B C i1 i2,
+             Q st B C i2 -> Q st A C (SEQ i1 i2))
+         (HTF : forall st A B i, P st A B i -> Q st A B (Tail_fail i))
+         (HIS : forall st A B i, Q st A B i -> P st A B (Instruction_seq i))
+  : (forall self_type A B i, P self_type A B i) *
+    (forall self_type A B i, Q self_type A B i).
+Proof.
+  split.
+  - intros; eapply tail_fail_induction; eassumption.
+  - intros; eapply tail_fail_induction_seq; eassumption.
+Defined.
+
 Definition tail_fail_change_range {self_type} A B B' (i : instruction self_type true A B) :
   instruction self_type true A B'.
 Proof.

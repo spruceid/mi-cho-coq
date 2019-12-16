@@ -97,6 +97,11 @@ Definition success {A} (m : M A) :=
   | Return _ => true
   end.
 
+Lemma bool_dec (b1 b2 : Datatypes.bool) : { b1 = b2 } + { b1 <> b2 }.
+Proof.
+  repeat decide equality.
+Qed.
+
 Definition Is_true := Bool.Is_true.
 
 Lemma Is_true_UIP b (x y : Is_true b) : x = y.
@@ -292,4 +297,38 @@ Proof.
   intro H.
   exists (existT_eq_1 P x y a b H).
   apply existT_eq_2.
+Defined.
+
+(* Same about sig *)
+
+Definition sig_eq_1 {A} (P : A -> Prop) (xa yb : sig P) : xa = yb -> proj1_sig xa = proj1_sig yb.
+Proof.
+  apply f_equal.
+Defined.
+
+Definition sig_eq_2 {A} (P : A -> Prop) (xa yb : sig P) (H : xa = yb) :
+  eq_rec (proj1_sig xa) P (proj2_sig xa) (proj1_sig yb) (sig_eq_1 P xa yb H) = proj2_sig yb.
+Proof.
+  subst xa.
+  reflexivity.
+Defined.
+
+Definition exist_eq_1 {A} (P : A -> Prop) x y a b : exist P x a = exist P y b -> x = y.
+Proof.
+  apply (f_equal (@proj1_sig A P)).
+Defined.
+
+Definition exist_eq_2 {A} (P : A -> Prop) x y a b (H : exist P x a = exist P y b ) :
+  eq_rec x P a y (exist_eq_1 P x y a b H) = b.
+Proof.
+  apply (sig_eq_2 P (exist P x a) (exist P y b)).
+Defined.
+
+Definition exist_eq_3 {A} (P : A -> Prop) x y a b :
+  exist P x a = exist P y b ->
+  sig (fun H : x = y => eq_rec x P a y H = b).
+Proof.
+  intro H.
+  exists (exist_eq_1 P x y a b H).
+  apply exist_eq_2.
 Defined.
