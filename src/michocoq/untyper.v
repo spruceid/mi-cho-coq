@@ -632,3 +632,414 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
         simpl.
         destruct tff; reflexivity.
   Qed.
+
+
+  Definition sigT_eq_1 {A} (P : A -> Set) (xa yb : sigT P) : xa = yb -> projT1 xa = projT1 yb.
+  Proof.
+    apply f_equal.
+  Defined.
+
+  Definition sigT_eq_2 {A} (P : A -> Set) (xa yb : sigT P) (H : xa = yb) :
+    eq_rec (projT1 xa) P (projT2 xa) (projT1 yb) (sigT_eq_1 P xa yb H) = projT2 yb.
+  Proof.
+    subst xa.
+    reflexivity.
+  Defined.
+
+  Definition existT_eq_1 {A} (P : A -> Set) x y a b : existT P x a = existT P y b -> x = y.
+  Proof.
+    apply (f_equal (@projT1 A P)).
+  Defined.
+
+  Definition existT_eq_2 {A} (P : A -> Set) x y a b (H : existT P x a = existT P y b ) :
+    eq_rec x P a y (existT_eq_1 P x y a b H) = b.
+  Proof.
+    apply (sigT_eq_2 P (existT P x a) (existT P y b)).
+  Defined.
+
+  Definition existT_eq_3 {A} (P : A -> Set) x y a b :
+    existT P x a = existT P y b ->
+    sig (fun H : x = y => eq_rec x P a y H = b).
+  Proof.
+    intro H.
+    exists (existT_eq_1 P x y a b H).
+    apply existT_eq_2.
+  Defined.
+
+  Lemma unreturn {A} (a b : A) : error.Return a = error.Return b -> a = b.
+  Proof.
+    intro H; injection H; intro; assumption.
+  Qed.
+
+  Lemma type_untype_cast_seq um self_type A B C D tff i i' :
+    instruction_seq_cast (self_type := self_type) (tff := tff) A B C D i = Return i' ->
+    untype_instruction_seq um i = untype_instruction_seq um i'.
+  Proof.
+    unfold instruction_seq_cast.
+    destruct (stype_dec A B); [| discriminate].
+    destruct (stype_dec C D); [| discriminate].
+    destruct e.
+    destruct e0.
+    simpl.
+    intro H; apply unreturn in H.
+    congruence.
+  Qed.
+
+  Lemma type_untype_cast um self_type A B C D tff i i' :
+    instruction_cast (self_type := self_type) (tff := tff) A B C D i = Return i' ->
+    untype_instruction um i = untype_instruction um i'.
+  Proof.
+    unfold instruction_cast.
+    destruct (stype_dec A B); [| discriminate].
+    destruct (stype_dec C D); [| discriminate].
+    destruct e.
+    destruct e0.
+    simpl.
+    intro H; apply unreturn in H.
+    congruence.
+  Qed.
+
+  Lemma type_untype_cast_opcode self_type A B C D i i' :
+    opcode_cast (self_type := self_type) A B C D i = Return i' ->
+    untype_opcode i = untype_opcode i'.
+  Proof.
+    unfold opcode_cast.
+    destruct (stype_dec A B); [| discriminate].
+    destruct (stype_dec C D); [| discriminate].
+    destruct e.
+    destruct e0.
+    simpl.
+    intro H; apply unreturn in H.
+    congruence.
+  Qed.
+
+  Lemma type_untype_if_family f t A B ff :
+    type_if_family f t = Return (existT _ A (existT _ B ff)) ->
+    untype_if_family ff = f.
+  Proof.
+    destruct f; destruct ff; try discriminate; simpl; reflexivity.
+  Qed.
+
+  Lemma type_untype_loop_family f t A B ff :
+    type_loop_family f t = Return (existT _ A (existT _ B ff)) ->
+    untype_loop_family ff = f.
+  Proof.
+    destruct f; destruct ff; try discriminate; simpl; reflexivity.
+  Qed.
+
+  Ltac mytac type_untype type_untype_seq type_untype_data :=
+    match goal with
+    | |- _ -> _ =>
+      intro
+    | H : (bind _ _ = Return _) |- _ =>
+      rewrite error.bind_eq_return in H
+    | H : (exists _, _) |- _ =>
+      destruct H
+    | H : (_ /\ _) |- _ =>
+      destruct H
+    | H : (Return _ = Return _) |- _ =>
+      apply unreturn in H
+    | H : (Failed _ _ = Return _) |- _ =>
+      discriminate
+    | H : (match ?x with | Any_type_seq _ _ => _ | Inferred_type_seq _ _ _ => _ end = Return _) |- _ =>
+      is_var x; destruct x
+    | H : (match ?x with | Any_type _ _ => _ | Inferred_type _ _ _ => _ end = Return _) |- _ =>
+      is_var x; destruct x
+    | H : (match ?x with | existT _ _ _ => _ end = Return _) |- _ =>
+      is_var x; destruct x
+    | H : (match ?x with | exist _ _ _ => _ end = Return _) |- _ =>
+      is_var x; destruct x
+    | H : (match ?x with | (_, _) => _ end = Return _) |- _ =>
+      is_var x; destruct x
+    | H : (match ?x with | nil => _ | cons _ _ => _ end = Return _) |- _ =>
+      is_var x; destruct x
+    | H : (match ?x with | nil => _ | cons _ _ => _ end _ = Return _) |- _ =>
+      is_var x; destruct x
+    | H : (match ?x with | None => _ | Some _ => _ end = Return _) |- _ =>
+      is_var x; destruct x
+    | H : (match ?x with | NOOP => _ | SEQ _ _ => _ end = Return _) |- _ =>
+      is_var x; destruct x
+    | H : _ = ?x |- _ =>
+      is_var x; subst x
+    | H : ?x = _ |- _ =>
+      is_var x; subst x
+    | H : type_instruction_seq _ _ _ = Return _ |- _ =>
+      apply type_untype_seq in H
+    | H : type_instruction _ _ _ = Return _ |- _ =>
+      apply type_untype in H
+    | H : type_data _ _ _ = Return _ |- _ =>
+      apply type_untype_data in H
+    | H : type_if_family _ _ = Return (existT _ _ (existT _ _ _)) |- _ =>
+      apply type_untype_if_family in H
+    | H : type_loop_family _ _ = Return (existT _ _ (existT _ _ _)) |- _ =>
+      apply type_untype_loop_family in H
+    | H : instruction_seq_cast_range _ _ _ _ = Return _ |- _ =>
+      unfold instruction_seq_cast_range in H
+    | H : instruction_seq_cast _ _ _ _ _ = Return _ |- _ =>
+      apply (type_untype_cast_seq untype_Optimized) in H
+    | H : instruction_cast _ _ _ _ _ = Return _ |- _ =>
+      apply (type_untype_cast untype_Optimized) in H
+    | H : opcode_cast _ _ _ _ _ = Return _ |- _ =>
+      apply type_untype_cast_opcode in H
+    | H : instruction_cast_domain _ _ _ _ = Return _ |- _ =>
+      unfold instruction_cast_domain in H
+    | H : opcode_cast_domain _ _ _ _ _ = Return _ |- _ =>
+      unfold opcode_cast_domain in H
+    | H : type_check_instruction_seq _ _ _ _ = Return _ |- _ =>
+      unfold type_check_instruction_seq in H
+    | H : type_check_instruction_seq_no_tail_fail _ _ _ _ = Return _ |- _ =>
+      unfold type_check_instruction_seq_no_tail_fail in H
+    | H : type_instruction_seq_no_tail_fail _ _ _ = Return _ |- _ =>
+      unfold type_instruction_seq_no_tail_fail in H
+    | H : assert_not_tail_fail_seq _ _ = Return _ |- _ =>
+      unfold assert_not_tail_fail_seq in H
+    |  H : match ?x with
+           | Comparable_type _ => _
+           | key => _
+           | unit => _
+           | signature => _
+           | option _ => _
+           | list _ => _
+           | set _ => _
+           | contract _ => _
+           | operation => _
+           | pair _ _ => _
+           | or _ _ _ _ => _
+           | lambda _ _ => _
+           | map _ _ => _
+           | big_map _ _ => _
+           | chain_id => _
+           end = Return _ |- _ =>
+       destruct x; try discriminate
+    | H : match ?x with
+            | syntax_type.string => _
+            | nat => _
+            | int => _
+            | bytes => _
+            | bool => _
+            | mutez => _
+            | address => _
+            | key_hash => _
+            | timestamp => _
+          end = Return _ |- _ =>
+      destruct x; try discriminate
+    | H : (existT _ _ _ = existT _ _ _) |- _ =>
+      apply existT_eq_3 in H; destruct H
+    | H : (untype_instruction_seq _
+             (eq_rec _ _ _ _ eq_refl) = _) |- _ =>
+      simpl in H
+    | H : (untype_instruction _
+             (syntax.CREATE_CONTRACT _ _ _
+                 (eq_rec _ _ _ _ eq_refl)) = _) |- _ =>
+      simpl in H
+    | H : (untype_instruction _
+             (syntax.DIP _ _
+                 (eq_rec _ _ _ _ eq_refl)) = _) |- _ =>
+      simpl in H
+    | |- _ = _ =>
+      simpl in *; f_equal; congruence
+    end.
+
+  Lemma type_untype_opcode self_type A B o (o' : syntax.opcode A B) :
+    typer.type_opcode (self_type := self_type) o A =
+    error.Return (existT _ B o') ->
+    untype_opcode o' = o.
+  Proof.
+    destruct o; simpl.
+    - destruct A; [discriminate|].
+      destruct A; [discriminate|].
+      destruct t0; try discriminate.
+      destruct t0_1; try discriminate.
+      match goal with
+        | |-
+          ((match ?b0 as b return _ with | true => ?th | false => ?e end) eq_refl = ?rhs -> _) =>
+          intro Ho'; assert (exists b (Hb : is_packable t = b),
+                                (if b return is_packable t = b -> _
+                                 then th else e) Hb = rhs)
+        end.
+      + exists (is_packable t); exists eq_refl; exact Ho'.
+      + clear Ho'.
+        destruct H as ([|], (Hb, H)); try discriminate.
+        unfold typer.opcode_cast_domain in H.
+        repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - unfold type_check_dig.
+      repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - unfold type_check_dug.
+      repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+  Qed.
+
+  Fixpoint type_untype self_type A i t {struct i} :
+    typer.type_instruction typer.Optimized (self_type := self_type) i A = error.Return t ->
+    match t with
+    | Inferred_type _ B i' => untype_instruction untype_Optimized i' = i
+    | Any_type _ i' => forall B, untype_instruction untype_Optimized (i' B) = i
+    end
+  with type_untype_seq self_type A i t {struct i} :
+    typer.type_instruction_seq typer.Optimized (self_type := self_type) i A = error.Return t ->
+    match t with
+    | Inferred_type_seq _ B i' => untype_instruction_seq untype_Optimized i' = i
+    | Any_type_seq _ i' => forall B, untype_instruction_seq untype_Optimized (i' B) = i
+    end
+  with type_untype_data a x (x' : syntax.concrete_data a) {struct x} :
+    typer.type_data typer.Optimized x a = error.Return x' ->
+    untype_data untype_Optimized x' = x.
+  Proof.
+    {
+      destruct i; simpl.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - unfold type_branches.
+        repeat mytac type_untype type_untype_seq type_untype_data.
+      - unfold type_loop.
+        repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+        apply type_untype_opcode in H.
+        simpl.
+        f_equal.
+        exact H.
+    }
+    {
+      destruct i; simpl.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+    }
+    {
+      destruct x; simpl.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+        + case_eq (z >=? 0)%Z; intro He; rewrite He in H; try discriminate.
+          repeat mytac type_untype type_untype_seq type_untype_data.
+          simpl.
+          rewrite Z.geb_le in He.
+          f_equal.
+          apply Z2N.id.
+          assumption.
+        + simpl.
+          f_equal.
+          apply tez.of_Z_to_Z_eqv.
+          assumption.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+        + simpl.
+          f_equal.
+          generalize dependent x.
+          generalize dependent l.
+          induction l.
+          * repeat mytac type_untype type_untype_seq type_untype_data.
+          * repeat mytac type_untype type_untype_seq type_untype_data.
+            simpl.
+            f_equal.
+            apply IHl.
+            assumption.
+        + simpl.
+          f_equal.
+          generalize dependent x.
+          generalize dependent l.
+          induction l.
+          * repeat mytac type_untype type_untype_seq type_untype_data.
+          * repeat mytac type_untype type_untype_seq type_untype_data.
+            simpl.
+            f_equal.
+            apply IHl.
+            assumption.
+        + simpl.
+          f_equal.
+          match goal with | H : ?F l = Return x |- _ => pose F as type_data_list end.
+          change (type_data_list l = Return x) in H.
+          assert (exists l', l' = l) as Hl' by (exists l; reflexivity).
+          rename l into linit.
+          destruct Hl' as (l, Hl).
+          rewrite <- Hl in H.
+          rewrite <- Hl.
+          clear Hl.
+          generalize dependent x.
+          induction l; simpl in *.
+          * repeat mytac type_untype type_untype_seq type_untype_data.
+          * repeat mytac type_untype type_untype_seq type_untype_data.
+            destruct a0; try discriminate.
+            repeat mytac type_untype type_untype_seq type_untype_data.
+            simpl.
+            f_equal.
+            apply IHl.
+            assumption.
+      - repeat mytac type_untype type_untype_seq type_untype_data.
+    }
+  Qed.
