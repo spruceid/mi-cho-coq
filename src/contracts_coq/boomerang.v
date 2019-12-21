@@ -94,7 +94,8 @@ Proof.
   more_fuel; simpl.
   fold (simple_compare mutez).
   fold (compare mutez).
-  case_eq ((comparison_to_int (compare mutez (0 ~Mutez) (amount env)) =? 0)%Z).
+  rewrite match_if_exchange.
+  match goal with | |- (if ?b then _ else _) <-> _ => case_eq b end.
   - (* true *)
     intro Heq.
     rewrite eqb_eq in Heq.

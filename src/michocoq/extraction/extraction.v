@@ -95,7 +95,7 @@ Extract Constant Zdigits.Zmod2 => "fun x -> Zarith.ediv x (Zarith.add Zarith.one
 Extract Inlined Constant int64 => "int64".
 Extract Inlined Constant sign => "(fun x -> Int64.compare x 0L < 0)".
 Extract Inlined Constant to_Z => "Zarith.of_int64".
-Extract Inlined Constant of_Z => "Zarith.to_int64".
+Extract Inlined Constant of_Z_unsafe => "Zarith.to_int64".
 
 (* Avoid a name collision for the module [Char] from the [coq-list-string]
    library. *)

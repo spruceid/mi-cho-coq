@@ -177,7 +177,7 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma bind_eq_return {A B : Set} f (m : M A) (b : M B) :
+Lemma bind_eq_return {A B : Set} f (m : M A) (b : B) :
   (let! x := m in f x) = Return b ->
   exists a : A, m = Return a /\ f a = Return b.
 Proof.

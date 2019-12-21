@@ -26,6 +26,7 @@ Require Import ZArith.
 Require int64bv.
 Require Eqdep_dec.
 Require error.
+Import error.Notations.
 
 Definition mutez : Set := {t : int64bv.int64 | int64bv.sign t = false }.
 
@@ -46,9 +47,7 @@ Proof.
   destruct (Bool.bool_dec x y); tauto.
 Qed.
 
-Coercion to_int64 : mutez >-> int64bv.int64.
-
-Definition to_Z (t : mutez) : Z := int64bv.to_Z t.
+Definition to_Z (t : mutez) : Z := int64bv.to_Z (to_int64 t).
 
 Definition of_int64_aux (t : int64bv.int64) (sign : bool) :
   int64bv.sign t = sign -> error.M mutez :=
@@ -75,16 +74,58 @@ Proof.
       reflexivity.
 Qed.
 
+Lemma of_int64_aux_sign (t : int64bv.int64) sign (e : int64bv.sign t = sign) (b : mutez) :
+  of_int64_aux t sign e = error.Return b ->
+  sign = false.
+Proof.
+  unfold of_int64_aux.
+  destruct sign.
+  - discriminate.
+  - reflexivity.
+Qed.
+
+Lemma of_int64_sign (t : int64bv.int64) (b : mutez) :
+  of_int64 t = error.Return b ->
+  int64bv.sign t = false.
+Proof.
+  destruct b.
+  unfold of_int64.
+  apply of_int64_aux_sign.
+Qed.
+
 Definition of_Z (t : Z) : error.M mutez :=
-  of_int64 (int64bv.of_Z t).
+  let! b := int64bv.of_Z t in
+  of_int64 b.
+
+Lemma of_Z_to_Z_eqv (z : Z) (t : mutez) : to_Z t = z <-> of_Z z = error.Return t.
+Proof.
+  unfold of_Z, to_Z.
+  split.
+  - intro; subst z.
+    rewrite int64bv.of_Z_to_Z.
+    destruct t.
+    simpl.
+    apply of_int64_return.
+  - intro H.
+    apply (error.bind_eq_return of_int64) in H.
+    destruct H as (b, (Hz, Hb)).
+    rewrite <- int64bv.of_Z_to_Z_eqv in Hz.
+    subst z.
+    f_equal.
+    destruct t as (b', e').
+    simpl.
+    assert (int64bv.sign b = false) as e.
+    + apply of_int64_sign in Hb.
+      assumption.
+    + rewrite (of_int64_return _ e) in Hb.
+      injection Hb.
+      auto.
+Qed.
 
 Lemma of_Z_to_Z (t : mutez) : of_Z (to_Z t) = error.Return t.
 Proof.
-  unfold of_Z, to_Z.
-  rewrite int64bv.of_Z_to_Z.
-  destruct t.
-  simpl.
-  apply of_int64_return.
+  rewrite <- of_Z_to_Z_eqv.
+  reflexivity.
 Qed.
 
 Definition compare (t1 t2 : mutez) : comparison :=

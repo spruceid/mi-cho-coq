@@ -447,10 +447,7 @@ Require Import String.
         reflexivity.
       + simpl.
         destruct m.
-        trans_refl (
-          let! m := tez.of_Z (tez.to_Z m) in
-          Return (syntax.Mutez_constant (Mk_mutez m))
-        ).
+        unfold type_data.
         rewrite tez.of_Z_to_Z.
         reflexivity.
       + simpl.
