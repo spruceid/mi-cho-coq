@@ -1,0 +1,142 @@
+* Options                                                         :noexport:
+#+OPTIONS: H:1 texht:t toc:nil
+#+DATE: 11 mars 2019
+#+Title: Vérification du contrat multisig en Coq
+** Beamer
+#+STARTUP: beamer
+#+BEAMER_COLOR_THEME: default
+#+BEAMER_FONT_THEME:
+#+LaTeX_header: \usepackage{ wasysym }
+#+LaTeX_header: \mode<beamer>{\usetheme{Darmstadt}}
+#+BEAMER_HEADER: \setbeamertemplate{navigation symbols}{}
+#+BEAMER_HEADER: \setbeamertemplate{footline}[frame number]
+#+BEAMER_INNER_THEME:
+#+BEAMER_OUTER_THEME:
+#+LATEX_CLASS: beamer
+#+LATEX_CLASS_OPTIONS:
+
+** XeLaTeX
+#+LATEX_HEADER: \usepackage{fontspec} \setmainfont{FreeSerif}
+** Code Listing
+#+LaTeX_Header: \usepackage{listings}
+#+LaTeX_Header: \usepackage{color}
+#+LaTeX_Header: \lstset{basicstyle={\ttfamily\small},keywordstyle={\color{blue}}}
+*** Dedukti
+#+LaTeX_Header: \lstdefinelanguage{Dedukti}{alsoletter={=->:},keywords={def,Type,-->,->,=>,:=,:,.},moredelim=[s][\color{brown}]{\[}{\]},moredelim=[s][\color{red}]{(;}{;)}}
+#+LaTeX_Header: \lstnewenvironment{dedukticode}
+#+LaTeX_Header: {\lstset{language={Dedukti}}}{}
+*** Coq
+#+LaTeX_Header: \lstdefinelanguage{Coq}{alsoletter={=->:},keywords={Definition,Type,Set,Prop,Parameter,Check,Ltac,Defined,Qed,Print,Lemma,Proof,Inductive,fun,forall,Fixpoint,struct,match,with,in,return,Module,Record,Class,Structure,End,Canonical,if,then,else,Coercion,end}}
+#+LaTeX_Header: \lstnewenvironment{coqcode}
+#+LaTeX_Header: {\lstset{language={Coq}}}{}
+
+*** Michelson
+#+LaTeX_Header: \lstdefinelanguage{Michelson}{alsoletter={},keywords={}}
+#+LaTeX_Header: \lstnewenvironment{michelsoncode}
+#+LaTeX_Header: {\lstset{language={Michelson}}}{}
+** Busproof
+#+LaTeX_Header: \usepackage{setspace}
+#+LaTeX_header: \usepackage{bussproofs}
+#+LaTeX_header: \newcommand{\myUIC}[2]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#1}
+#+LaTeX_header:      \UnaryInfC{#2}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\myBIC}[3]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#1}
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \BinaryInfC{#3}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\myTIC}[4]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#1}
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \AxiomC{#3}
+#+LaTeX_header:      \TrinaryInfC{#4}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\mylUIC}[3]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \RightLabel{\scriptsize(#1)}
+#+LaTeX_header:      \UnaryInfC{#3}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\mylBIC}[4]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \AxiomC{#3}
+#+LaTeX_header:      \RightLabel{\scriptsize(#1)}
+#+LaTeX_header:      \BinaryInfC{#4}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newcommand{\mylTIC}[5]
+#+LaTeX_header:   {\mbox{
+#+LaTeX_header:      \AxiomC{#2}
+#+LaTeX_header:      \AxiomC{#3}
+#+LaTeX_header:      \AxiomC{#4}
+#+LaTeX_header:      \RightLabel{\scriptsize(#1)}
+#+LaTeX_header:      \TrinaryInfC{#5}
+#+LaTeX_header:      \DisplayProof}}
+#+LaTeX_header: \newenvironment{infset}
+#+LaTeX_header:   {\begin{center} \setstretch{2.5}}
+#+LaTeX_header:   {\end{center}}
+
+** Arrays
+#+LaTeX_Header: \newenvironment{leftarray}{\begin{array}{l}}{\end{array}}
+#+LaTeX_Header: \newenvironment{leftleftarray}{\begin{array}{ll}}{\end{array}}
+#+LaTeX_Header: \newenvironment{leftleftleftarray}{\begin{array}{lll}}{\end{array}}
+#+LaTeX_Header: \newenvironment{leftleftxleftarray}{\begin{array}{ll@{}l}}{\end{array}}
+#+LaTeX_Header: \newenvironment{leftreducearray}{\begin{array}{l@{~}l@{ }r@{}l}}{\end{array}}
+
+** Tikz
+#+LaTeX_header: \usepackage{tikz}
+
+
+
+* Le contrat multisig d’Arthur
+
+ stockage :
+   * un compteur incrémenté à chaque appel
+   * un seuil: le nombre de signature à avoir pour effectuer une action
+   * une liste de clés
+ paramètres :
+   * un compteur (doit être égal à celui qui est stocké)
+   * une action parmi :
+     - transfert,
+     - changement de délégué, ou
+     - changement des clés et du seuil
+   * une liste de signatures optionnelles
+     - Pour chaque clé stockée, on peut fournir une signature de
+
+       (compteur, action, adresse(self)).
+
+* Rejeu
+
+Le compteur et l’adresse de self sont là pour éviter les attaques par rejeu.
+
+Attention, je n’ai *pas* prouvé que ce contrat est résistant au rejeu.
+
+
+* Spécification
+
+#+LaTeX: \renewcommand{\alert}{\textbf}
+
+J’ai prouvé en Coq une propriété de la forme :
+
+| \forall params, storage, operations, storage’,                                |
+| \quad *eval* (=multisig=, params, storage) = *Success* (operations, storage’) |
+| \quad \Leftrightarrow $R$ (params, storage, operations, storage’)             |
+
+
+La relation $R$ est la spécification du contrat =multisig=, elle
+caractérise les executions réussies du contrat.
+
+
+* Futur
+
+- Autres contrats
+- Mécanisation des preuves
+- Formalisation du gas
+- Compilation (Liquidity? Ligo? Albert?)
+- Annotations
+- Extraction
+- Chaînes d’execution
