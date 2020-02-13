@@ -1,0 +1,16 @@
+parameter: (or unit mutez);
+storage: address;
+code:
+  { DUP; CAR; DIP {CDR};
+    IF_LEFT
+      { # Deposit
+        DROP; NIL operation }
+      { # Withdraw
+        DIP { DUP;
+              # Access control:
+              #  only the stored address can withdraw
+              DUP; SENDER; COMPARE; EQ; IF {} {FAILWITH};
+              CONTRACT unit; IF_NONE {FAILWITH} {}};
+        PUSH unit Unit; TRANSFER_TOKENS;
+        NIL operation; SWAP; CONS};
+    PAIR}
