@@ -26,3 +26,6 @@ coq:8.9:
 
 coq:8.10:
   extends: .build
+
+coq:8.11:
+  extends: .build
