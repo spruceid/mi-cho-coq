@@ -1,4 +1,6 @@
 Require Import ZArith List Nat String.
+Require Import ListString.All.
+Require Import Moment.All.
 Require syntax semantics.
 Require Import syntax_type.
 Require Import untyped_syntax error.
@@ -204,6 +206,14 @@ Qed.
         | key => Return (syntax.Key_constant s)
         | Comparable_type key_hash => Return (syntax.Key_hash_constant s)
         | Comparable_type address => Return (syntax.Address_constant (syntax.Mk_address s))
+        | Comparable_type timestamp =>
+          match Moment.Parse.rfc3339_non_strict (LString.s s) with
+          | Some (moment, nil) =>
+            let z := Moment.to_epoch moment in
+            Return (syntax.Timestamp_constant z)
+          | _ =>
+            Failed _ (Typing _ ("Cannot parse timestamp according to rfc3339"%string, s))
+          end
         | chain_id => Return (syntax.Chain_id_constant (syntax.Mk_chain_id s))
         | _ => Failed _ (Typing _ (d, ty))
         end

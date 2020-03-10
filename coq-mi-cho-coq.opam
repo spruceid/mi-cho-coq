@@ -18,7 +18,9 @@ install: [
   make "install"
 ]
 depends: [
+  "coq-list-string"
   "coq-menhirlib" {>= "20190626"}
+  "coq-moment" {>= "1.2.0"}
   "coq-ott" {>= "0.29"}
   "coq" {>= "8.8"}
   "menhir"

@@ -97,7 +97,10 @@ Extract Inlined Constant sign => "(fun x -> Int64.compare x 0L < 0)".
 Extract Inlined Constant to_Z => "Zarith.of_int64".
 Extract Inlined Constant of_Z => "Zarith.to_int64".
 
-Recursive Extraction Library main.
+(* Avoid a name collision for the module [Char] from the [coq-list-string]
+   library. *)
+Extraction Blacklist Char.
+Separate Extraction main.
 
 (* Require Import Michocoq.main. *)
 (* Recursive Extraction Library main. *)

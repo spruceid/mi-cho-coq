@@ -1,5 +1,5 @@
 Lexing: OK
 Parsing: OK
 Expansion: OK
-Type checking: Typing error
+Type checking: OK
 
