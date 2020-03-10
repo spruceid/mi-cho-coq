@@ -60,8 +60,7 @@ Definition multisig : full_contract _ ST.self_type storage_ty :=
         DIP1
           (
             UNPAIR ;;
-            DUP ;; SELF ;; ADDRESS ;; PAIR ;;
-            PACK ;;
+            DUP ;; SELF ;; ADDRESS ;; CHAIN_ID ;; PAIR ;; PAIR ;; PACK ;;
             DIP1 ( UNPAIR ;; DIP1 SWAP ) ;; SWAP
           ) ;;
 
@@ -127,7 +126,7 @@ Fixpoint count_signatures (sigs : Datatypes.list (Datatypes.option (data signatu
   end.
 
 Definition action_ty := or (lambda unit (list operation)) (pair nat (list key)).
-Definition pack_ty := pair address (pair nat action_ty).
+Definition pack_ty := pair (pair chain_id address) (pair nat action_ty).
 
 Definition multisig_spec
            (parameter : data parameter_ty)
@@ -155,8 +154,9 @@ Definition multisig_spec
       (fun k sig =>
          check_signature
            env k sig
-           (pack env pack_ty (address_ env ST.self_type (self env),
-                              (counter, action)))) /\
+           (pack env pack_ty
+                 ((chain_id_ env, address_ env ST.self_type (self env)),
+                  (counter, action)))) /\
     (count_signatures sigs >= threshold)%N /\
     new_stored_counter = (1 + stored_counter)%N /\
     match action with
@@ -183,8 +183,7 @@ Definition multisig_head {A} (then_ : instruction (Some ST.self_type) Datatypes.
     DIP1
       (
         UNPAIR ;;
-        DUP ;; SELF ;; ADDRESS ;; PAIR ;;
-        PACK ;;
+        DUP ;; SELF ;; ADDRESS ;; CHAIN_ID ;; PAIR ;; PAIR ;; PACK ;;
         DIP1 ( UNPAIR ;; DIP1 SWAP ) ;; SWAP
       ) ;;
 
@@ -220,7 +219,8 @@ Definition multisig_head_spec
         (keys,
          (sigs,
           (pack env pack_ty
-                (address_ env ST.self_type (self env), (counter, action)),
+                ((chain_id_ env, address_ env ST.self_type (self env)),
+                 (counter, action)),
            (action, (storage, tt)))))).
 
 Ltac fold_eval_precond :=
@@ -251,7 +251,7 @@ Proof.
   intros params storage fuel Hfuel.
   unfold multisig_head.
   unfold "+", params, storage, multisig_head_spec.
-  do 9 (more_fuel; simpl).
+  do 11 (more_fuel; simpl); repeat fold_eval_precond.
   rewrite if_false_is_and.
   rewrite (eqb_eq mutez).
   apply and_both.
