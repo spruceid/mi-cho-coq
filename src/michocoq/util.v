@@ -25,16 +25,6 @@ Import syntax.
 Import comparable.
 Require Import semantics.
 
-Ltac more_fuel :=
-  match goal with
-    | Hfuel : (_ <= ?fuel) |- _ =>
-      destruct fuel as [|fuel];
-      [inversion Hfuel; fail
-      | apply le_S_n in Hfuel]
-  end.
-
-
-
 Lemma forall_ex {A : Set} {phi psi : A -> Prop} :
   (forall x, phi x <-> psi x) -> ((exists x, phi x) <-> (exists x, psi x)).
 Proof.

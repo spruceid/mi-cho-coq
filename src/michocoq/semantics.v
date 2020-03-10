@@ -22,7 +22,7 @@
 
 (* Operational semantics of the Michelson language *)
 
-Require Import ZArith.
+Require Import ZArith Lia.
 Require Import String.
 Require Import syntax macros.
 Require NPeano.
@@ -35,6 +35,15 @@ Module Type ContractContext.
 End ContractContext.
 
 Module Semantics(C : ContractContext).
+
+  Ltac more_fuel :=
+  match goal with
+    | Hfuel : (_ <= ?fuel) |- _ =>
+      destruct fuel as [|fuel];
+      [inversion Hfuel; fail
+      | apply le_S_n in Hfuel]
+  end.
+
   Export C.
 
   Fixpoint data (a : type) {struct a} : Set :=
@@ -1230,6 +1239,75 @@ Module Semantics(C : ContractContext).
     eval_seq_precond n env i1 (eval_seq_precond n env i2 psi) st.
   Proof.
     apply eval_seq_assoc_aux.
+  Qed.
+
+  (* If we know a fuel bound on the body of an ITER, we have a rather simple formula for eval_precond: *)
+  Lemma precond_iter_bounded a (l : data (list a)) A (body : instruction _ _ (a ::: A) A)
+        fuel_bound body_spec :
+    (forall fuel (x : data a) (input_stack : stack A) (psi : stack A -> Prop),
+        fuel_bound <= fuel ->
+        precond (eval env body fuel (x, input_stack)) psi <-> body_spec psi x input_stack) ->
+    (forall psi1 psi2 x input_stack,
+        (forall x, psi1 x <-> psi2 x) ->
+        body_spec psi1 x input_stack <-> body_spec psi2 x input_stack) ->
+    forall fuel input_stack psi,
+      S fuel_bound + List.length l <= fuel ->
+      precond (eval env (ITER body) fuel (l, input_stack)) psi
+      <->
+      List.fold_right (fun x psi st => body_spec psi x st) psi l input_stack.
+  Proof.
+    intros H Hbs.
+    induction l; intros fuel input_stack psi Hfuel.
+    - simpl.
+      more_fuel.
+      reflexivity.
+    - simpl.
+      simpl in Hfuel.
+      more_fuel.
+      simpl.
+      rewrite precond_bind.
+      rewrite H.
+      + apply Hbs.
+        intro s.
+        apply IHl.
+        rewrite <- plus_n_Sm in Hfuel.
+        exact Hfuel.
+      + generalize Hfuel.
+        lia.
+  Qed.
+
+  Definition precond_iter_fun a A fuel (body : instruction _ Datatypes.false (a ::: A) A) (x : data a) (psiacc : ((stack A -> Prop) * Datatypes.nat))
+    :=
+      (fun (st : stack A) => precond (eval env body (snd psiacc + fuel) (x, st)) (fst psiacc),
+                 S (snd psiacc)).
+
+  Lemma precond_iter_fun_fold_right_length a A l psi body fuel :
+    snd (List.fold_right (precond_iter_fun a A fuel body) (psi, 1) l) + fuel
+    = List.length l + S fuel.
+  Proof.
+    induction l.
+    - simpl.
+      reflexivity.
+    - simpl.
+      f_equal.
+      exact IHl.
+  Qed.
+
+  Lemma precond_iter a (l : data (list a)) A (body : instruction _ _ (a ::: A) A) :
+    forall fuel (input_stack : stack A) (psi : stack A -> Prop),
+    precond (eval env (ITER body) (List.length l + S fuel) (l, input_stack)) psi
+    <->
+    fst (List.fold_right (precond_iter_fun a A fuel body)
+                  (psi, 1)
+                  l) input_stack.
+  Proof.
+    induction l; intros fuel input_stack psi; simpl.
+    - reflexivity.
+    - rewrite precond_bind.
+      rewrite precond_iter_fun_fold_right_length.
+      apply precond_eqv.
+      intros s.
+      apply IHl.
   Qed.
 
 End Semantics.
