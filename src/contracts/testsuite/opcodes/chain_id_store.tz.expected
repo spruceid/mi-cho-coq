@@ -1,0 +1,5 @@
+Lexing: OK
+Parsing: OK
+Expansion: Expansion error between line 2 column 13 and line 2 column 20
+Type checking: Expansion error between line 2 column 13 and line 2 column 20
+

@@ -1,0 +1,5 @@
+Lexing: OK
+Parsing: OK
+Expansion: Unknown primitive CREATE_ACCOUNT between line 11 column 8 and line 11 column 21
+Type checking: Unknown primitive CREATE_ACCOUNT between line 11 column 8 and line 11 column 21
+

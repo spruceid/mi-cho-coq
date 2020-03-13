@@ -1,0 +1,5 @@
+Lexing: OK
+Parsing: OK
+Expansion: Unknown primitive EMPTY_BIG_MAP between line 5 column 10 and line 5 column 25
+Type checking: Unknown primitive EMPTY_BIG_MAP between line 5 column 10 and line 5 column 25
+
