@@ -1,0 +1,21 @@
+
+## Tests
+
+MICHOCOQ=src/michocoq/extraction/michocoq.native
+
+RESET_REGRESSION=false
+
+TESTS=$(wildcard src/contracts/testsuite/*/*.tz)
+
+TESTS_RESULTS=$(TESTS:.tz=.tz.res)
+
+%.tz.res: %.tz
+	$(MICHOCOQ) "$$(cat $<)" > $*.tz.res
+ifeq ($(RESET_REGRESSION),true)
+	@cp $*.tz.res $*.tz.expected
+else
+	@diff $*.tz.res $*.tz.expected
+endif
+
+test: all $(TESTS_RESULTS)
+	@rm $(TESTS_RESULTS)
