@@ -27,6 +27,7 @@ depends: [
   "ott" {build & >= "0.29"}
   "zarith"
 ]
+build-test: [ make "test" ]
 
 description: """
 Michelson is a language for writing smart contracts on the Tezos blockchain.
