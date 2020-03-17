@@ -90,25 +90,8 @@ Fixpoint michelson2micheline_data (d : concrete_data) : loc_micheline :=
   | Instruction _ => dummy_prim "NOOP" [] (* Should never occur *)
   end.
 
-Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
-  match i with
-  | NOOP => dummy_mich (SEQ [])
-  | untyped_syntax.SEQ i1 i2 =>
-    let m1 := michelson2micheline_ins i1 in
-    let m2 := michelson2micheline_ins i2 in
-    let ls1 :=
-        match m1 with
-        | Mk_loc_micheline (_, _, (SEQ ls1)) => ls1
-        | _ => [m1]%list
-        end in
-    let ls2 :=
-        match m2 with
-        | Mk_loc_micheline (_, _, (SEQ ls2)) => ls2
-        | _ => [m2]%list
-        end in
-    dummy_mich (SEQ (List.app ls1 ls2))
-  | FAILWITH => dummy_prim "FAILWITH" []
-  | EXEC => dummy_prim "EXEC" []
+Definition michelson2micheline_opcode (o : opcode) : loc_micheline :=
+  match o with
   | APPLY => dummy_prim "APPLY" []
   | DUP => dummy_prim "DUP" []
   | SWAP => dummy_prim "SWAP" []
@@ -156,11 +139,6 @@ Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
                                         michelson2micheline_type t]
   | MEM => dummy_prim "MEM" []
   | UPDATE => dummy_prim "UPDATE" []
-  | CREATE_CONTRACT t1 t2 an i => dummy_prim "CREATE_CONTRACT"
-                                          [michelson2micheline_type t1;
-                                             michelson2micheline_atype
-                                               michelson2micheline_type t2 an;
-                                             michelson2micheline_ins i]
   | TRANSFER_TOKENS => dummy_prim "TRANSFER_TOKENS" []
   | SET_DELEGATE => dummy_prim "SET_DELEGATE" []
   | BALANCE => dummy_prim "BALANCE" []
@@ -170,8 +148,6 @@ Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
     dummy_prim "CONTRACT" [dummy_prim an []; michelson2micheline_type t]
   | SOURCE => dummy_prim "SOURCE" []
   | SENDER => dummy_prim "SENDER" []
-  | SELF None => dummy_prim "SELF" []
-  | SELF (Some an) => dummy_prim "SELF" [dummy_prim an []]
   | AMOUNT => dummy_prim "AMOUNT" []
   | IMPLICIT_ACCOUNT => dummy_prim "IMPLICIT_ACCOUNT" []
   | NOW => dummy_prim "NOW" []
@@ -182,6 +158,35 @@ Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
   | SHA256 => dummy_prim "SHA256" []
   | SHA512 => dummy_prim "SHA512" []
   | CHECK_SIGNATURE => dummy_prim "CHECK_SIGNATURE" []
+  | DIG n => dummy_prim "DIG" [dummy_mich (NUMBER (BinInt.Z.of_nat n))]
+  | DUG n => dummy_prim "DUG" [dummy_mich (NUMBER (BinInt.Z.of_nat n))]
+  | DROP n => dummy_prim "DROP" [dummy_mich (NUMBER (BinInt.Z.of_nat n))]
+  | CHAIN_ID => dummy_prim "CHAIN_ID" []
+  end.
+
+Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
+  match i with
+  | NOOP => dummy_mich (SEQ [])
+  | untyped_syntax.SEQ i1 i2 =>
+    let m1 := michelson2micheline_ins i1 in
+    let m2 := michelson2micheline_ins i2 in
+    let ls1 :=
+        match m1 with
+        | Mk_loc_micheline (_, _, (SEQ ls1)) => ls1
+        | _ => [m1]%list
+        end in
+    let ls2 :=
+        match m2 with
+        | Mk_loc_micheline (_, _, (SEQ ls2)) => ls2
+        | _ => [m2]%list
+        end in
+    dummy_mich (SEQ (List.app ls1 ls2))
+  | FAILWITH => dummy_prim "FAILWITH" []
+  | CREATE_CONTRACT t1 t2 an i => dummy_prim "CREATE_CONTRACT"
+                                          [michelson2micheline_type t1;
+                                             michelson2micheline_atype
+                                               michelson2micheline_type t2 an;
+                                             michelson2micheline_ins i]
   | IF_ i1 i2 =>
     dummy_prim "IF" [dummy_seq (michelson2micheline_ins i1);
                        dummy_seq (michelson2micheline_ins i2)]
@@ -214,12 +219,13 @@ Fixpoint michelson2micheline_ins (i : instruction) : loc_micheline :=
     dummy_prim "LAMBDA" [ michelson2micheline_type t1;
                             michelson2micheline_type t2;
                             dummy_seq (michelson2micheline_ins i)]
-  | DIG n => dummy_prim "DIG" [dummy_mich (NUMBER (BinInt.Z.of_nat n))]
-  | DUG n => dummy_prim "DUG" [dummy_mich (NUMBER (BinInt.Z.of_nat n))]
-  | DROP n => dummy_prim "DROP" [dummy_mich (NUMBER (BinInt.Z.of_nat n))]
   | DIP n i => dummy_prim "DIP" [dummy_mich (NUMBER (BinInt.Z.of_nat n));
                                    dummy_seq (michelson2micheline_ins i)]
-  | CHAIN_ID => dummy_prim "CHAIN_ID" []
+  | SELF None => dummy_prim "SELF" []
+  | SELF (Some an) => dummy_prim "SELF" [dummy_prim an []]
+  | EXEC => dummy_prim "EXEC" []
+  | instruction_opcode o =>
+    michelson2micheline_opcode o
   end.
 
 Definition eqb_ascii (a b : ascii) : Datatypes.bool :=

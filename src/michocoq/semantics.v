@@ -149,7 +149,7 @@ Module Semantics(C : ContractContext).
       + inversion H; reflexivity.
     - split; intros; subst.
       + constructor. rewrite <- (IHt (stack t)); reflexivity.
-      + inversion H; subst. 
+      + inversion H; subst.
         assert (stack t = S) by (rewrite (IHt S); assumption); subst; reflexivity.
   Qed.
 
@@ -547,6 +547,112 @@ Module Semantics(C : ContractContext).
   amount of gas that is actually required to run the contract because
   in the SEQ case, both instructions are run with gas n *)
 
+  Definition eval_opcode param_ty (env : @proto_env param_ty) {A B : stack_type}
+             (o : @opcode param_ty A B) (SA : stack A) : M (stack B) :=
+    match o, SA with
+      | @APPLY _ a b c D i, (x, (existT _ _ f, SA)) =>
+        Return (existT
+                    _ _
+                    (PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f), SA)
+      | DUP, (x, SA) => Return (x, (x, SA))
+      | SWAP, (x, (y, SA)) => Return (y, (x, SA))
+      | UNIT, SA => Return (tt, SA)
+      | EQ, (x, SA) => Return ((x =? 0)%Z, SA)
+      | NEQ, (x, SA) => Return (negb (x =? 0)%Z, SA)
+      | LT, (x, SA) => Return ((x <? 0)%Z, SA)
+      | GT, (x, SA) => Return ((x >? 0)%Z, SA)
+      | LE, (x, SA) => Return ((x <=? 0)%Z, SA)
+      | GE, (x, SA) => Return ((x >=? 0)%Z, SA)
+      | @OR _ _ s, (x, (y, SA)) =>
+        Return (or_fun _ (bitwise_variant_field _ s) x y, SA)
+      | @AND _ _ s, (x, (y, SA)) =>
+        Return (and _ (bitwise_variant_field _ s) x y, SA)
+      | @XOR _ _ s, (x, (y, SA)) =>
+        Return (xor _ (bitwise_variant_field _ s) x y, SA)
+      | @NOT _ _ s, (x, SA) => Return (not _ _ (not_variant_field _ s) x, SA)
+      | @NEG _ _ s, (x, SA) => Return (neg _ (neg_variant_field _ s) x, SA)
+      | ABS, (x, SA) => Return (Z.abs_N x, SA)
+      | ISNAT, (x, SA) =>
+        Return (if (x >=? 0)%Z then (Some (Z.to_N x), SA) else (None, SA))
+      | INT, (x, SA) => Return (Z.of_N x, SA)
+      | @ADD _ _ _ s, (x, (y, SA)) =>
+        let! r := add _ _ _ (add_variant_field _ _ s) x y in
+        Return (r, SA)
+      | @SUB _ _ _ s, (x, (y, SA)) =>
+        let! r := sub _ _ _ (sub_variant_field _ _ s) x y in
+        Return (r, SA)
+      | @MUL _ _ _ s, (x, (y, SA)) =>
+        let! r := mul _ _ _ (mul_variant_field _ _ s) x y in
+        Return (r, SA)
+      | @EDIV _ _ _ s, (x, (y, SA)) =>
+        Return (ediv _ _ _ _ (ediv_variant_field _ _ s) x y, SA)
+      | LSL, (x, (y, SA)) => Return (N.shiftl x y, SA)
+      | LSR, (x, (y, SA)) => Return (N.shiftr x y, SA)
+      | COMPARE, (x, (y, SA)) =>
+        Return (comparison_to_int
+                    (compare _
+                             (data_to_comparable_data _ x)
+                             (data_to_comparable_data _ y)), SA)
+      | @CONCAT _ _ s _, (x, (y, SA)) =>
+        Return (concat _ (stringlike_variant_field _ s) x y, SA)
+      | @CONCAT_list _ _ s _, (l, SA) =>
+        Return (concat_list _ (stringlike_variant_field _ s) l, SA)
+      | @SLICE _ _ i, (n1, (n2, (s, SA))) =>
+        Return (slice _ (stringlike_variant_field _ i) n1 n2 s, SA)
+      | PAIR, (x, (y, SA)) => Return ((x, y), SA)
+      | CAR, ((x, y), SA) => Return (x, SA)
+      | CDR, ((x, y), SA) => Return (y, SA)
+      | EMPTY_SET a, SA => Return (set.empty _ (compare a), SA)
+      | @MEM _ _ _ s _, (x, (y, SA)) =>
+        Return (mem _ _
+                      (mem_variant_field _ _ s)
+                      (data_to_comparable_data _ x)
+                      y, SA)
+      | @UPDATE _ _ _ _ s _, (x, (y, (z, SA))) =>
+        Return (update _ _ _ (update_variant_field _ _ _ s) (data_to_comparable_data _ x) y z, SA)
+      | @SIZE _ _ s, (x, SA) =>
+        Return (N.of_nat (size _ (size_variant_field _ s) x), SA)
+      | EMPTY_MAP k val, SA =>
+        Return (map.empty (comparable_data k) (data val) _, SA)
+      | EMPTY_BIG_MAP k val, SA =>
+        Return (map.empty (comparable_data k) (data val) _, SA)
+      | @GET _ _ _ s _, (x, (y, SA)) =>
+        Return (get _ _ _
+                      (get_variant_field _ _ s)
+                      (data_to_comparable_data _ x)
+                      y, SA)
+      | SOME, (x, SA) => Return (Some x, SA)
+      | NONE _, SA => Return (None, SA)
+      | LEFT _, (x, SA) => Return (inl x, SA)
+      | RIGHT _, (x, SA) => Return (inr x, SA)
+      | CONS, (x, (y, SA)) => Return (cons x y, SA)
+      | NIL _, SA => Return (nil, SA)
+      | TRANSFER_TOKENS, (a, (b, (c, SA))) =>
+        Return (transfer_tokens env _ a b c, SA)
+      | SET_DELEGATE, (x, SA) => Return (set_delegate env x, SA)
+      | BALANCE, SA => Return (balance env, SA)
+      | ADDRESS, (x, SA) => Return (address_ env _ x, SA)
+      | CONTRACT ao p, (x, SA) => Return (contract_ env ao p x, SA)
+      | SOURCE, SA => Return (source env, SA)
+      | SENDER, SA => Return (sender env, SA)
+      | AMOUNT, SA => Return (amount env, SA)
+      | IMPLICIT_ACCOUNT, (x, SA) => Return (implicit_account env x, SA)
+      | NOW, SA => Return (now env, SA)
+      | PACK, (x, SA) => Return (pack env _ x, SA)
+      | UNPACK ty, (x, SA) => Return (unpack env ty x, SA)
+      | HASH_KEY, (x, SA) => Return (hash_key env x, SA)
+      | BLAKE2B, (x, SA) => Return (blake2b env x, SA)
+      | SHA256, (x, SA) => Return (sha256 env x, SA)
+      | SHA512, (x, SA) => Return (sha512 env x, SA)
+      | CHECK_SIGNATURE, (x, (y, (z, SA))) =>
+        Return (check_signature env x y z, SA)
+      | DIG n Hlen, SA => Return (stack_dig SA)
+      | DUG n Hlen, SA => Return (stack_dug SA)
+      | DROP n Hlen, SA =>
+        let (S1, S2) := stack_split SA in Return S2
+      | CHAIN_ID, SA => Return (chain_id_ env, SA)
+    end.
+
   Fixpoint eval {param_ty : self_info} {tff0} (env : @proto_env param_ty) {A : stack_type} {B : stack_type}
            (i : instruction param_ty tff0 A B) (fuel : Datatypes.nat) (SA : stack A) {struct fuel} : M (stack B) :=
     match fuel with
@@ -574,71 +680,11 @@ Module Semantics(C : ContractContext).
         | inl x => eval env (body;; LOOP_LEFT body) n (x, SA)
         | inr y => Return (y, SA)
         end
+      | PUSH a x, SA, _ => Return (concrete_data_to_data _ x, SA)
+      | LAMBDA a b code, SA, _ => Return (existT _ _ code, SA)
       | EXEC, (x, (existT _ tff f, SA)), env =>
         let! (y, tt) := eval (no_self env) f n (x, tt) in
         Return (y, SA)
-      | @APPLY _ a b c D i, (x, (existT _ _ f, SA)), env =>
-        Return (existT
-                    _ _
-                    (PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f), SA)
-      | DUP, (x, SA), _ => Return (x, (x, SA))
-      | SWAP, (x, (y, SA)), _ => Return (y, (x, SA))
-      | PUSH a x, SA, _ => Return (concrete_data_to_data _ x, SA)
-      | UNIT, SA, _ => Return (tt, SA)
-      | LAMBDA a b code, SA, _ => Return (existT _ _ code, SA)
-      | EQ, (x, SA), _ => Return ((x =? 0)%Z, SA)
-      | NEQ, (x, SA), _ => Return (negb (x =? 0)%Z, SA)
-      | LT, (x, SA), _ => Return ((x <? 0)%Z, SA)
-      | GT, (x, SA), _ => Return ((x >? 0)%Z, SA)
-      | LE, (x, SA), _ => Return ((x <=? 0)%Z, SA)
-      | GE, (x, SA), _ => Return ((x >=? 0)%Z, SA)
-      | @OR _ _ s, (x, (y, SA)), _ =>
-        Return (or_fun _ (bitwise_variant_field _ s) x y, SA)
-      | @AND _ _ s, (x, (y, SA)), _ =>
-        Return (and _ (bitwise_variant_field _ s) x y, SA)
-      | @XOR _ _ s, (x, (y, SA)), _ =>
-        Return (xor _ (bitwise_variant_field _ s) x y, SA)
-      | @NOT _ _ s, (x, SA), _ => Return (not _ _ (not_variant_field _ s) x, SA)
-      | @NEG _ _ s, (x, SA), _ => Return (neg _ (neg_variant_field _ s) x, SA)
-      | ABS, (x, SA), _ => Return (Z.abs_N x, SA)
-      | ISNAT, (x, SA), _ =>
-        Return (if (x >=? 0)%Z then (Some (Z.to_N x), SA) else (None, SA))
-      | INT, (x, SA), _ => Return (Z.of_N x, SA)
-      | @ADD _ _ _ s, (x, (y, SA)), _ =>
-        let! r := add _ _ _ (add_variant_field _ _ s) x y in
-        Return (r, SA)
-      | @SUB _ _ _ s, (x, (y, SA)), _ =>
-        let! r := sub _ _ _ (sub_variant_field _ _ s) x y in
-        Return (r, SA)
-      | @MUL _ _ _ s, (x, (y, SA)), _ =>
-        let! r := mul _ _ _ (mul_variant_field _ _ s) x y in
-        Return (r, SA)
-      | @EDIV _ _ _ s, (x, (y, SA)), _ =>
-        Return (ediv _ _ _ _ (ediv_variant_field _ _ s) x y, SA)
-      | LSL, (x, (y, SA)), _ => Return (N.shiftl x y, SA)
-      | LSR, (x, (y, SA)), _ => Return (N.shiftr x y, SA)
-      | COMPARE, (x, (y, SA)), _ =>
-        Return (comparison_to_int
-                    (compare _
-                             (data_to_comparable_data _ x)
-                             (data_to_comparable_data _ y)), SA)
-      | @CONCAT _ _ s _, (x, (y, SA)), _ =>
-        Return (concat _ (stringlike_variant_field _ s) x y, SA)
-      | @CONCAT_list _ _ s _, (l, SA), _ =>
-        Return (concat_list _ (stringlike_variant_field _ s) l, SA)
-      | @SLICE _ _ i, (n1, (n2, (s, SA))), _ =>
-        Return (slice _ (stringlike_variant_field _ i) n1 n2 s, SA)
-      | PAIR, (x, (y, SA)), _ => Return ((x, y), SA)
-      | CAR, ((x, y), SA), _ => Return (x, SA)
-      | CDR, ((x, y), SA), _ => Return (y, SA)
-      | EMPTY_SET a, SA, _ => Return (set.empty _ (compare a), SA)
-      | @MEM _ _ _ s _, (x, (y, SA)), _ =>
-        Return (mem _ _
-                      (mem_variant_field _ _ s)
-                      (data_to_comparable_data _ x)
-                      y, SA)
-      | @UPDATE _ _ _ _ s _, (x, (y, (z, SA))), _ =>
-        Return (update _ _ _ (update_variant_field _ _ _ s) (data_to_comparable_data _ x) y z, SA)
       | @ITER _ _ s _ body, (x, SA), env =>
         match iter_destruct _ _ (iter_variant_field _ s) x with
         | None => Return SA
@@ -646,17 +692,6 @@ Module Semantics(C : ContractContext).
           let! SB := eval env body n (a, SA) in
           eval env (ITER body) n (y, SB)
         end
-      | @SIZE _ _ s, (x, SA), _ =>
-        Return (N.of_nat (size _ (size_variant_field _ s) x), SA)
-      | EMPTY_MAP k val, SA, _ =>
-        Return (map.empty (comparable_data k) (data val) _, SA)
-      | EMPTY_BIG_MAP k val, SA, _ =>
-        Return (map.empty (comparable_data k) (data val) _, SA)
-      | @GET _ _ _ s _, (x, (y, SA)), _ =>
-        Return (get _ _ _
-                      (get_variant_field _ _ s)
-                      (data_to_comparable_data _ x)
-                      y, SA)
       | @MAP _ _ _ s _ body, (x, SA), env =>
         let v := (map_variant_field _ _ s) in
         match map_destruct _ _ _ _ v x with
@@ -666,22 +701,16 @@ Module Semantics(C : ContractContext).
           let! (c, SC) := eval env (MAP body) n (y, SB) in
           Return (map_insert _ _ _ _ v a b c, SC)
         end
-      | SOME, (x, SA), _ => Return (Some x, SA)
-      | NONE _, SA, _ => Return (None, SA)
       | IF_NONE bt bf, (b, SA), env =>
         match b with
         | None => eval env bt n SA
         | Some b => eval env bf n (b, SA)
         end
-      | LEFT _, (x, SA), _ => Return (inl x, SA)
-      | RIGHT _, (x, SA), _ => Return (inr x, SA)
       | IF_LEFT bt bf, (b, SA), env =>
         match b with
         | inl a => eval env bt n (a, SA)
         | inr b => eval env bf n (b, SA)
         end
-      | CONS, (x, (y, SA)), _ => Return (cons x y, SA)
-      | NIL _, SA, _ => Return (nil, SA)
       | IF_CONS bt bf, (l, SA), env =>
         match l with
         | cons a b => eval env bt n (a, (b, SA))
@@ -690,35 +719,13 @@ Module Semantics(C : ContractContext).
       | CREATE_CONTRACT g p an f, (a, (b, (c, SA))), env =>
         let (oper, addr) := create_contract env g p an _ a b f c in
         Return (oper, (addr, SA))
-      | TRANSFER_TOKENS, (a, (b, (c, SA))), env =>
-        Return (transfer_tokens env _ a b c, SA)
-      | SET_DELEGATE, (x, SA), env => Return (set_delegate env x, SA)
-      | BALANCE, SA, env => Return (balance env, SA)
-      | ADDRESS, (x, SA), env => Return (address_ env _ x, SA)
-      | CONTRACT ao p, (x, SA), env => Return (contract_ env ao p x, SA)
-      | SOURCE, SA, env => Return (source env, SA)
-      | SENDER, SA, env => Return (sender env, SA)
       | SELF ao H, SA, env => Return (self env ao H, SA)
-      | AMOUNT, SA, env => Return (amount env, SA)
-      | IMPLICIT_ACCOUNT, (x, SA), env => Return (implicit_account env x, SA)
-      | NOW, SA, env => Return (now env, SA)
-      | PACK, (x, SA), env => Return (pack env _ x, SA)
-      | UNPACK ty, (x, SA), env => Return (unpack env ty x, SA)
-      | HASH_KEY, (x, SA), env => Return (hash_key env x, SA)
-      | BLAKE2B, (x, SA), env => Return (blake2b env x, SA)
-      | SHA256, (x, SA), env => Return (sha256 env x, SA)
-      | SHA512, (x, SA), env => Return (sha512 env x, SA)
-      | CHECK_SIGNATURE, (x, (y, (z, SA))), env =>
-        Return (check_signature env x y z, SA)
-      | DIG n Hlen, SA, _ => Return (stack_dig SA)
-      | DUG n Hlen, SA, _ => Return (stack_dug SA)
       | DIP nl Hlen i, SA, env =>
         let (S1, S2) := stack_split SA in
         let! S3 := eval env i n S2 in
         Return (stack_app S1 S3)
-      | DROP n Hlen, SA, _ =>
-        let (S1, S2) := stack_split SA in Return S2
-      | CHAIN_ID, SA, env => Return (chain_id_ env, SA)
+      | Instruction_opcode o, SA, env =>
+        eval_opcode _ env o SA
       end
     end.
 
@@ -754,13 +761,6 @@ Module Semantics(C : ContractContext).
         * destruct st as ([x|y], st).
           -- rewrite IHfuel1; try assumption; reflexivity.
           -- reflexivity.
-        * destruct st as (x, ((tff, f), SA)).
-          f_equal.
-          rewrite IHfuel1.
-          -- reflexivity.
-          -- simpl in Hsucc.
-             apply success_bind_arg in Hsucc.
-             assumption.
         * destruct st as (x, SA).
           generalize Hsucc; clear Hsucc.
           simpl.
@@ -816,6 +816,13 @@ Module Semantics(C : ContractContext).
           -- exact Hsucc.
           -- reflexivity.
           -- exact Hsucc.
+        * destruct st as (x, ((tff, f), SA)).
+          f_equal.
+          rewrite IHfuel1.
+          -- reflexivity.
+          -- simpl in Hsucc.
+             apply success_bind_arg in Hsucc.
+             assumption.
         * simpl in Hsucc.
           destruct (stack_split st); rewrite IHfuel1.
           -- reflexivity.
@@ -838,41 +845,14 @@ Module Semantics(C : ContractContext).
       apply eval_deterministic_le; assumption.
   Qed.
 
-  Definition eval_precond_body
-             (eval_precond_n : forall {self_type},
-                 @proto_env self_type ->
-                 forall {tff0 A B},
-                   instruction self_type tff0 A B ->
-                   (stack B -> Prop) -> stack A -> Prop)
-             {self_type} env tff0 A B
-             (i : instruction self_type tff0 A B)
-             (psi : stack B -> Prop)
-             (SA : stack A) : Prop :=
-    match i, env, psi, SA with
-    | FAILWITH, _, _, _ => false
-    | NOOP, env, psi, st => psi st
-    | SEQ B C, env, psi, st =>
-      eval_precond_n env B (eval_precond_n env C psi) st
-    | IF_ bt bf, env, psi, (b, SA) =>
-      if b then eval_precond_n env bt psi SA
-      else eval_precond_n env bf psi SA
-    | LOOP body, env, psi, (b, SA) =>
-      if b then eval_precond_n env (body;; (LOOP body)) psi SA
-      else psi SA
-    | LOOP_LEFT body, env, psi, (ab, SA) =>
-      match ab with
-      | inl x => eval_precond_n env (body;; LOOP_LEFT body) psi (x, SA)
-      | inr y => psi (y, SA)
-      end
-    | EXEC, env, psi, (x, (existT _ _ f, SA)) =>
-      eval_precond_n (no_self env) f (fun '(y, tt) => psi (y, SA)) (x, tt)
+  Definition eval_precond_opcode {self_type} (env : @proto_env self_type)
+             A B (o : @opcode self_type A B) (psi : stack B -> Prop) (SA : stack A) : Prop :=
+    match o, env, psi, SA with
     | @APPLY _ a b c D i, env, psi, (x, (existT _ _ f, SA)) =>
-      psi (existT _ _ (PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f), SA)
+      psi (existT _ _ (PUSH _ (data_to_concrete_data _ i x) ;; Instruction_opcode PAIR ;; f), SA)
     | DUP, env, psi, (x, SA) => psi (x, (x, SA))
     | SWAP, env, psi, (x, (y, SA)) => psi (y, (x, SA))
-    | PUSH a x, env, psi, SA => psi (concrete_data_to_data _ x, SA)
     | UNIT, env, psi, SA => psi (tt, SA)
-    | LAMBDA a b code, env, psi, SA => psi (existT _ _ code, SA)
     | EQ, env, psi, (x, SA) => psi ((x =? 0)%Z, SA)
     | NEQ, env, psi, (x, SA) => psi (negb (x =? 0)%Z, SA)
     | LT, env, psi, (x, SA) => psi ((x <? 0)%Z, SA)
@@ -912,6 +892,73 @@ Module Semantics(C : ContractContext).
       psi (mem _ _ (mem_variant_field _ _ s) (data_to_comparable_data _ x) y, SA)
     | @UPDATE _ _ _ _ s _, env, psi, (x, (y, (z, SA))) =>
       psi (update _ _ _ (update_variant_field _ _ _ s) (data_to_comparable_data _ x) y z, SA)
+    | @SIZE _ _ s, env, psi, (x, SA) => psi (N.of_nat (size _ (size_variant_field _ s) x), SA)
+    | EMPTY_MAP k val, env, psi, SA => psi (map.empty (comparable_data k) (data val) _, SA)
+    | EMPTY_BIG_MAP k val, env, psi, SA => psi (map.empty (comparable_data k) (data val) _, SA)
+    | @GET _ _ _ s _, env, psi, (x, (y, SA)) => psi (get _ _ _ (get_variant_field _ _ s) (data_to_comparable_data _ x) y, SA)
+    | SOME, env, psi, (x, SA) => psi (Some x, SA)
+    | NONE _, env, psi, SA => psi (None, SA)
+    | LEFT _, env, psi, (x, SA) => psi (inl x, SA)
+    | RIGHT _, env, psi, (x, SA) => psi (inr x, SA)
+    | CONS, env, psi, (x, (y, SA)) => psi (cons x y, SA)
+    | NIL _, env, psi, SA => psi (nil, SA)
+    | TRANSFER_TOKENS, env, psi, (a, (b, (c, SA))) =>
+      psi (transfer_tokens env _ a b c, SA)
+    | SET_DELEGATE, env, psi, (x, SA) =>
+      psi (set_delegate env x, SA)
+    | BALANCE, env, psi, SA => psi (balance env, SA)
+    | ADDRESS, env, psi, (x, SA) => psi (address_ env _ x, SA)
+    | CONTRACT ao p, env, psi, (x, SA) => psi (contract_ env ao p x, SA)
+    | SOURCE, env, psi, SA => psi (source env, SA)
+    | SENDER, env, psi, SA => psi (sender env, SA)
+    | AMOUNT, env, psi, SA => psi (amount env, SA)
+    | IMPLICIT_ACCOUNT, env, psi, (x, SA) => psi (implicit_account env x, SA)
+    | NOW, env, psi, SA => psi (now env, SA)
+    | PACK, env, psi, (x, SA) => psi (pack env _ x, SA)
+    | UNPACK ty, env, psi, (x, SA) => psi (unpack env ty x, SA)
+    | HASH_KEY, env, psi, (x, SA) => psi (hash_key env x, SA)
+    | BLAKE2B, env, psi, (x, SA) => psi (blake2b env x, SA)
+    | SHA256, env, psi, (x, SA) => psi (sha256 env x, SA)
+    | SHA512, env, psi, (x, SA) => psi (sha512 env x, SA)
+    | CHECK_SIGNATURE, env, psi, (x, (y, (z, SA))) =>
+      psi (check_signature env x y z, SA)
+    | DIG n Hlen, env, psi, st => psi (stack_dig st)
+    | DUG n Hlen, env, psi, st => psi (stack_dug st)
+    | DROP n Hlen, env, psi, SA =>
+      let (S1, S2) := stack_split SA in psi S2
+    | CHAIN_ID, env, psi, SA => psi (chain_id_ env, SA)
+    end.
+
+  Definition eval_precond_body
+             (eval_precond_n : forall {self_type},
+                 @proto_env self_type ->
+                 forall {tff0 A B},
+                   instruction self_type tff0 A B ->
+                   (stack B -> Prop) -> stack A -> Prop)
+             {self_type} env tff0 A B
+             (i : instruction self_type tff0 A B)
+             (psi : stack B -> Prop)
+             (SA : stack A) : Prop :=
+    match i, env, psi, SA with
+    | FAILWITH, _, _, _ => false
+    | NOOP, env, psi, st => psi st
+    | SEQ B C, env, psi, st =>
+      eval_precond_n env B (eval_precond_n env C psi) st
+    | IF_ bt bf, env, psi, (b, SA) =>
+      if b then eval_precond_n env bt psi SA
+      else eval_precond_n env bf psi SA
+    | LOOP body, env, psi, (b, SA) =>
+      if b then eval_precond_n env (body;; (LOOP body)) psi SA
+      else psi SA
+    | LOOP_LEFT body, env, psi, (ab, SA) =>
+      match ab with
+      | inl x => eval_precond_n env (body;; LOOP_LEFT body) psi (x, SA)
+      | inr y => psi (y, SA)
+      end
+    | EXEC, env, psi, (x, (existT _ _ f, SA)) =>
+      eval_precond_n (no_self env) f (fun '(y, tt) => psi (y, SA)) (x, tt)
+    | PUSH a x, env, psi, SA => psi (concrete_data_to_data _ x, SA)
+    | LAMBDA a b code, env, psi, SA => psi (existT _ _ code, SA)
     | @ITER _ _ s _ body, env, psi, (x, SA) =>
       match iter_destruct _ _ (iter_variant_field _ s) x with
       | None => psi SA
@@ -921,10 +968,6 @@ Module Semantics(C : ContractContext).
           (fun SB => eval_precond_n env (ITER body) psi (y, SB))
           (a, SA)
       end
-    | @SIZE _ _ s, env, psi, (x, SA) => psi (N.of_nat (size _ (size_variant_field _ s) x), SA)
-    | EMPTY_MAP k val, env, psi, SA => psi (map.empty (comparable_data k) (data val) _, SA)
-    | EMPTY_BIG_MAP k val, env, psi, SA => psi (map.empty (comparable_data k) (data val) _, SA)
-    | @GET _ _ _ s _, env, psi, (x, (y, SA)) => psi (get _ _ _ (get_variant_field _ _ s) (data_to_comparable_data _ x) y, SA)
     | @MAP _ _ _ s _ body, env, psi, (x, SA) =>
       let v := (map_variant_field _ _ s) in
       match map_destruct _ _ _ _ v x with
@@ -939,22 +982,16 @@ Module Semantics(C : ContractContext).
                (y, SB))
           (a, SA)
       end
-    | SOME, env, psi, (x, SA) => psi (Some x, SA)
-    | NONE _, env, psi, SA => psi (None, SA)
     | IF_NONE bt bf, env, psi, (b, SA) =>
       match b with
       | None => eval_precond_n env bt psi SA
       | Some b => eval_precond_n env bf psi (b, SA)
       end
-    | LEFT _, env, psi, (x, SA) => psi (inl x, SA)
-    | RIGHT _, env, psi, (x, SA) => psi (inr x, SA)
     | IF_LEFT bt bf, env, psi, (b, SA) =>
       match b with
       | inl a => eval_precond_n env bt psi (a, SA)
       | inr b => eval_precond_n env bf psi (b, SA)
       end
-    | CONS, env, psi, (x, (y, SA)) => psi (cons x y, SA)
-    | NIL _, env, psi, SA => psi (nil, SA)
     | IF_CONS bt bf, env, psi, (l, SA) =>
       match l with
       | cons a b => eval_precond_n env bt psi (a, (b, SA))
@@ -963,35 +1000,12 @@ Module Semantics(C : ContractContext).
     | CREATE_CONTRACT g p an f, env, psi, (a, (b, (c, SA))) =>
       let (oper, addr) := create_contract env g p an _ a b f c in
       psi (oper, (addr, SA))
-    | TRANSFER_TOKENS, env, psi, (a, (b, (c, SA))) =>
-      psi (transfer_tokens env _ a b c, SA)
-    | SET_DELEGATE, env, psi, (x, SA) =>
-      psi (set_delegate env x, SA)
-    | BALANCE, env, psi, SA => psi (balance env, SA)
-    | ADDRESS, env, psi, (x, SA) => psi (address_ env _ x, SA)
-    | CONTRACT ao p, env, psi, (x, SA) => psi (contract_ env ao p x, SA)
-    | SOURCE, env, psi, SA => psi (source env, SA)
-    | SENDER, env, psi, SA => psi (sender env, SA)
     | SELF ao H, env, psi, SA => psi (self env ao H, SA)
-    | AMOUNT, env, psi, SA => psi (amount env, SA)
-    | IMPLICIT_ACCOUNT, env, psi, (x, SA) => psi (implicit_account env x, SA)
-    | NOW, env, psi, SA => psi (now env, SA)
-    | PACK, env, psi, (x, SA) => psi (pack env _ x, SA)
-    | UNPACK ty, env, psi, (x, SA) => psi (unpack env ty x, SA)
-    | HASH_KEY, env, psi, (x, SA) => psi (hash_key env x, SA)
-    | BLAKE2B, env, psi, (x, SA) => psi (blake2b env x, SA)
-    | SHA256, env, psi, (x, SA) => psi (sha256 env x, SA)
-    | SHA512, env, psi, (x, SA) => psi (sha512 env x, SA)
-    | CHECK_SIGNATURE, env, psi, (x, (y, (z, SA))) =>
-      psi (check_signature env x y z, SA)
-    | DIG n Hlen, env, psi, st => psi (stack_dig st)
-    | DUG n Hlen, env, psi, st => psi (stack_dug st)
     | DIP n Hlen i, env, psi, SA =>
       let (S1, S2) := stack_split SA in
       eval_precond_n env i (fun SB => psi (stack_app S1 SB)) S2
-    | DROP n Hlen, env, psi, SA =>
-      let (S1, S2) := stack_split SA in psi S2
-    | CHAIN_ID, env, psi, SA => psi (chain_id_ env, SA)
+    | Instruction_opcode o, env, psi, SA =>
+      eval_precond_opcode env _ _ o psi SA
     end.
 
   Fixpoint eval_precond (fuel : Datatypes.nat) :
@@ -1003,6 +1017,20 @@ Module Semantics(C : ContractContext).
     | S n =>
       @eval_precond_body (@eval_precond n)
     end.
+
+  Lemma eval_precond_opcode_correct {sty env A B} (o : opcode A B) st psi :
+    precond (eval_opcode sty env o st) psi <-> eval_precond_opcode env _ _ o psi st.
+  Proof.
+    destruct o; simpl;
+      try reflexivity;
+      try (destruct st; reflexivity);
+      try (destruct st as (x, (y, st)); reflexivity);
+      try (destruct st as (x, (y, st)); rewrite precond_bind; reflexivity);
+      try (destruct st as (x, (y, (z, SA))); reflexivity);
+      try (destruct st as ((x, y), st); reflexivity).
+    - destruct st as (x, ((tff, y), st)); reflexivity.
+    - destruct (stack_split st); reflexivity.
+  Qed.
 
   Lemma eval_precond_correct {sty env tff0 A B} (i : instruction sty tff0 A B) n st psi :
     precond (eval env i n st) psi <-> eval_precond n env i psi st.
@@ -1024,50 +1052,8 @@ Module Semantics(C : ContractContext).
     - destruct st as ([|], st); simpl.
       + apply (IHn _ _ _ _ _ (i;; LOOP_LEFT i)).
       + reflexivity.
-    - destruct st as (x, ((tff, f), st)).
-      rewrite precond_bind.
-      rewrite <- (IHn _ _ _ _ _ f (x, tt) (fun '(y, tt) => psi (y, st))).
-      apply precond_eqv.
-      intros (y, []).
-      simpl.
-      reflexivity.
-    - destruct st as (x, ((tff, y), st)); reflexivity.
-    - destruct st; reflexivity.
-    - destruct st as (x, (y, st)); reflexivity.
     - reflexivity.
     - reflexivity.
-    - reflexivity.
-    - destruct st; reflexivity.
-    - destruct st; reflexivity.
-    - destruct st; reflexivity.
-    - destruct st; reflexivity.
-    - destruct st; reflexivity.
-    - destruct st; reflexivity.
-    - destruct st as (x, (y, st)); reflexivity.
-    - destruct st as (x, (y, st)); reflexivity.
-    - destruct st as (x, (y, st)); reflexivity.
-    - destruct st; reflexivity.
-    - destruct st; reflexivity.
-    - destruct st; reflexivity.
-    - destruct st; reflexivity.
-    - destruct st; reflexivity.
-    - destruct st as (x, (y, st)); rewrite precond_bind; reflexivity.
-    - destruct st as (x, (y, st)); rewrite precond_bind; reflexivity.
-    - destruct st as (x, (y, st)); rewrite precond_bind; reflexivity.
-    - destruct st as (x, (y, st)); reflexivity.
-    - destruct st as (x, (y, st)); reflexivity.
-    - destruct st as (x, (y, st)); reflexivity.
-    - destruct st as (x, (y, st)); reflexivity.
-    - destruct st as (x, (y, st)); reflexivity.
-    - destruct st; reflexivity.
-    - destruct st; reflexivity.
-    - destruct st as (x, (y, (z, st))); reflexivity.
-    - destruct st as (x, (y, st)); reflexivity.
-    - destruct st as ((x, y), st); reflexivity.
-    - destruct st as ((x, y), st); reflexivity.
-    - reflexivity.
-    - destruct st as (x, (y, st)); reflexivity.
-    - destruct st as (x, (y, (z, st))); reflexivity.
     - destruct st as (x, st).
       destruct (iter_destruct (iter_elt_type collection i) collection
                               (iter_variant_field collection i) x) as [(hd, tl)|].
@@ -1077,9 +1063,6 @@ Module Semantics(C : ContractContext).
         intro SA.
         apply IHn.
       + reflexivity.
-    - reflexivity.
-    - reflexivity.
-    - destruct st as (x, (y, st)); reflexivity.
     - destruct st as (x, st).
       destruct (map_destruct (map_in_type collection b i) b collection
                              (map_out_collection_type collection b i)
@@ -1094,56 +1077,24 @@ Module Semantics(C : ContractContext).
         intros (c, B).
         reflexivity.
       + reflexivity.
-    - destruct st; reflexivity.
-    - reflexivity.
     - destruct st as ([|], st); apply IHn.
-    - destruct st; reflexivity.
-    - destruct st; reflexivity.
     - destruct st as ([|], st); apply IHn.
-    - destruct st as (x, (y, st)); reflexivity.
-    - reflexivity.
     - destruct st as ([|], st); apply IHn.
     - destruct st as (a, (b, (c, SA))).
       destruct (create_contract env g p an _ a b i c).
       reflexivity.
-    - destruct st as (a, (b, (c, SA))).
-      reflexivity.
-    - destruct st as (a, SA).
-      reflexivity.
     - reflexivity.
-    - destruct st as (a, SA).
+    - destruct st as (x, ((tff, f), st)).
+      rewrite precond_bind.
+      rewrite <- (IHn _ _ _ _ _ f (x, tt) (fun '(y, tt) => psi (y, st))).
+      apply precond_eqv.
+      intros (y, []).
+      simpl.
       reflexivity.
-    - destruct st as (a, SA).
-      reflexivity.
-    - reflexivity.
-    - reflexivity.
-    - reflexivity.
-    - reflexivity.
-    - destruct st as (a, SA).
-      reflexivity.
-    - reflexivity.
-    - destruct st as (x, SA).
-      reflexivity.
-    - destruct st as (x, SA).
-      reflexivity.
-    - destruct st as (x, SA).
-      reflexivity.
-    - destruct st as (x, SA).
-      reflexivity.
-    - destruct st as (x, SA).
-      reflexivity.
-    - destruct st as (x, SA).
-      reflexivity.
-    - destruct st as (a, (b, (c, SA))).
-      reflexivity.
-    - reflexivity.
-    - reflexivity.
     - destruct (stack_split st).
       rewrite precond_bind.
       apply IHn.
-    - destruct (stack_split st).
-      reflexivity.
-    - reflexivity.
+    - apply eval_precond_opcode_correct.
   Qed.
 
 End Semantics.

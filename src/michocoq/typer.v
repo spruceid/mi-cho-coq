@@ -23,6 +23,14 @@ Qed.
     exact i.
   Defined.
 
+  Definition safe_opcode_cast {self_type} A A' B B' :
+    syntax.opcode (self_type := self_type) A B -> A = A' -> B = B' ->
+    syntax.opcode (self_type := self_type) A' B'.
+  Proof.
+    intros o [] [].
+    exact o.
+  Defined.
+
   Record cast_error :=
     Mk_cast_error
       {
@@ -41,11 +49,20 @@ Qed.
     | _, _ => Failed _ (Typing cast_error (Mk_cast_error A B A' B' tff _ i))
     end.
 
+  Definition opcode_cast {self_type} A A' B B' o : M (syntax.opcode A' B') :=
+    match stype_dec A A', stype_dec B B' with
+    | left HA, left HB => Return (safe_opcode_cast A A' B B' o HA HB)
+    | _, _ => Failed _ (Typing cast_error (Mk_cast_error A B A' B' Datatypes.false self_type (syntax.Instruction_opcode o)))
+    end.
+
   Definition instruction_cast_range {self_type tff} A B B' (i : instruction self_type tff A B)
     : M (instruction self_type tff A B') := instruction_cast A A B B' i.
 
   Definition instruction_cast_domain {self_type tff} A A' B (i : instruction self_type tff A B)
     : M (instruction self_type tff A' B) := instruction_cast A A' B B i.
+
+  Definition opcode_cast_domain self_type A A' B (o : @syntax.opcode self_type A B)
+    : M (@syntax.opcode self_type A' B) := opcode_cast A A' B B o.
 
   Inductive typer_result {self_type} A : Set :=
   | Inferred_type B : instruction self_type false A B -> typer_result A
@@ -151,17 +168,17 @@ Qed.
         repeat decide equality.
   Qed.
 
-  Definition type_check_dig {self_type} n (S:syntax.stack_type) : M (typer_result (self_type := self_type) S) :=
+  Definition type_check_dig {self_type} n (S:syntax.stack_type) : M { B : syntax.stack_type & syntax.opcode S B} :=
     let! (exist _ S1 H1, tS2) := take_n S n in
     let! (t, S2) := take_one tS2 in
-    let! i := instruction_cast_domain (S1 +++ t ::: S2) S _ (syntax.DIG n H1) in
-    Return (Inferred_type S (t ::: S1 +++ S2) i).
+    let! o := opcode_cast_domain self_type (S1 +++ t ::: S2) S _ (syntax.DIG n H1) in
+    Return (existT _ (t ::: S1 +++ S2) o).
 
-  Definition type_check_dug {self_type} n (S:syntax.stack_type) : M (typer_result (self_type := self_type) S) :=
+  Definition type_check_dug {self_type} n (S:syntax.stack_type) : M { B : syntax.stack_type & syntax.opcode S B} :=
     let! (t, S12) := take_one S in
     let! (exist _ S1 H1, S2) := take_n S12 n in
-    let! i := instruction_cast_domain (t ::: S1 +++ S2) S _ (syntax.DUG n H1) in
-    Return (Inferred_type S (S1 +++ t ::: S2) i).
+    let! o := opcode_cast_domain self_type (t ::: S1 +++ S2) S _ (syntax.DUG n H1) in
+    Return (existT _ (S1 +++ t ::: S2) o).
 
   Fixpoint as_comparable (a : type) : M comparable_type :=
     match a with
@@ -181,6 +198,265 @@ Qed.
       rewrite IHa.
       reflexivity.
   Qed.
+
+  Definition type_opcode {self_type} (o : opcode) A : M { B : syntax.stack_type & @syntax.opcode self_type A B} :=
+    match o, A with
+    | APPLY, a :: lambda (pair a' b) c :: B =>
+      let A := a :: lambda (pair a' b) c :: B in
+      let A' := a :: lambda (pair a b) c :: B in
+      (if is_packable a as b return is_packable a = b -> _
+       then fun h =>
+        let o := @syntax.APPLY _ _ _ _ _ (IT_eq_rev _ h) in
+        let! o := opcode_cast_domain self_type A' A _ o in
+        Return (existT _ _ o)
+       else fun _ => Failed _ (Typing _ "APPLY"%string)) eq_refl
+    | DUP, a :: A =>
+      Return (existT _ _ syntax.DUP)
+    | SWAP, a :: b :: A =>
+      Return (existT _ _ syntax.SWAP)
+    | UNIT, A => Return (existT _ _ syntax.UNIT)
+    | EQ, Comparable_type int :: A =>
+      Return (existT _ _ syntax.EQ)
+    | NEQ, Comparable_type int :: A =>
+      Return (existT _ _ syntax.NEQ)
+    | LT, Comparable_type int :: A =>
+      Return (existT _ _ syntax.LT)
+    | GT, Comparable_type int :: A =>
+      Return (existT _ _ syntax.GT)
+    | LE, Comparable_type int :: A =>
+      Return (existT _ _ syntax.LE)
+    | GE, Comparable_type int :: A =>
+      Return (existT _ _ syntax.GE)
+    | OR, Comparable_type bool :: Comparable_type bool :: A =>
+      Return (existT _ _ (@syntax.OR _ _ syntax.bitwise_bool _))
+    | OR, Comparable_type nat :: Comparable_type nat :: A =>
+      Return (existT _ _ (@syntax.OR _ _ syntax.bitwise_nat _))
+    | AND, Comparable_type bool :: Comparable_type bool :: A =>
+      Return (existT _ _ (@syntax.AND _ _ syntax.bitwise_bool _))
+    | AND, Comparable_type nat :: Comparable_type nat :: A =>
+      Return (existT _ _ (@syntax.AND _ _ syntax.bitwise_nat _))
+    | XOR, Comparable_type bool :: Comparable_type bool :: A =>
+      Return (existT _ _ (@syntax.XOR _ _ syntax.bitwise_bool _))
+    | XOR, Comparable_type nat :: Comparable_type nat :: A =>
+      Return (existT _ _ (@syntax.XOR _ _ syntax.bitwise_nat _))
+    | NOT, Comparable_type bool :: A =>
+      Return (existT _ _ (@syntax.NOT _ _ syntax.not_bool _))
+    | NOT, Comparable_type nat :: A =>
+      Return (existT _ _ (@syntax.NOT _ _ syntax.not_nat _))
+    | NOT, Comparable_type int :: A =>
+      Return (existT _ _ (@syntax.NOT _ _ syntax.not_int _))
+    | NEG, Comparable_type nat :: A =>
+      Return (existT _ _ (@syntax.NEG _ _ syntax.neg_nat _))
+    | NEG, Comparable_type int :: A =>
+      Return (existT _ _ (@syntax.NEG _ _ syntax.neg_int _))
+    | ABS, Comparable_type int :: A =>
+      Return (existT _ _ syntax.ABS)
+    | INT, Comparable_type nat :: A =>
+      Return (existT _ _ syntax.INT)
+    | ISNAT, Comparable_type int :: A =>
+      Return (existT _ _ syntax.ISNAT)
+    | ADD, Comparable_type nat :: Comparable_type nat :: A =>
+      Return (existT _ _ (@syntax.ADD _ _ _ syntax.add_nat_nat _))
+    | ADD, Comparable_type nat :: Comparable_type int :: A =>
+      Return (existT _ _ (@syntax.ADD _ _ _ syntax.add_nat_int _))
+    | ADD, Comparable_type int :: Comparable_type nat :: A =>
+      Return (existT _ _ (@syntax.ADD _ _ _ syntax.add_int_nat _))
+    | ADD, Comparable_type int :: Comparable_type int :: A =>
+      Return (existT _ _ (@syntax.ADD _ _ _ syntax.add_int_int _))
+    | ADD, Comparable_type timestamp :: Comparable_type int :: A =>
+      Return (existT _ _ (@syntax.ADD _ _ _ syntax.add_timestamp_int _))
+    | ADD, Comparable_type int :: Comparable_type timestamp :: A =>
+      Return (existT _ _ (@syntax.ADD _ _ _ syntax.add_int_timestamp _))
+    | ADD, Comparable_type mutez :: Comparable_type mutez :: A =>
+      Return (existT _ _ (@syntax.ADD _ _ _ syntax.add_tez_tez _))
+    | SUB, Comparable_type nat :: Comparable_type nat :: A =>
+      Return (existT _ _ (@syntax.SUB _ _ _ syntax.sub_nat_nat _))
+    | SUB, Comparable_type nat :: Comparable_type int :: A =>
+      Return (existT _ _ (@syntax.SUB _ _ _ syntax.sub_nat_int _))
+    | SUB, Comparable_type int :: Comparable_type nat :: A =>
+      Return (existT _ _ (@syntax.SUB _ _ _ syntax.sub_int_nat _))
+    | SUB, Comparable_type int :: Comparable_type int :: A =>
+      Return (existT _ _ (@syntax.SUB _ _ _ syntax.sub_int_int _))
+    | SUB, Comparable_type timestamp :: Comparable_type int :: A =>
+      Return (existT _ _ (@syntax.SUB _ _ _ syntax.sub_timestamp_int _))
+    | SUB, Comparable_type timestamp :: Comparable_type timestamp :: A =>
+      Return (existT _ _ (@syntax.SUB _ _ _ syntax.sub_timestamp_timestamp _))
+    | SUB, Comparable_type mutez :: Comparable_type mutez :: A =>
+      Return (existT _ _ (@syntax.SUB _ _ _ syntax.sub_tez_tez _))
+    | MUL, Comparable_type nat :: Comparable_type nat :: A =>
+      Return (existT _ _ (@syntax.MUL _ _ _ syntax.mul_nat_nat _))
+    | MUL, Comparable_type nat :: Comparable_type int :: A =>
+      Return (existT _ _ (@syntax.MUL _ _ _ syntax.mul_nat_int _))
+    | MUL, Comparable_type int :: Comparable_type nat :: A =>
+      Return (existT _ _ (@syntax.MUL _ _ _ syntax.mul_int_nat _))
+    | MUL, Comparable_type int :: Comparable_type int :: A =>
+      Return (existT _ _ (@syntax.MUL _ _ _ syntax.mul_int_int _))
+    | MUL, Comparable_type mutez :: Comparable_type nat :: A =>
+      Return (existT _ _ (@syntax.MUL _ _ _ syntax.mul_tez_nat _))
+    | MUL, Comparable_type nat :: Comparable_type mutez :: A =>
+      Return (existT _ _ (@syntax.MUL _ _ _ syntax.mul_nat_tez _))
+    | EDIV, Comparable_type nat :: Comparable_type nat :: A =>
+      Return (existT _ _ (@syntax.EDIV _ _ _ syntax.ediv_nat_nat _))
+    | EDIV, Comparable_type nat :: Comparable_type int :: A =>
+      Return (existT _ _ (@syntax.EDIV _ _ _ syntax.ediv_nat_int _))
+    | EDIV, Comparable_type int :: Comparable_type nat :: A =>
+      Return (existT _ _ (@syntax.EDIV _ _ _ syntax.ediv_int_nat _))
+    | EDIV, Comparable_type int :: Comparable_type int :: A =>
+      Return (existT _ _ (@syntax.EDIV _ _ _ syntax.ediv_int_int _))
+    | EDIV, Comparable_type mutez :: Comparable_type nat :: A =>
+      Return (existT _ _ (@syntax.EDIV _ _ _ syntax.ediv_tez_nat _))
+    | EDIV, Comparable_type mutez :: Comparable_type mutez :: A =>
+      Return (existT _ _ (@syntax.EDIV _ _ _ syntax.ediv_tez_tez _))
+    | LSL, Comparable_type nat :: Comparable_type nat :: A =>
+      Return (existT _ _ syntax.LSL)
+    | LSR, Comparable_type nat :: Comparable_type nat :: A =>
+      Return (existT _ _ syntax.LSR)
+    | COMPARE, a :: a' :: B =>
+      let A := a ::: a' ::: B in
+      let! a : comparable_type := as_comparable a in
+      let! a' : comparable_type := as_comparable a' in
+      let A' := a ::: a ::: B in
+      let! o := opcode_cast_domain self_type A' A (int ::: B) (syntax.COMPARE (a := a)) in
+      Return (existT _ _ o)
+    | CONCAT, Comparable_type string :: Comparable_type string :: B =>
+      Return (existT _ _ (@syntax.CONCAT _ _ syntax.stringlike_string _))
+    | CONCAT, Comparable_type bytes :: Comparable_type bytes :: B =>
+      Return (existT _ _ (@syntax.CONCAT _ _ syntax.stringlike_bytes _))
+    | CONCAT, list (Comparable_type string) :: B =>
+      Return (existT _ _ (@syntax.CONCAT_list _ _ syntax.stringlike_string _))
+    | CONCAT, list (Comparable_type bytes) :: B =>
+      Return (existT _ _ (@syntax.CONCAT_list _ _ syntax.stringlike_bytes _))
+    | SIZE, set a :: A =>
+      Return (existT _ _ (@syntax.SIZE _ _ (syntax.size_set a) _))
+    | SIZE, cons (list a) A =>
+      Return (existT _ _ (@syntax.SIZE _ _ (syntax.size_list a) _))
+    | SIZE, cons (map a b) A =>
+      Return (existT _ _ (@syntax.SIZE _ _ (syntax.size_map a b) _))
+    | SIZE, Comparable_type string :: A =>
+      Return (existT _ _ (@syntax.SIZE _ _ syntax.size_string _))
+    | SIZE, Comparable_type bytes :: A =>
+      Return (existT _ _ (@syntax.SIZE _ _ syntax.size_bytes _))
+    | SLICE, Comparable_type nat :: Comparable_type nat :: Comparable_type string :: A =>
+      Return (existT _ _ (@syntax.SLICE _ _ syntax.stringlike_string _))
+    | SLICE, Comparable_type nat :: Comparable_type nat :: Comparable_type bytes :: A =>
+      Return (existT _ _ (@syntax.SLICE _ _ syntax.stringlike_bytes _))
+    | PAIR, a :: b :: A =>
+      Return (existT _ _ syntax.PAIR)
+    | CAR, pair a b :: A =>
+      Return (existT _ _ syntax.CAR)
+    | CDR, pair a b :: A =>
+      Return (existT _ _ syntax.CDR)
+    | EMPTY_SET c, A =>
+      Return (existT _ _ (syntax.EMPTY_SET c))
+    | MEM, elt' :: set elt :: B =>
+      let A := elt' :: set elt :: B in
+      let A' := elt ::: set elt :: B in
+      let! o := opcode_cast_domain
+        self_type A' A _ (@syntax.MEM _ _ _ (syntax.mem_set elt) _) in
+      Return (existT _ _ o)
+    | MEM, kty' :: map kty vty :: B =>
+      let A := kty' :: map kty vty :: B in
+      let A' := kty ::: map kty vty :: B in
+      let! o := opcode_cast_domain
+        self_type A' A _ (@syntax.MEM _ _ _ (syntax.mem_map kty vty) _) in
+      Return (existT _ _ o)
+    | MEM, kty' :: big_map kty vty :: B =>
+      let A := kty' :: big_map kty vty :: B in
+      let A' := kty ::: big_map kty vty :: B in
+      let! o := opcode_cast_domain
+        self_type A' A _ (@syntax.MEM _ _ _ (syntax.mem_bigmap kty vty) _) in
+      Return (existT _ _ o)
+    | UPDATE, elt' :: Comparable_type bool :: set elt :: B =>
+      let A := elt' ::: bool ::: set elt :: B in
+      let A' := elt ::: bool ::: set elt :: B in
+      let! o := opcode_cast_domain
+        self_type A' A _ (@syntax.UPDATE _ _ _ _ (syntax.update_set elt) _) in
+      Return (existT _ _ o)
+    | UPDATE, kty' :: option vty' :: map kty vty :: B =>
+      let A := kty' ::: option vty' ::: map kty vty :: B in
+      let A' := kty ::: option vty ::: map kty vty :: B in
+      let! o := opcode_cast_domain
+        self_type A' A _ (@syntax.UPDATE _ _ _ _ (syntax.update_map kty vty) _) in
+      Return (existT _ _ o)
+    | UPDATE, kty' :: option vty' :: big_map kty vty :: B =>
+      let A := kty' ::: option vty' ::: big_map kty vty :: B in
+      let A' := kty ::: option vty ::: big_map kty vty :: B in
+      let! o := opcode_cast_domain
+        self_type A' A _ (@syntax.UPDATE _ _ _ _ (syntax.update_bigmap kty vty) _) in
+      Return (existT _ _ o)
+    | EMPTY_MAP kty vty, A =>
+      Return (existT _ _ (syntax.EMPTY_MAP kty vty))
+    | EMPTY_BIG_MAP kty vty, A =>
+      Return (existT _ _ (syntax.EMPTY_BIG_MAP kty vty))
+    | GET, kty' :: map kty vty :: B =>
+      let A := kty' :: map kty vty :: B in
+      let A' := kty ::: map kty vty :: B in
+      let! o := opcode_cast_domain
+        self_type A' A _ (@syntax.GET _ _ _ (syntax.get_map kty vty) _) in
+      Return (existT _ _ o)
+    | GET, kty' :: big_map kty vty :: B =>
+      let A := kty' :: big_map kty vty :: B in
+      let A' := kty ::: big_map kty vty :: B in
+      let! o := opcode_cast_domain
+        self_type A' A _ (@syntax.GET _ _ _ (syntax.get_bigmap kty vty) _) in
+      Return (existT _ _ o)
+    | SOME, a :: A => Return (existT _ _ syntax.SOME)
+    | NONE a, A => Return (existT _ _ (syntax.NONE a))
+    | LEFT b, a :: A => Return (existT _ _ (syntax.LEFT b))
+    | RIGHT a, b :: A => Return (existT _ _ (syntax.RIGHT a))
+    | CONS, a' :: list a :: B =>
+      let A := a' :: list a :: B in
+      let A' := a :: list a :: B in
+      let! o := opcode_cast_domain self_type A' A _ (syntax.CONS) in
+      Return (existT _ _ o)
+    | NIL a, A => Return (existT _ _ (syntax.NIL a))
+    | TRANSFER_TOKENS, p1 :: Comparable_type mutez :: contract p2 :: B =>
+      let A := p1 ::: mutez ::: contract p2 ::: B in
+      let A' := p1 ::: mutez ::: contract p1 ::: B in
+      let! o := opcode_cast_domain self_type A' A _ syntax.TRANSFER_TOKENS in
+      Return (existT _ _ o)
+    | SET_DELEGATE, option (Comparable_type key_hash) :: A =>
+      Return (existT _ _ syntax.SET_DELEGATE)
+    | BALANCE, A =>
+      Return (existT _ _ syntax.BALANCE)
+    | ADDRESS, contract _ :: A =>
+      Return (existT _ _ syntax.ADDRESS)
+    | CONTRACT an ty, Comparable_type address :: A =>
+      Return (existT _ _ (syntax.CONTRACT an ty))
+    | SOURCE, A =>
+      Return (existT _ _ syntax.SOURCE)
+    | SENDER, A =>
+      Return (existT _ _ syntax.SENDER)
+    | AMOUNT, A =>
+      Return (existT _ _ syntax.AMOUNT)
+    | IMPLICIT_ACCOUNT, Comparable_type key_hash :: A =>
+      Return (existT _ _ syntax.IMPLICIT_ACCOUNT)
+    | NOW, A =>
+      Return (existT _ _ syntax.NOW)
+    | PACK, a :: A =>
+      Return (existT _ _ syntax.PACK)
+    | UNPACK ty, Comparable_type bytes :: A =>
+      Return (existT _ _ (syntax.UNPACK ty))
+    | HASH_KEY, key :: A =>
+      Return (existT _ _ syntax.HASH_KEY)
+    | BLAKE2B, Comparable_type bytes :: A =>
+      Return (existT _ _ syntax.BLAKE2B)
+    | SHA256, Comparable_type bytes :: A =>
+      Return (existT _ _ syntax.SHA256)
+    | SHA512, Comparable_type bytes :: A =>
+      Return (existT _ _ syntax.SHA512)
+    | CHECK_SIGNATURE, key :: signature :: Comparable_type bytes :: A =>
+      Return (existT _ _ syntax.CHECK_SIGNATURE)
+    | DIG n, A => type_check_dig n _
+    | DUG n, A => type_check_dug n _
+    | DROP n, S12 =>
+      let! (exist _ S1 H1, S2) := take_n S12 n in
+      let! o := opcode_cast_domain self_type (S1 +++ S2) S12 _ (syntax.DROP n H1) in
+      Return (existT _ _ o)
+    | CHAIN_ID, _ =>
+      Return (existT _ _ syntax.CHAIN_ID)
+    | _, _ => Failed _ (Typing _ (instruction_opcode o, A))
+    end.
 
   Fixpoint type_data (d : concrete_data) {struct d}
     : forall ty, M (syntax.concrete_data ty) :=
@@ -369,195 +645,13 @@ Qed.
       let A' := a :: lambda a b :: B in
       let! i := instruction_cast_domain A' A _ syntax.EXEC in
       Return (Inferred_type _ _ i)
-    | APPLY, a :: lambda (pair a' b) c :: B =>
-      let A := a :: lambda (pair a' b) c :: B in
-      let A' := a :: lambda (pair a b) c :: B in
-      (if is_packable a as b return is_packable a = b -> _
-       then fun i =>
-        let! i := instruction_cast_domain A' A _ (@syntax.APPLY _ _ _ _ _ (IT_eq_rev _ i)) in
-        Return (Inferred_type _ _ i)
-       else fun _ => Failed _ (Typing _ "APPLY"%string)) eq_refl
-    | DUP, a :: A =>
-      Return (Inferred_type _ _ syntax.DUP)
-    | SWAP, a :: b :: A =>
-      Return (Inferred_type _ _ syntax.SWAP)
     | PUSH a v, A =>
       let! d := type_data v a in
       Return (Inferred_type _ _ (syntax.PUSH a d))
-    | UNIT, A => Return (Inferred_type _ _ syntax.UNIT)
     | LAMBDA a b i, A =>
       let! existT _ tff i :=
         type_check_instruction type_instruction i (a :: nil) (b :: nil) in
       Return (Inferred_type _ _ (syntax.LAMBDA a b i))
-    | EQ, Comparable_type int :: A =>
-      Return (Inferred_type _ _ syntax.EQ)
-    | NEQ, Comparable_type int :: A =>
-      Return (Inferred_type _ _ syntax.NEQ)
-    | LT, Comparable_type int :: A =>
-      Return (Inferred_type _ _ syntax.LT)
-    | GT, Comparable_type int :: A =>
-      Return (Inferred_type _ _ syntax.GT)
-    | LE, Comparable_type int :: A =>
-      Return (Inferred_type _ _ syntax.LE)
-    | GE, Comparable_type int :: A =>
-      Return (Inferred_type _ _ syntax.GE)
-    | OR, Comparable_type bool :: Comparable_type bool :: A =>
-      Return (Inferred_type _ _ (@syntax.OR _ _ syntax.bitwise_bool _))
-    | OR, Comparable_type nat :: Comparable_type nat :: A =>
-      Return (Inferred_type _ _ (@syntax.OR _ _ syntax.bitwise_nat _))
-    | AND, Comparable_type bool :: Comparable_type bool :: A =>
-      Return (Inferred_type _ _ (@syntax.AND _ _ syntax.bitwise_bool _))
-    | AND, Comparable_type nat :: Comparable_type nat :: A =>
-      Return (Inferred_type _ _ (@syntax.AND _ _ syntax.bitwise_nat _))
-    | XOR, Comparable_type bool :: Comparable_type bool :: A =>
-      Return (Inferred_type _ _ (@syntax.XOR _ _ syntax.bitwise_bool _))
-    | XOR, Comparable_type nat :: Comparable_type nat :: A =>
-      Return (Inferred_type _ _ (@syntax.XOR _ _ syntax.bitwise_nat _))
-    | NOT, Comparable_type bool :: A =>
-      Return (Inferred_type _ _ (@syntax.NOT _ _ syntax.not_bool _))
-    | NOT, Comparable_type nat :: A =>
-      Return (Inferred_type _ _ (@syntax.NOT _ _ syntax.not_nat _))
-    | NOT, Comparable_type int :: A =>
-      Return (Inferred_type _ _ (@syntax.NOT _ _ syntax.not_int _))
-    | NEG, Comparable_type nat :: A =>
-      Return (Inferred_type _ _ (@syntax.NEG _ _ syntax.neg_nat _))
-    | NEG, Comparable_type int :: A =>
-      Return (Inferred_type _ _ (@syntax.NEG _ _ syntax.neg_int _))
-    | ABS, Comparable_type int :: A =>
-      Return (Inferred_type _ _ syntax.ABS)
-    | INT, Comparable_type nat :: A =>
-      Return (Inferred_type _ _ syntax.INT)
-    | ISNAT, Comparable_type int :: A =>
-      Return (Inferred_type _ _ syntax.ISNAT)
-    | ADD, Comparable_type nat :: Comparable_type nat :: A =>
-      Return (Inferred_type _ _ (@syntax.ADD _ _ _ syntax.add_nat_nat _))
-    | ADD, Comparable_type nat :: Comparable_type int :: A =>
-      Return (Inferred_type _ _ (@syntax.ADD _ _ _ syntax.add_nat_int _))
-    | ADD, Comparable_type int :: Comparable_type nat :: A =>
-      Return (Inferred_type _ _ (@syntax.ADD _ _ _ syntax.add_int_nat _))
-    | ADD, Comparable_type int :: Comparable_type int :: A =>
-      Return (Inferred_type _ _ (@syntax.ADD _ _ _ syntax.add_int_int _))
-    | ADD, Comparable_type timestamp :: Comparable_type int :: A =>
-      Return (Inferred_type _ _ (@syntax.ADD _ _ _ syntax.add_timestamp_int _))
-    | ADD, Comparable_type int :: Comparable_type timestamp :: A =>
-      Return (Inferred_type _ _ (@syntax.ADD _ _ _ syntax.add_int_timestamp _))
-    | ADD, Comparable_type mutez :: Comparable_type mutez :: A =>
-      Return (Inferred_type _ _ (@syntax.ADD _ _ _ syntax.add_tez_tez _))
-    | SUB, Comparable_type nat :: Comparable_type nat :: A =>
-      Return (Inferred_type _ _ (@syntax.SUB _ _ _ syntax.sub_nat_nat _))
-    | SUB, Comparable_type nat :: Comparable_type int :: A =>
-      Return (Inferred_type _ _ (@syntax.SUB _ _ _ syntax.sub_nat_int _))
-    | SUB, Comparable_type int :: Comparable_type nat :: A =>
-      Return (Inferred_type _ _ (@syntax.SUB _ _ _ syntax.sub_int_nat _))
-    | SUB, Comparable_type int :: Comparable_type int :: A =>
-      Return (Inferred_type _ _ (@syntax.SUB _ _ _ syntax.sub_int_int _))
-    | SUB, Comparable_type timestamp :: Comparable_type int :: A =>
-      Return (Inferred_type _ _ (@syntax.SUB _ _ _ syntax.sub_timestamp_int _))
-    | SUB, Comparable_type timestamp :: Comparable_type timestamp :: A =>
-      Return (Inferred_type _ _ (@syntax.SUB _ _ _ syntax.sub_timestamp_timestamp _))
-    | SUB, Comparable_type mutez :: Comparable_type mutez :: A =>
-      Return (Inferred_type _ _ (@syntax.SUB _ _ _ syntax.sub_tez_tez _))
-    | MUL, Comparable_type nat :: Comparable_type nat :: A =>
-      Return (Inferred_type _ _ (@syntax.MUL _ _ _ syntax.mul_nat_nat _))
-    | MUL, Comparable_type nat :: Comparable_type int :: A =>
-      Return (Inferred_type _ _ (@syntax.MUL _ _ _ syntax.mul_nat_int _))
-    | MUL, Comparable_type int :: Comparable_type nat :: A =>
-      Return (Inferred_type _ _ (@syntax.MUL _ _ _ syntax.mul_int_nat _))
-    | MUL, Comparable_type int :: Comparable_type int :: A =>
-      Return (Inferred_type _ _ (@syntax.MUL _ _ _ syntax.mul_int_int _))
-    | MUL, Comparable_type mutez :: Comparable_type nat :: A =>
-      Return (Inferred_type _ _ (@syntax.MUL _ _ _ syntax.mul_tez_nat _))
-    | MUL, Comparable_type nat :: Comparable_type mutez :: A =>
-      Return (Inferred_type _ _ (@syntax.MUL _ _ _ syntax.mul_nat_tez _))
-    | EDIV, Comparable_type nat :: Comparable_type nat :: A =>
-      Return (Inferred_type _ _ (@syntax.EDIV _ _ _ syntax.ediv_nat_nat _))
-    | EDIV, Comparable_type nat :: Comparable_type int :: A =>
-      Return (Inferred_type _ _ (@syntax.EDIV _ _ _ syntax.ediv_nat_int _))
-    | EDIV, Comparable_type int :: Comparable_type nat :: A =>
-      Return (Inferred_type _ _ (@syntax.EDIV _ _ _ syntax.ediv_int_nat _))
-    | EDIV, Comparable_type int :: Comparable_type int :: A =>
-      Return (Inferred_type _ _ (@syntax.EDIV _ _ _ syntax.ediv_int_int _))
-    | EDIV, Comparable_type mutez :: Comparable_type nat :: A =>
-      Return (Inferred_type _ _ (@syntax.EDIV _ _ _ syntax.ediv_tez_nat _))
-    | EDIV, Comparable_type mutez :: Comparable_type mutez :: A =>
-      Return (Inferred_type _ _ (@syntax.EDIV _ _ _ syntax.ediv_tez_tez _))
-    | LSL, Comparable_type nat :: Comparable_type nat :: A =>
-      Return (Inferred_type _ _ syntax.LSL)
-    | LSR, Comparable_type nat :: Comparable_type nat :: A =>
-      Return (Inferred_type _ _ syntax.LSR)
-    | COMPARE, a :: a' :: B =>
-      let A := a ::: a' ::: B in
-      let! a : comparable_type := as_comparable a in
-      let! a' : comparable_type := as_comparable a' in
-      let A' := a ::: a ::: B in
-      let! i := instruction_cast_domain A' A (int ::: B) (syntax.COMPARE (a := a)) in
-      Return (Inferred_type _ _ i)
-    | CONCAT, Comparable_type string :: Comparable_type string :: B =>
-      Return (Inferred_type _ _ (@syntax.CONCAT _ _ syntax.stringlike_string _))
-    | CONCAT, Comparable_type bytes :: Comparable_type bytes :: B =>
-      Return (Inferred_type _ _ (@syntax.CONCAT _ _ syntax.stringlike_bytes _))
-    | CONCAT, list (Comparable_type string) :: B =>
-      Return (Inferred_type _ _ (@syntax.CONCAT_list _ _ syntax.stringlike_string _))
-    | CONCAT, list (Comparable_type bytes) :: B =>
-      Return (Inferred_type _ _ (@syntax.CONCAT_list _ _ syntax.stringlike_bytes _))
-    | SIZE, set a :: A =>
-      Return (Inferred_type _ _ (@syntax.SIZE _ _ (syntax.size_set a) _))
-    | SIZE, cons (list a) A =>
-      Return (Inferred_type _ _ (@syntax.SIZE _ _ (syntax.size_list a) _))
-    | SIZE, cons (map a b) A =>
-      Return (Inferred_type _ _ (@syntax.SIZE _ _ (syntax.size_map a b) _))
-    | SIZE, Comparable_type string :: A =>
-      Return (Inferred_type _ _ (@syntax.SIZE _ _ syntax.size_string _))
-    | SIZE, Comparable_type bytes :: A =>
-      Return (Inferred_type _ _ (@syntax.SIZE _ _ syntax.size_bytes _))
-    | SLICE, Comparable_type nat :: Comparable_type nat :: Comparable_type string :: A =>
-      Return (Inferred_type _ _ (@syntax.SLICE _ _ syntax.stringlike_string _))
-    | SLICE, Comparable_type nat :: Comparable_type nat :: Comparable_type bytes :: A =>
-      Return (Inferred_type _ _ (@syntax.SLICE _ _ syntax.stringlike_bytes _))
-    | PAIR, a :: b :: A =>
-      Return (Inferred_type _ _ syntax.PAIR)
-    | CAR, pair a b :: A =>
-      Return (Inferred_type _ _ syntax.CAR)
-    | CDR, pair a b :: A =>
-      Return (Inferred_type _ _ syntax.CDR)
-    | EMPTY_SET c, A =>
-      Return (Inferred_type _ _ (syntax.EMPTY_SET c))
-    | MEM, elt' :: set elt :: B =>
-      let A := elt' :: set elt :: B in
-      let A' := elt ::: set elt :: B in
-      let! i := instruction_cast_domain
-        A' A _ (@syntax.MEM _ _ _ (syntax.mem_set elt) _) in
-      Return (Inferred_type _ _ i)
-    | MEM, kty' :: map kty vty :: B =>
-      let A := kty' :: map kty vty :: B in
-      let A' := kty ::: map kty vty :: B in
-      let! i := instruction_cast_domain
-        A' A _ (@syntax.MEM _ _ _ (syntax.mem_map kty vty) _) in
-      Return (Inferred_type _ _ i)
-    | MEM, kty' :: big_map kty vty :: B =>
-      let A := kty' :: big_map kty vty :: B in
-      let A' := kty ::: big_map kty vty :: B in
-      let! i := instruction_cast_domain
-        A' A _ (@syntax.MEM _ _ _ (syntax.mem_bigmap kty vty) _) in
-      Return (Inferred_type _ _ i)
-    | UPDATE, elt' :: Comparable_type bool :: set elt :: B =>
-      let A := elt' ::: bool ::: set elt :: B in
-      let A' := elt ::: bool ::: set elt :: B in
-      let! i := instruction_cast_domain
-        A' A _ (@syntax.UPDATE _ _ _ _ (syntax.update_set elt) _) in
-      Return (Inferred_type _ _ i)
-    | UPDATE, kty' :: option vty' :: map kty vty :: B =>
-      let A := kty' ::: option vty' ::: map kty vty :: B in
-      let A' := kty ::: option vty ::: map kty vty :: B in
-      let! i := instruction_cast_domain
-        A' A _ (@syntax.UPDATE _ _ _ _ (syntax.update_map kty vty) _) in
-      Return (Inferred_type _ _ i)
-    | UPDATE, kty' :: option vty' :: big_map kty vty :: B =>
-      let A := kty' ::: option vty' ::: big_map kty vty :: B in
-      let A' := kty ::: option vty ::: big_map kty vty :: B in
-      let! i := instruction_cast_domain
-        A' A _ (@syntax.UPDATE _ _ _ _ (syntax.update_bigmap kty vty) _) in
-      Return (Inferred_type _ _ i)
     | ITER i, list a :: A =>
       let! i := type_check_instruction_no_tail_fail type_instruction i (a :: A) A in
       Return (Inferred_type _ _ (syntax.ITER (i := syntax.iter_list _) i))
@@ -567,22 +661,6 @@ Qed.
     | ITER i, map kty vty :: A =>
       let! i := type_check_instruction_no_tail_fail type_instruction i (pair kty vty :: A) A in
       Return (Inferred_type _ _ (syntax.ITER (i := syntax.iter_map _ _) i))
-    | EMPTY_MAP kty vty, A =>
-      Return (Inferred_type _ _ (syntax.EMPTY_MAP kty vty))
-    | EMPTY_BIG_MAP kty vty, A =>
-      Return (Inferred_type _ _ (syntax.EMPTY_BIG_MAP kty vty))
-    | GET, kty' :: map kty vty :: B =>
-      let A := kty' :: map kty vty :: B in
-      let A' := kty ::: map kty vty :: B in
-      let! i := instruction_cast_domain
-        A' A _ (@syntax.GET _ _ _ (syntax.get_map kty vty) _) in
-      Return (Inferred_type _ _ i)
-    | GET, kty' :: big_map kty vty :: B =>
-      let A := kty' :: big_map kty vty :: B in
-      let A' := kty ::: big_map kty vty :: B in
-      let! i := instruction_cast_domain
-        A' A _ (@syntax.GET _ _ _ (syntax.get_bigmap kty vty) _) in
-      Return (Inferred_type _ _ i)
     | MAP i, list a :: A =>
       let! r := type_instruction_no_tail_fail type_instruction i (a :: A) in
       match r with
@@ -599,16 +677,6 @@ Qed.
         Return (Inferred_type _ _ (syntax.MAP (i := syntax.map_map _ _ _) i))
       | _ => Failed _ (Typing _ tt)
       end
-    | SOME, a :: A => Return (Inferred_type _ _ syntax.SOME)
-    | NONE a, A => Return (Inferred_type _ _ (syntax.NONE a))
-    | LEFT b, a :: A => Return (Inferred_type _ _ (syntax.LEFT b))
-    | RIGHT a, b :: A => Return (Inferred_type _ _ (syntax.RIGHT a))
-    | CONS, a' :: list a :: B =>
-      let A := a' :: list a :: B in
-      let A' := a :: list a :: B in
-      let! i := instruction_cast_domain A' A _ (syntax.CONS) in
-      Return (Inferred_type _ _ i)
-    | NIL a, A => Return (Inferred_type _ _ (syntax.NIL a))
     | CREATE_CONTRACT g p an i,
       option (Comparable_type key_hash) :: Comparable_type mutez :: g2 :: B =>
       let A :=
@@ -619,23 +687,6 @@ Qed.
         type_check_instruction (self_type := (Some (p, an))) type_instruction i (pair p g :: nil) (pair (list operation) g :: nil) in
       let! i := instruction_cast_domain A' A _ (syntax.CREATE_CONTRACT g p an i) in
       Return (Inferred_type _ _ i)
-    | TRANSFER_TOKENS, p1 :: Comparable_type mutez :: contract p2 :: B =>
-      let A := p1 ::: mutez ::: contract p2 ::: B in
-      let A' := p1 ::: mutez ::: contract p1 ::: B in
-      let! i := instruction_cast_domain A' A _ syntax.TRANSFER_TOKENS in
-      Return (Inferred_type _ _ i)
-    | SET_DELEGATE, option (Comparable_type key_hash) :: A =>
-      Return (Inferred_type _ _ syntax.SET_DELEGATE)
-    | BALANCE, A =>
-      Return (Inferred_type _ _ syntax.BALANCE)
-    | ADDRESS, contract _ :: A =>
-      Return (Inferred_type _ _ syntax.ADDRESS)
-    | CONTRACT an ty, Comparable_type address :: A =>
-      Return (Inferred_type _ _ (syntax.CONTRACT an ty))
-    | SOURCE, A =>
-      Return (Inferred_type _ _ syntax.SOURCE)
-    | SENDER, A =>
-      Return (Inferred_type _ _ syntax.SENDER)
     | SELF an, A =>
       match self_type with
       | Some (sty, san) =>
@@ -644,38 +695,13 @@ Qed.
         Return (Inferred_type _ _ (syntax.SELF an H))
       | None => Failed _ (Typing _ "SELF is not allowed inside lambdas"%string)
       end
-    | AMOUNT, A =>
-      Return (Inferred_type _ _ syntax.AMOUNT)
-    | IMPLICIT_ACCOUNT, Comparable_type key_hash :: A =>
-      Return (Inferred_type _ _ syntax.IMPLICIT_ACCOUNT)
-    | NOW, A =>
-      Return (Inferred_type _ _ syntax.NOW)
-    | PACK, a :: A =>
-      Return (Inferred_type _ _ syntax.PACK)
-    | UNPACK ty, Comparable_type bytes :: A =>
-      Return (Inferred_type _ _ (syntax.UNPACK ty))
-    | HASH_KEY, key :: A =>
-      Return (Inferred_type _ _ syntax.HASH_KEY)
-    | BLAKE2B, Comparable_type bytes :: A =>
-      Return (Inferred_type _ _ syntax.BLAKE2B)
-    | SHA256, Comparable_type bytes :: A =>
-      Return (Inferred_type _ _ syntax.SHA256)
-    | SHA512, Comparable_type bytes :: A =>
-      Return (Inferred_type _ _ syntax.SHA512)
-    | CHECK_SIGNATURE, key :: signature :: Comparable_type bytes :: A =>
-      Return (Inferred_type _ _ syntax.CHECK_SIGNATURE)
-    | DIG n, A => type_check_dig n _
-    | DUG n, A => type_check_dug n _
     | DIP n i, S12 =>
       let! (exist _ S1 H1, S2) := take_n S12 n in
       let! existT _ B i := type_instruction_no_tail_fail type_instruction i S2 in
       let! i := instruction_cast_domain (S1 +++ S2) S12 _ (syntax.DIP n H1 i) in
       Return (Inferred_type S12 (S1 +++ B) i)
-    | DROP n, S12 =>
-      let! (exist _ S1 H1, S2) := take_n S12 n in
-      let! i := instruction_cast_domain (S1 +++ S2) S12 _ (syntax.DROP n H1) in
-      Return (Inferred_type S12 S2 i)
-    | CHAIN_ID, _ =>
-      Return (Inferred_type _ _ syntax.CHAIN_ID)
+    | instruction_opcode o, A =>
+      let! (existT _ B o) := type_opcode o A in
+      Return (Inferred_type A B (syntax.Instruction_opcode o))
     | _, _ => Failed _ (Typing _ (i, A))
     end.

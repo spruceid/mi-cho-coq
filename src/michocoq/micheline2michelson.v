@@ -162,8 +162,8 @@ Fixpoint DIPn n code :=
 
 Fixpoint DUP_Sn n :=
   match n with
-  | 0 => DUP
-  | S n => DIP 1 (DUP_Sn n) ;; SWAP
+  | 0 => instruction_opcode DUP
+  | S n => DIP 1 (DUP_Sn n) ;; instruction_opcode SWAP
   end.
 
 Definition IF_SOME bt bf := IF_NONE bf bt.
@@ -381,81 +381,81 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
        end) l
   | Mk_loc_micheline (_, PRIM (_, "FAILWITH") nil) => Return FAILWITH
   | Mk_loc_micheline (_, PRIM (_, "EXEC") nil) => Return EXEC
-  | Mk_loc_micheline (_, PRIM (_, "APPLY") nil) => Return APPLY
-  | Mk_loc_micheline (_, PRIM (_, "DROP") nil) => Return (DROP 1)
+  | Mk_loc_micheline (_, PRIM (_, "APPLY") nil) => Return (instruction_opcode APPLY)
+  | Mk_loc_micheline (_, PRIM (_, "DROP") nil) => Return (instruction_opcode (DROP 1))
   | Mk_loc_micheline (_, PRIM (_, "DROP")
                               (Mk_loc_micheline (_, NUMBER n) :: nil)) =>
-    Return (DROP (BinInt.Z.to_nat n))
-  | Mk_loc_micheline (_, PRIM (_, "DUP") nil) => Return DUP
-  | Mk_loc_micheline (_, PRIM (_, "SWAP") nil) => Return SWAP
-  | Mk_loc_micheline (_, PRIM (_, "UNIT") nil) => Return UNIT
-  | Mk_loc_micheline (_, PRIM (_, "EQ") nil) => Return EQ
-  | Mk_loc_micheline (_, PRIM (_, "NEQ") nil) => Return NEQ
-  | Mk_loc_micheline (_, PRIM (_, "LT") nil) => Return LT
-  | Mk_loc_micheline (_, PRIM (_, "GT") nil) => Return GT
-  | Mk_loc_micheline (_, PRIM (_, "LE") nil) => Return LE
-  | Mk_loc_micheline (_, PRIM (_, "GE") nil) => Return GE
-  | Mk_loc_micheline (_, PRIM (_, "OR") nil) => Return OR
-  | Mk_loc_micheline (_, PRIM (_, "AND") nil) => Return AND
-  | Mk_loc_micheline (_, PRIM (_, "XOR") nil) => Return XOR
-  | Mk_loc_micheline (_, PRIM (_, "NOT") nil) => Return NOT
-  | Mk_loc_micheline (_, PRIM (_, "NEG") nil) => Return NEG
-  | Mk_loc_micheline (_, PRIM (_, "ABS") nil) => Return ABS
-  | Mk_loc_micheline (_, PRIM (_, "ISNAT") nil) => Return ISNAT
-  | Mk_loc_micheline (_, PRIM (_, "INT") nil) => Return INT
-  | Mk_loc_micheline (_, PRIM (_, "ADD") nil) => Return ADD
-  | Mk_loc_micheline (_, PRIM (_, "SUB") nil) => Return SUB
-  | Mk_loc_micheline (_, PRIM (_, "MUL") nil) => Return MUL
-  | Mk_loc_micheline (_, PRIM (_, "EDIV") nil) => Return EDIV
-  | Mk_loc_micheline (_, PRIM (_, "LSL") nil) => Return LSL
-  | Mk_loc_micheline (_, PRIM (_, "LSR") nil) => Return LSR
-  | Mk_loc_micheline (_, PRIM (_, "COMPARE") nil) => Return COMPARE
-  | Mk_loc_micheline (_, PRIM (_, "CONCAT") nil) => Return CONCAT
-  | Mk_loc_micheline (_, PRIM (_, "SIZE") nil) => Return SIZE
-  | Mk_loc_micheline (_, PRIM (_, "SLICE") nil) => Return SLICE
-  | Mk_loc_micheline (_, PRIM (_, "PAIR") nil) => Return PAIR
-  | Mk_loc_micheline (_, PRIM (_, "CAR") nil) => Return CAR
-  | Mk_loc_micheline (_, PRIM (_, "CDR") nil) => Return CDR
-  | Mk_loc_micheline (_, PRIM (_, "GET") nil) => Return GET
-  | Mk_loc_micheline (_, PRIM (_, "SOME") nil) => Return SOME
+    Return (instruction_opcode (DROP (BinInt.Z.to_nat n)))
+  | Mk_loc_micheline (_, PRIM (_, "DUP") nil) => Return (instruction_opcode DUP)
+  | Mk_loc_micheline (_, PRIM (_, "SWAP") nil) => Return (instruction_opcode SWAP)
+  | Mk_loc_micheline (_, PRIM (_, "UNIT") nil) => Return (instruction_opcode UNIT)
+  | Mk_loc_micheline (_, PRIM (_, "EQ") nil) => Return (instruction_opcode EQ)
+  | Mk_loc_micheline (_, PRIM (_, "NEQ") nil) => Return (instruction_opcode NEQ)
+  | Mk_loc_micheline (_, PRIM (_, "LT") nil) => Return (instruction_opcode LT)
+  | Mk_loc_micheline (_, PRIM (_, "GT") nil) => Return (instruction_opcode GT)
+  | Mk_loc_micheline (_, PRIM (_, "LE") nil) => Return (instruction_opcode LE)
+  | Mk_loc_micheline (_, PRIM (_, "GE") nil) => Return (instruction_opcode GE)
+  | Mk_loc_micheline (_, PRIM (_, "OR") nil) => Return (instruction_opcode OR)
+  | Mk_loc_micheline (_, PRIM (_, "AND") nil) => Return (instruction_opcode AND)
+  | Mk_loc_micheline (_, PRIM (_, "XOR") nil) => Return (instruction_opcode XOR)
+  | Mk_loc_micheline (_, PRIM (_, "NOT") nil) => Return (instruction_opcode NOT)
+  | Mk_loc_micheline (_, PRIM (_, "NEG") nil) => Return (instruction_opcode NEG)
+  | Mk_loc_micheline (_, PRIM (_, "ABS") nil) => Return (instruction_opcode ABS)
+  | Mk_loc_micheline (_, PRIM (_, "ISNAT") nil) => Return (instruction_opcode ISNAT)
+  | Mk_loc_micheline (_, PRIM (_, "INT") nil) => Return (instruction_opcode INT)
+  | Mk_loc_micheline (_, PRIM (_, "ADD") nil) => Return (instruction_opcode ADD)
+  | Mk_loc_micheline (_, PRIM (_, "SUB") nil) => Return (instruction_opcode SUB)
+  | Mk_loc_micheline (_, PRIM (_, "MUL") nil) => Return (instruction_opcode MUL)
+  | Mk_loc_micheline (_, PRIM (_, "EDIV") nil) => Return (instruction_opcode EDIV)
+  | Mk_loc_micheline (_, PRIM (_, "LSL") nil) => Return (instruction_opcode LSL)
+  | Mk_loc_micheline (_, PRIM (_, "LSR") nil) => Return (instruction_opcode LSR)
+  | Mk_loc_micheline (_, PRIM (_, "COMPARE") nil) => Return (instruction_opcode COMPARE)
+  | Mk_loc_micheline (_, PRIM (_, "CONCAT") nil) => Return (instruction_opcode CONCAT)
+  | Mk_loc_micheline (_, PRIM (_, "SIZE") nil) => Return (instruction_opcode SIZE)
+  | Mk_loc_micheline (_, PRIM (_, "SLICE") nil) => Return (instruction_opcode SLICE)
+  | Mk_loc_micheline (_, PRIM (_, "PAIR") nil) => Return (instruction_opcode PAIR)
+  | Mk_loc_micheline (_, PRIM (_, "CAR") nil) => Return (instruction_opcode CAR)
+  | Mk_loc_micheline (_, PRIM (_, "CDR") nil) => Return (instruction_opcode CDR)
+  | Mk_loc_micheline (_, PRIM (_, "GET") nil) => Return (instruction_opcode GET)
+  | Mk_loc_micheline (_, PRIM (_, "SOME") nil) => Return (instruction_opcode SOME)
   | Mk_loc_micheline (_, PRIM (_, "NONE") (ty :: nil)) =>
     let! ty := micheline2michelson_type ty in
-    Return (NONE ty)
+    Return (instruction_opcode (NONE ty))
   | Mk_loc_micheline (_, PRIM (_, "LEFT") (ty :: nil)) =>
     let! ty := micheline2michelson_type ty in
-    Return (LEFT ty)
+    Return (instruction_opcode (LEFT ty))
   | Mk_loc_micheline (_, PRIM (_, "RIGHT") (ty :: nil)) =>
     let! ty := micheline2michelson_type ty in
-    Return (RIGHT ty)
-  | Mk_loc_micheline (_, PRIM (_, "CONS") nil) => Return CONS
+    Return (instruction_opcode (RIGHT ty))
+  | Mk_loc_micheline (_, PRIM (_, "CONS") nil) => Return (instruction_opcode CONS)
   | Mk_loc_micheline (_, PRIM (_, "NIL") (ty :: nil)) =>
     let! ty := micheline2michelson_type ty in
-    Return (NIL ty)
-  | Mk_loc_micheline (_, PRIM (_, "TRANSFER_TOKENS") nil) => Return TRANSFER_TOKENS
-  | Mk_loc_micheline (_, PRIM (_, "SET_DELEGATE") nil) => Return SET_DELEGATE
-  | Mk_loc_micheline (_, PRIM (_, "BALANCE") nil) => Return BALANCE
-  | Mk_loc_micheline (_, PRIM (_, "ADDRESS") nil) => Return ADDRESS
+    Return (instruction_opcode (NIL ty))
+  | Mk_loc_micheline (_, PRIM (_, "TRANSFER_TOKENS") nil) => Return (instruction_opcode TRANSFER_TOKENS)
+  | Mk_loc_micheline (_, PRIM (_, "SET_DELEGATE") nil) => Return (instruction_opcode SET_DELEGATE)
+  | Mk_loc_micheline (_, PRIM (_, "BALANCE") nil) => Return (instruction_opcode BALANCE)
+  | Mk_loc_micheline (_, PRIM (_, "ADDRESS") nil) => Return (instruction_opcode ADDRESS)
   | Mk_loc_micheline (_, PRIM (_, "CONTRACT") (ty :: nil)) =>
     let! ty := micheline2michelson_type ty in
-    Return (CONTRACT None ty)
-  | Mk_loc_micheline (_, PRIM (_, "SOURCE") nil) => Return SOURCE
-  | Mk_loc_micheline (_, PRIM (_, "SENDER") nil) => Return SENDER
+    Return (instruction_opcode (CONTRACT None ty))
+  | Mk_loc_micheline (_, PRIM (_, "SOURCE") nil) => Return (instruction_opcode SOURCE)
+  | Mk_loc_micheline (_, PRIM (_, "SENDER") nil) => Return (instruction_opcode SENDER)
   | Mk_loc_micheline (_, PRIM (_, "SELF") nil) => Return (SELF None)
-  | Mk_loc_micheline (_, PRIM (_, "AMOUNT") nil) => Return AMOUNT
-  | Mk_loc_micheline (_, PRIM (_, "IMPLICIT_ACCOUNT") nil) => Return IMPLICIT_ACCOUNT
-  | Mk_loc_micheline (_, PRIM (_, "NOW") nil) => Return NOW
-  | Mk_loc_micheline (_, PRIM (_, "PACK") nil) => Return PACK
+  | Mk_loc_micheline (_, PRIM (_, "AMOUNT") nil) => Return (instruction_opcode AMOUNT)
+  | Mk_loc_micheline (_, PRIM (_, "IMPLICIT_ACCOUNT") nil) => Return (instruction_opcode IMPLICIT_ACCOUNT)
+  | Mk_loc_micheline (_, PRIM (_, "NOW") nil) => Return (instruction_opcode NOW)
+  | Mk_loc_micheline (_, PRIM (_, "PACK") nil) => Return (instruction_opcode PACK)
   | Mk_loc_micheline (_, PRIM (_, "UNPACK") (ty :: nil)) =>
     let! ty := micheline2michelson_type ty in
-    Return (UNPACK ty)
-  | Mk_loc_micheline (_, PRIM (_, "HASH_KEY") nil) => Return HASH_KEY
-  | Mk_loc_micheline (_, PRIM (_, "BLAKE2B") nil) => Return BLAKE2B
-  | Mk_loc_micheline (_, PRIM (_, "SHA256") nil) => Return SHA256
-  | Mk_loc_micheline (_, PRIM (_, "SHA512") nil) => Return SHA512
-  | Mk_loc_micheline (_, PRIM (_, "CHECK_SIGNATURE") nil) => Return CHECK_SIGNATURE
-  | Mk_loc_micheline (_, PRIM (_, "MEM") nil) => Return MEM
-  | Mk_loc_micheline (_, PRIM (_, "UPDATE") nil) => Return UPDATE
-  | Mk_loc_micheline (_, PRIM (_, "CHAIN_ID") nil) => Return CHAIN_ID
+    Return (instruction_opcode (UNPACK ty))
+  | Mk_loc_micheline (_, PRIM (_, "HASH_KEY") nil) => Return (instruction_opcode HASH_KEY)
+  | Mk_loc_micheline (_, PRIM (_, "BLAKE2B") nil) => Return (instruction_opcode BLAKE2B)
+  | Mk_loc_micheline (_, PRIM (_, "SHA256") nil) => Return (instruction_opcode SHA256)
+  | Mk_loc_micheline (_, PRIM (_, "SHA512") nil) => Return (instruction_opcode SHA512)
+  | Mk_loc_micheline (_, PRIM (_, "CHECK_SIGNATURE") nil) => Return (instruction_opcode CHECK_SIGNATURE)
+  | Mk_loc_micheline (_, PRIM (_, "MEM") nil) => Return (instruction_opcode MEM)
+  | Mk_loc_micheline (_, PRIM (_, "UPDATE") nil) => Return (instruction_opcode UPDATE)
+  | Mk_loc_micheline (_, PRIM (_, "CHAIN_ID") nil) => Return (instruction_opcode CHAIN_ID)
   | Mk_loc_micheline (_, PRIM (_, "LOOP") (i :: nil)) =>
     let! i := micheline2michelson_instruction i in
     Return (LOOP i)
@@ -469,9 +469,9 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
     let! i := micheline2michelson_instruction i in
     Return (DIP (BinInt.Z.to_nat n) i)
   | Mk_loc_micheline (_, PRIM (_, "DIG") (Mk_loc_micheline (_, NUMBER n) :: nil)) =>
-    Return (DIG (BinInt.Z.to_nat n))
+    Return (instruction_opcode (DIG (BinInt.Z.to_nat n)))
   | Mk_loc_micheline (_, PRIM (_, "DUG") (Mk_loc_micheline (_, NUMBER n) :: nil)) =>
-    Return (DUG (BinInt.Z.to_nat n))
+    Return (instruction_opcode (DUG (BinInt.Z.to_nat n)))
   | Mk_loc_micheline (_, PRIM (_, "ITER") (i :: nil)) =>
     let! i := micheline2michelson_instruction i in
     Return (ITER i)
@@ -504,15 +504,15 @@ Fixpoint micheline2michelson_instruction (m : loc_micheline) : M instruction :=
     Return (CREATE_CONTRACT sty pty None i)
   | Mk_loc_micheline (_, PRIM (_, "EMPTY_SET") (cty :: nil)) =>
     let! cty := micheline2michelson_ctype cty in
-    Return (EMPTY_SET cty)
+    Return (instruction_opcode (EMPTY_SET cty))
   | Mk_loc_micheline (_, PRIM (_, "EMPTY_MAP") (kty :: vty :: nil)) =>
     let! kty := micheline2michelson_ctype kty in
     let! vty := micheline2michelson_type vty in
-    Return (EMPTY_MAP kty vty)
+    Return (instruction_opcode (EMPTY_MAP kty vty))
   | Mk_loc_micheline (_, PRIM (_, "EMPTY_BIG_MAP") (kty :: vty :: nil)) =>
     let! kty := micheline2michelson_ctype kty in
     let! vty := micheline2michelson_type vty in
-    Return (EMPTY_BIG_MAP kty vty)
+    Return (instruction_opcode (EMPTY_BIG_MAP kty vty))
   | Mk_loc_micheline (_, PRIM (_, "IF") (i1 :: i2 :: nil)) =>
     let! i1 := micheline2michelson_instruction i1 in
     let! i2 := micheline2michelson_instruction i2 in

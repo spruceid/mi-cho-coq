@@ -8,6 +8,75 @@ Import error.Notations.
 (* Not really needed but eases reading of proof states. *)
 Require Import String.
 
+  Definition untype_opcode {self_type A B} (o : @syntax.opcode self_type A B) : opcode :=
+    match o with
+    | syntax.APPLY => APPLY
+    | syntax.DROP n _ => DROP n
+    | syntax.DUP => DUP
+    | syntax.SWAP => SWAP
+    | syntax.UNIT => UNIT
+    | syntax.EQ => EQ
+    | syntax.NEQ => NEQ
+    | syntax.LT => LT
+    | syntax.GT => GT
+    | syntax.LE => LE
+    | syntax.GE => GE
+    | syntax.OR => OR
+    | syntax.AND => AND
+    | syntax.XOR => XOR
+    | syntax.NOT => NOT
+    | syntax.NEG => NEG
+    | syntax.ABS => ABS
+    | syntax.INT => INT
+    | syntax.ISNAT => ISNAT
+    | syntax.ADD => ADD
+    | syntax.SUB => SUB
+    | syntax.MUL => MUL
+    | syntax.EDIV => EDIV
+    | syntax.LSL => LSL
+    | syntax.LSR => LSR
+    | syntax.COMPARE => COMPARE
+    | syntax.CONCAT => CONCAT
+    | syntax.CONCAT_list => CONCAT
+    | syntax.SIZE => SIZE
+    | syntax.SLICE => SLICE
+    | syntax.PAIR => PAIR
+    | syntax.CAR => CAR
+    | syntax.CDR => CDR
+    | syntax.EMPTY_SET a => EMPTY_SET a
+    | syntax.MEM => MEM
+    | syntax.UPDATE => UPDATE
+    | syntax.EMPTY_MAP kty vty => EMPTY_MAP kty vty
+    | syntax.EMPTY_BIG_MAP kty vty => EMPTY_BIG_MAP kty vty
+    | syntax.GET => GET
+    | syntax.SOME => SOME
+    | syntax.NONE a => NONE a
+    | syntax.LEFT b => LEFT b
+    | syntax.RIGHT a => RIGHT a
+    | syntax.CONS => CONS
+    | syntax.NIL a => NIL a
+    | syntax.TRANSFER_TOKENS => TRANSFER_TOKENS
+    | syntax.SET_DELEGATE => SET_DELEGATE
+    | syntax.BALANCE => BALANCE
+    | syntax.ADDRESS => ADDRESS
+    | syntax.CONTRACT an a => CONTRACT an a
+    | syntax.SOURCE => SOURCE
+    | syntax.SENDER => SENDER
+    | syntax.AMOUNT => AMOUNT
+    | syntax.IMPLICIT_ACCOUNT => IMPLICIT_ACCOUNT
+    | syntax.NOW => NOW
+    | syntax.PACK => PACK
+    | syntax.UNPACK a => UNPACK a
+    | syntax.HASH_KEY => HASH_KEY
+    | syntax.BLAKE2B => BLAKE2B
+    | syntax.SHA256 => SHA256
+    | syntax.SHA512 => SHA512
+    | syntax.CHECK_SIGNATURE => CHECK_SIGNATURE
+    | syntax.DIG n _ => DIG n
+    | syntax.DUG n _ => DUG n
+    | syntax.CHAIN_ID => CHAIN_ID
+    end.
+
   Fixpoint untype_data {a} (d : syntax.concrete_data a) : concrete_data :=
     match d with
     | syntax.Int_constant z => Int_constant z
@@ -48,80 +117,16 @@ Require Import String.
     | syntax.LOOP_LEFT i => LOOP_LEFT (untype_instruction i)
     | syntax.DIP n _ i => DIP n (untype_instruction i)
     | syntax.EXEC => EXEC
-    | syntax.APPLY => APPLY
-    | syntax.DROP n _ => DROP n
-    | syntax.DUP => DUP
-    | syntax.SWAP => SWAP
     | syntax.PUSH a x => PUSH a (untype_data x)
-    | syntax.UNIT => UNIT
     | syntax.LAMBDA a b i => LAMBDA a b (untype_instruction i)
-    | syntax.EQ => EQ
-    | syntax.NEQ => NEQ
-    | syntax.LT => LT
-    | syntax.GT => GT
-    | syntax.LE => LE
-    | syntax.GE => GE
-    | syntax.OR => OR
-    | syntax.AND => AND
-    | syntax.XOR => XOR
-    | syntax.NOT => NOT
-    | syntax.NEG => NEG
-    | syntax.ABS => ABS
-    | syntax.INT => INT
-    | syntax.ISNAT => ISNAT
-    | syntax.ADD => ADD
-    | syntax.SUB => SUB
-    | syntax.MUL => MUL
-    | syntax.EDIV => EDIV
-    | syntax.LSL => LSL
-    | syntax.LSR => LSR
-    | syntax.COMPARE => COMPARE
-    | syntax.CONCAT => CONCAT
-    | syntax.CONCAT_list => CONCAT
-    | syntax.SIZE => SIZE
-    | syntax.SLICE => SLICE
-    | syntax.PAIR => PAIR
-    | syntax.CAR => CAR
-    | syntax.CDR => CDR
-    | syntax.EMPTY_SET a => EMPTY_SET a
-    | syntax.MEM => MEM
-    | syntax.UPDATE => UPDATE
     | syntax.ITER i => ITER (untype_instruction i)
-    | syntax.EMPTY_MAP kty vty => EMPTY_MAP kty vty
-    | syntax.EMPTY_BIG_MAP kty vty => EMPTY_BIG_MAP kty vty
-    | syntax.GET => GET
     | syntax.MAP i => MAP (untype_instruction i)
-    | syntax.SOME => SOME
-    | syntax.NONE a => NONE a
     | syntax.IF_NONE i1 i2 => IF_NONE (untype_instruction i1) (untype_instruction i2)
-    | syntax.LEFT b => LEFT b
-    | syntax.RIGHT a => RIGHT a
     | syntax.IF_LEFT i1 i2 => IF_LEFT (untype_instruction i1) (untype_instruction i2)
-    | syntax.CONS => CONS
-    | syntax.NIL a => NIL a
     | syntax.IF_CONS i1 i2 => IF_CONS (untype_instruction i1) (untype_instruction i2)
     | syntax.CREATE_CONTRACT g p an i => CREATE_CONTRACT g p an (untype_instruction i)
-    | syntax.TRANSFER_TOKENS => TRANSFER_TOKENS
-    | syntax.SET_DELEGATE => SET_DELEGATE
-    | syntax.BALANCE => BALANCE
-    | syntax.ADDRESS => ADDRESS
-    | syntax.CONTRACT an a => CONTRACT an a
-    | syntax.SOURCE => SOURCE
-    | syntax.SENDER => SENDER
     | syntax.SELF an _ => SELF an
-    | syntax.AMOUNT => AMOUNT
-    | syntax.IMPLICIT_ACCOUNT => IMPLICIT_ACCOUNT
-    | syntax.NOW => NOW
-    | syntax.PACK => PACK
-    | syntax.UNPACK a => UNPACK a
-    | syntax.HASH_KEY => HASH_KEY
-    | syntax.BLAKE2B => BLAKE2B
-    | syntax.SHA256 => SHA256
-    | syntax.SHA512 => SHA512
-    | syntax.CHECK_SIGNATURE => CHECK_SIGNATURE
-    | syntax.DIG n _ => DIG n
-    | syntax.DUG n _ => DUG n
-    | syntax.CHAIN_ID => CHAIN_ID
+    | syntax.Instruction_opcode o => instruction_opcode (untype_opcode o)
     end.
 
   Lemma stype_dec_same A : stype_dec A A = left eq_refl.
@@ -323,6 +328,16 @@ Require Import String.
     reflexivity.
   Qed.
 
+  Lemma opcode_cast_same {self_type} A B
+        (o : syntax.opcode (self_type := self_type) A B) :
+    typer.opcode_cast A A B B o = Return o.
+  Proof.
+    unfold typer.opcode_cast.
+    rewrite stype_dec_same.
+    rewrite stype_dec_same.
+    reflexivity.
+  Qed.
+
   Lemma instruction_cast_range_same {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :
     typer.instruction_cast_range A B B i = Return i.
   Proof.
@@ -333,6 +348,12 @@ Require Import String.
     typer.instruction_cast_domain A A B i = Return i.
   Proof.
     apply instruction_cast_same.
+  Qed.
+
+  Lemma opcode_cast_domain_same self_type A B (o : @syntax.opcode self_type A B) :
+    typer.opcode_cast_domain self_type A A B o = Return o.
+  Proof.
+    apply opcode_cast_same.
   Qed.
 
   Lemma untype_type_check_instruction {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :
@@ -439,6 +460,61 @@ Require Import String.
       + inversion Hlen.
       + injection Happ. intros Happ2 Ha. subst. 
         specialize (IHl1 l1' l2 l2' (eq_add_S _ _ Hlen) Happ2) as [Hl1 Hl2]. subst. auto.
+  Qed.
+
+  Lemma untype_type_opcode self_type A B (o : @syntax.opcode self_type A B) :
+    typer.type_opcode (untype_opcode o) A = Return (existT _ B o).
+  Proof.
+    destruct o; simpl; try reflexivity;
+      try (destruct s as [v]; destruct v; reflexivity);
+      try (destruct s as [c v]; destruct v; reflexivity);
+      try (destruct i as [v]; destruct v; reflexivity);
+      try (destruct i as [v]; destruct v; rewrite opcode_cast_domain_same; reflexivity);
+      try (rewrite opcode_cast_domain_same; reflexivity).
+    - pose (A := a :: lambda (pair a b) c :: D).
+      assert (forall (b : Datatypes.bool) i1,
+                 (if b return is_packable a = b -> _
+                  then fun h =>
+                         let! o := opcode_cast_domain self_type A A _ (@syntax.APPLY _ _ _ _ _ (IT_eq_rev _ h)) in
+                         Return (existT _ _ o)
+                  else fun _ => Failed _ (Typing _ "APPLY"%string)) i1
+                 = Return (existT _ _ (@syntax.APPLY _ _ _ _ _ i))).
+      * intros b0 i1.
+          destruct b0.
+          -- rewrite opcode_cast_domain_same.
+             simpl.
+             repeat f_equal.
+             apply Is_true_UIP.
+          -- exfalso.
+             rewrite i1 in i.
+             exact i.
+        * apply H.
+    - destruct s as [c d v]; destruct v; reflexivity.
+    - simpl.
+      rewrite as_comparable_comparable.
+        destruct a; simpl.
+        * rewrite opcode_cast_domain_same.
+          reflexivity.
+        * rewrite opcode_cast_domain_same.
+          simpl.
+          reflexivity.
+    - destruct i as [x v]; destruct v; rewrite opcode_cast_domain_same; reflexivity.
+    - unfold type_check_dig.
+      simpl.
+      rewrite (take_n_length n S1 (t ::: S2) e).
+      simpl.
+      rewrite opcode_cast_domain_same.
+      reflexivity.
+    - unfold type_check_dug.
+      simpl.
+      rewrite (take_n_length n S1 S2 e).
+      simpl.
+      rewrite opcode_cast_domain_same.
+      reflexivity.
+    - rewrite (take_n_length n A B e).
+      simpl.
+      rewrite opcode_cast_domain_same.
+      reflexivity.
   Qed.
 
   Fixpoint untype_type_data a (d : syntax.concrete_data a) :
@@ -606,30 +682,6 @@ Require Import String.
           Return (@typer.Inferred_type self_type _ _ (syntax.LOOP_LEFT i))
         ).
         rewrite untype_type_check_instruction_no_tail_fail; auto.
-      + unfold untype_type_spec.
-        simpl.
-        rewrite instruction_cast_domain_same.
-        reflexivity.
-      + unfold untype_type_spec.
-        simpl.
-        pose (A := a :: lambda (pair a b) c :: D).
-        assert (forall (b : Datatypes.bool) i1,
-                   (if b return is_packable a = b -> _
-                    then fun i =>
-                      let! i := instruction_cast_domain A A _ (@syntax.APPLY self_type _ _ _ _ (IT_eq_rev _ i)) in
-                      Return (Inferred_type _ _ i)
-                    else fun _ => Failed _ (Typing _ "APPLY"%string)) i1
-                   = Return (Inferred_type A _ (@syntax.APPLY _ _ _ _ _ i))).
-        * intros b0 i1.
-          destruct b0.
-          -- rewrite instruction_cast_domain_same.
-             simpl.
-             repeat f_equal.
-             apply Is_true_UIP.
-          -- exfalso.
-             rewrite i1 in i.
-             exact i.
-        * apply H.
       + trans_refl (
           let! d := typer.type_data (untype_data x) a in
           Return (@typer.Inferred_type self_type A _ (syntax.PUSH a d))
@@ -643,48 +695,6 @@ Require Import String.
           Return (@typer.Inferred_type self_type _ (lambda a b ::: A) (syntax.LAMBDA a b i))
         ).
         rewrite untype_type_check_instruction; auto.
-      + destruct s as [v]; destruct v; reflexivity.
-      + destruct s as [v]; destruct v; reflexivity.
-      + destruct s as [v]; destruct v; reflexivity.
-      + destruct s as [a v]; destruct v; reflexivity.
-      + destruct s as [v]; destruct v; reflexivity.
-      + destruct s as [c v]; destruct v; reflexivity.
-      + destruct s as [c v]; destruct v; reflexivity.
-      + destruct s as [c v]; destruct v; reflexivity.
-      + destruct s as [c d v]; destruct v; reflexivity.
-      + unfold untype_type_spec.
-        simpl.
-        rewrite as_comparable_comparable.
-        destruct a; simpl.
-        * rewrite instruction_cast_domain_same.
-          reflexivity.
-        * rewrite instruction_cast_domain_same.
-          simpl.
-          reflexivity.
-      + destruct i as [v]; destruct v; reflexivity.
-      + destruct i as [v]; destruct v; reflexivity.
-      + destruct i as [v]; destruct v; reflexivity.
-      + destruct i as [v]; destruct v; reflexivity.
-      + destruct i as [v]; destruct v.
-        * unfold untype_type_spec; simpl.
-          rewrite instruction_cast_domain_same.
-          reflexivity.
-        * unfold untype_type_spec; simpl.
-          rewrite instruction_cast_domain_same.
-          reflexivity.
-        * unfold untype_type_spec; simpl.
-          rewrite instruction_cast_domain_same.
-          reflexivity.
-      + destruct i as [v]; destruct v.
-        * unfold untype_type_spec; simpl.
-          rewrite instruction_cast_domain_same.
-          reflexivity.
-        * unfold untype_type_spec; simpl.
-          rewrite instruction_cast_domain_same.
-          reflexivity.
-        * unfold untype_type_spec; simpl.
-          rewrite instruction_cast_domain_same.
-          reflexivity.
       + destruct i as [c v]; destruct v.
         * unfold untype_type_spec; simpl.
           rewrite untype_type_check_instruction_no_tail_fail; auto.
@@ -692,13 +702,6 @@ Require Import String.
           rewrite untype_type_check_instruction_no_tail_fail; auto.
         * unfold untype_type_spec; simpl.
           rewrite untype_type_check_instruction_no_tail_fail; auto.
-      + destruct i as [c v]; destruct v.
-        * unfold untype_type_spec; simpl.
-          rewrite instruction_cast_domain_same.
-          reflexivity.
-        * unfold untype_type_spec; simpl.
-          rewrite instruction_cast_domain_same.
-          reflexivity.
       + destruct i as [a c v]; destruct v.
         * unfold untype_type_spec; simpl.
           rewrite untype_type_instruction_no_tail_fail.
@@ -726,9 +729,6 @@ Require Import String.
              (untype_instruction i2) _ _ _
              (IF_instruction_to_instruction _ _ _ (IF_LEFT_i a b an bn A))).
         rewrite untype_type_branches; auto.
-      + unfold untype_type_spec; simpl.
-        rewrite instruction_cast_domain_same.
-        reflexivity.
       + trans_refl
           (@typer.type_branches self_type
              typer.type_instruction
@@ -743,9 +743,6 @@ Require Import String.
            reflexivity.
         -- auto.
       + unfold untype_type_spec; simpl.
-        rewrite instruction_cast_domain_same.
-        reflexivity.
-      + unfold untype_type_spec; simpl.
         assert (isSome_maybe (Typing string "No such self entrypoint"%string)
                              (get_entrypoint_opt annot_opt self_type self_annot) = Return H).
         * destruct (get_entrypoint_opt annot_opt self_type self_annot) as [x|].
@@ -755,18 +752,7 @@ Require Import String.
           -- inversion H.
         * rewrite H0.
           reflexivity.
-      + unfold untype_type_spec.
-        simpl. unfold type_check_dig.
-        simpl.
-        rewrite (take_n_length n S1 (t ::: S2) e).
-        simpl.
-        rewrite instruction_cast_domain_same.
-        reflexivity.
-      + unfold untype_type_spec.
-        simpl. unfold type_check_dug.
-        simpl.
-        rewrite (take_n_length n S1 S2 e).
-        simpl.
+      + unfold untype_type_spec; simpl.
         rewrite instruction_cast_domain_same.
         reflexivity.
       + unfold untype_type_spec.
@@ -780,8 +766,6 @@ Require Import String.
         * apply untype_type_instruction.
       + unfold untype_type_spec.
         simpl.
-        rewrite (take_n_length n A B e).
-        simpl.
-        rewrite instruction_cast_domain_same.
+        rewrite untype_type_opcode.
         reflexivity.
   Qed.

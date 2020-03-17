@@ -2,6 +2,71 @@ Require syntax.
 Require Import ZArith String.
 Require Import syntax_type.
 
+Inductive opcode : Set :=
+| APPLY : opcode
+| DUP : opcode
+| SWAP : opcode
+| UNIT : opcode
+| EQ : opcode
+| NEQ : opcode
+| LT : opcode
+| GT : opcode
+| LE : opcode
+| GE : opcode
+| OR : opcode
+| AND : opcode
+| XOR : opcode
+| NOT : opcode
+| NEG : opcode
+| ABS : opcode
+| INT : opcode
+| ISNAT : opcode
+| ADD : opcode
+| SUB : opcode
+| MUL : opcode
+| EDIV : opcode
+| LSL : opcode
+| LSR : opcode
+| COMPARE : opcode
+| CONCAT : opcode
+| SIZE : opcode
+| SLICE : opcode
+| PAIR : opcode
+| CAR : opcode
+| CDR : opcode
+| EMPTY_SET : comparable_type -> opcode
+| MEM : opcode
+| UPDATE : opcode
+| EMPTY_MAP : comparable_type -> type -> opcode
+| EMPTY_BIG_MAP : comparable_type -> type -> opcode
+| GET : opcode
+| SOME : opcode
+| NONE : type -> opcode
+| LEFT : type -> opcode
+| RIGHT : type -> opcode
+| CONS : opcode
+| NIL : type -> opcode
+| TRANSFER_TOKENS : opcode
+| SET_DELEGATE : opcode
+| BALANCE : opcode
+| ADDRESS : opcode
+| CONTRACT : annot_o -> type -> opcode
+| SOURCE : opcode
+| SENDER : opcode
+| AMOUNT : opcode
+| IMPLICIT_ACCOUNT : opcode
+| NOW : opcode
+| PACK : opcode
+| UNPACK : type -> opcode
+| HASH_KEY : opcode
+| BLAKE2B : opcode
+| SHA256 : opcode
+| SHA512 : opcode
+| CHECK_SIGNATURE : opcode
+| DIG : Datatypes.nat -> opcode
+| DUG : Datatypes.nat -> opcode
+| DROP : Datatypes.nat -> opcode
+| CHAIN_ID : opcode.
 
 Inductive instruction : Set :=
 | NOOP : instruction
@@ -10,81 +75,18 @@ Inductive instruction : Set :=
 | IF_ : instruction -> instruction -> instruction
 | LOOP : instruction -> instruction
 | LOOP_LEFT : instruction -> instruction
-| EXEC : instruction
-| APPLY : instruction
-| DUP : instruction
-| SWAP : instruction
 | PUSH : type -> concrete_data -> instruction
-| UNIT : instruction
 | LAMBDA : type -> type -> instruction -> instruction
-| EQ : instruction
-| NEQ : instruction
-| LT : instruction
-| GT : instruction
-| LE : instruction
-| GE : instruction
-| OR : instruction
-| AND : instruction
-| XOR : instruction
-| NOT : instruction
-| NEG : instruction
-| ABS : instruction
-| INT : instruction
-| ISNAT : instruction
-| ADD : instruction
-| SUB : instruction
-| MUL : instruction
-| EDIV : instruction
-| LSL : instruction
-| LSR : instruction
-| COMPARE : instruction
-| CONCAT : instruction
-| SIZE : instruction
-| SLICE : instruction
-| PAIR : instruction
-| CAR : instruction
-| CDR : instruction
-| EMPTY_SET : comparable_type -> instruction
-| MEM : instruction
-| UPDATE : instruction
 | ITER : instruction -> instruction
-| EMPTY_MAP : comparable_type -> type -> instruction
-| EMPTY_BIG_MAP : comparable_type -> type -> instruction
-| GET : instruction
 | MAP : instruction -> instruction
-| SOME : instruction
-| NONE : type -> instruction
 | IF_NONE : instruction -> instruction -> instruction
-| LEFT : type -> instruction
-| RIGHT : type -> instruction
 | IF_LEFT : instruction -> instruction -> instruction
-| CONS : instruction
-| NIL : type -> instruction
 | IF_CONS : instruction -> instruction -> instruction
 | CREATE_CONTRACT : type -> type -> annot_o -> instruction -> instruction
-| TRANSFER_TOKENS : instruction
-| SET_DELEGATE : instruction
-| BALANCE : instruction
-| ADDRESS : instruction
-| CONTRACT : annot_o -> type -> instruction
-| SOURCE : instruction
-| SENDER : instruction
-| SELF : annot_o -> instruction
-| AMOUNT : instruction
-| IMPLICIT_ACCOUNT : instruction
-| NOW : instruction
-| PACK : instruction
-| UNPACK : type -> instruction
-| HASH_KEY : instruction
-| BLAKE2B : instruction
-| SHA256 : instruction
-| SHA512 : instruction
-| CHECK_SIGNATURE : instruction
-| DIG : Datatypes.nat -> instruction
-| DUG : Datatypes.nat -> instruction
 | DIP : Datatypes.nat -> instruction -> instruction
-| DROP : Datatypes.nat -> instruction
-| CHAIN_ID : instruction
+| SELF : annot_o -> instruction
+| EXEC : instruction
+| instruction_opcode : opcode -> instruction
 with
 concrete_data : Set :=
 | Int_constant : Z -> concrete_data
@@ -101,6 +103,8 @@ concrete_data : Set :=
 | Elt : concrete_data -> concrete_data -> concrete_data
 | Concrete_seq : Datatypes.list concrete_data -> concrete_data
 | Instruction : instruction -> concrete_data.
+
+Coercion instruction_opcode : opcode >-> instruction.
 
 (* Some macros *)
 Definition UNPAIR : instruction :=
