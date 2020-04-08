@@ -159,7 +159,7 @@ Definition multisig_spec
       (fun k sig =>
          check_signature
            env k sig
-           (pack env pack_ty ((chain_id_ env, address_ env parameter_ty (self env None I)),
+           (pack env pack_ty ((chain_id_ env, address_ parameter_ty (self env None I)),
                              (counter, action)))) /\
     (count_signatures first_sigs >= threshold)%N /\
     new_stored_counter = (1 + stored_counter)%N /\
@@ -220,7 +220,7 @@ Definition multisig_head_spec
         (keys,
          (sigs,
           (pack env pack_ty
-                ((chain_id_ env, address_ env parameter_ty (self env None I)), (counter, action)),
+                ((chain_id_ env, address_ parameter_ty (self env None I)), (counter, action)),
            (action, (storage, tt)))))).
 
 Lemma fold_eval_precond fuel :

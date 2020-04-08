@@ -271,9 +271,13 @@ Proof.
   apply (string_compare_Lt_trans _ s2); assumption.
 Qed.
 
+(* Not documented, see contract_repr.ml in the Tezos protocol  *)
 Definition address_compare (a1 a2 : address_constant) : comparison :=
   match a1, a2 with
-  | Mk_address s1, Mk_address s2 => string_compare s1 s2
+  | Implicit (Mk_key_hash s1), Implicit (Mk_key_hash s2) => string_compare s1 s2
+  | Originated (Mk_smart_contract_address s1), Originated (Mk_smart_contract_address s2) => string_compare s1 s2
+  | Implicit _, Originated _ => Lt
+  | Originated _, Implicit _ => Gt
   end.
 
 Definition key_hash_compare (h1 h2 : key_hash_constant) : comparison :=
@@ -341,9 +345,8 @@ Proof.
   - apply string_compare_Eq_correct.
   - destruct c1; destruct c2; split; simpl; congruence.
   - apply tez.compare_eq_iff.
-  - destruct c1 as [s1]; destruct c2 as [s2]. simpl.
-    rewrite string_compare_Eq_correct.
-    split; congruence.
+  - destruct c1 as [[s1]|[s1]]; destruct c2 as [[s2]|[s2]]; simpl;
+      try rewrite string_compare_Eq_correct; split; congruence.
   - destruct c1 as [s1]; destruct c2 as [s2]. simpl.
     rewrite string_compare_Eq_correct.
     split; congruence.
@@ -399,8 +402,11 @@ Proof.
   - apply string_compare_Lt_trans.
   - unfold lt_comp; destruct x; destruct y; destruct z; simpl; congruence.
   - apply Z.lt_trans.
-  - destruct x as [x]; destruct y as [y]; destruct z as [z].
-    apply string_compare_Lt_trans.
+  - unfold lt_comp;
+      destruct x as [[x]|[x]];
+      destruct y as [[y]|[y]];
+      destruct z as [[z]|[z]]; simpl;
+        try reflexivity; try discriminate; apply string_compare_Lt_trans.
   - destruct x as [x]; destruct y as [y]; destruct z as [z].
     apply string_compare_Lt_trans.
   - apply Z.lt_trans.
@@ -462,8 +468,11 @@ Proof.
   - unfold gt_comp.
     destruct x; destruct y; destruct z; simpl; congruence.
   - apply Zcompare_Gt_trans.
-  - destruct x as [x]; destruct y as [y]; destruct z as [z].
-    apply string_compare_Gt_trans.
+  - unfold gt_comp;
+      destruct x as [[x]|[x]];
+      destruct y as [[y]|[y]];
+      destruct z as [[z]|[z]]; simpl;
+        try reflexivity; try discriminate; apply string_compare_Gt_trans.
   - destruct x as [x]; destruct y as [y]; destruct z as [z].
     apply string_compare_Gt_trans.
   - apply Zcompare_Gt_trans.

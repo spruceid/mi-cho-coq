@@ -31,7 +31,8 @@ Require Import comparable error.
 Import error.Notations.
 
 Module Type ContractContext.
-  Parameter get_contract_type : contract_constant -> Datatypes.option type.
+  Parameter get_contract_type :
+    smart_contract_address_constant -> Datatypes.option type.
 End ContractContext.
 
 Module Semantics(C : ContractContext).
@@ -75,6 +76,17 @@ Module Semantics(C : ContractContext).
 
   Export C.
 
+  Definition get_address_type (sao : comparable_data address * annot_o)
+    : Datatypes.option type :=
+    let '(addr, ao) := sao in
+    opt_bind
+      (match addr with
+        | Implicit _ => Some unit
+        | Originated addr => get_contract_type addr
+       end)
+      (fun ty =>
+         get_entrypoint_opt ao ty None).
+
   Fixpoint data (a : type) {struct a} : Set :=
     match a with
     | Comparable_type b => comparable_data b
@@ -92,7 +104,7 @@ Module Semantics(C : ContractContext).
     | lambda a b =>
       sigT (fun tff : Datatypes.bool =>
              instruction_seq None tff (a ::: nil) (b ::: nil))
-    | contract a => sig (fun s : contract_constant => get_contract_type s = Some a )
+    | contract a => sig (fun sao : (address_constant * annot_o) => get_address_type sao = Some a )
     | chain_id => chain_id_constant
     end.
 
@@ -112,9 +124,6 @@ Module Semantics(C : ContractContext).
         set_delegate : Datatypes.option (comparable_data key_hash) ->
                        data operation;
         balance : tez.mutez;
-        address_ : forall p, data (contract p) -> data address;
-        contract_ : Datatypes.option annotation -> forall p, data address ->
-                              data (option (contract p));
         source : data address;
         sender : data address;
         self :
@@ -125,8 +134,6 @@ Module Semantics(C : ContractContext).
                 data (contract (get_opt (get_entrypoint_opt annot_opt ty self_annot) H))
             end;
         amount : tez.mutez;
-        implicit_account :
-          comparable_data key_hash -> data (contract unit);
         now : comparable_data timestamp;
         hash_key : data key -> comparable_data key_hash;
         pack : forall a, data a -> data bytes;
@@ -148,13 +155,10 @@ Module Semantics(C : ContractContext).
                  (transfer_tokens e)
                  (set_delegate e)
                  (balance e)
-                 (address_ e)
-                 (contract_ e)
                  (source e)
                  (sender e)
                  tt
                  (amount e)
-                 (implicit_account e)
                  (now e)
                  (hash_key e)
                  (pack e)
@@ -603,9 +607,29 @@ Module Semantics(C : ContractContext).
 
   Definition data_to_string {a} (x : data a) : String.string := "".
 
-  (* The gas argument is used to ensure termination, it is not the
-  amount of gas that is actually required to run the contract because
-  in the SEQ case, both instructions are run with gas n *)
+  Definition contract_ (an : annot_o) (p : type) (x : data address) : data (option (contract p)).
+  Proof.
+    case_eq (get_address_type (x, an)).
+    - intros p' H.
+      simpl.
+      case (type_dec p p').
+      + intro; subst p'.
+        apply Some.
+        eexists.
+        eassumption.
+      + intro; apply None.
+    - intro; apply None.
+  Defined.
+
+  Definition implicit_account (x : data key_hash) : data (contract unit).
+  Proof.
+    simpl.
+    exists (Implicit x, None).
+    reflexivity.
+  Defined.
+
+  Definition address_ a (x : data (contract a)) : data address :=
+    match x with exist _ (addr, _) _ => addr end.
 
   Definition eval_opcode param_ty (env : @proto_env param_ty) {A B : stack_type}
              (o : @opcode param_ty A B) (SA : stack A) : M (stack B) :=
@@ -691,12 +715,12 @@ Module Semantics(C : ContractContext).
         Return (transfer_tokens env _ a b c, SA)
       | SET_DELEGATE, (x, SA) => Return (set_delegate env x, SA)
       | BALANCE, SA => Return (balance env, SA)
-      | ADDRESS, (x, SA) => Return (address_ env _ x, SA)
-      | CONTRACT ao p, (x, SA) => Return (contract_ env ao p x, SA)
+      | ADDRESS, (x, SA) => Return (address_ _ x, SA)
+      | CONTRACT ao p, (x, SA) => Return (contract_ ao p x, SA)
       | SOURCE, SA => Return (source env, SA)
       | SENDER, SA => Return (sender env, SA)
       | AMOUNT, SA => Return (amount env, SA)
-      | IMPLICIT_ACCOUNT, (x, SA) => Return (implicit_account env x, SA)
+      | IMPLICIT_ACCOUNT, (x, SA) => Return (implicit_account x, SA)
       | NOW, SA => Return (now env, SA)
       | PACK, (x, SA) => Return (pack env _ x, SA)
       | UNPACK ty, (x, SA) => Return (unpack env ty x, SA)
@@ -1026,12 +1050,12 @@ Module Semantics(C : ContractContext).
     | SET_DELEGATE, env, psi, (x, SA) =>
       psi (set_delegate env x, SA)
     | BALANCE, env, psi, SA => psi (balance env, SA)
-    | ADDRESS, env, psi, (x, SA) => psi (address_ env _ x, SA)
-    | CONTRACT ao p, env, psi, (x, SA) => psi (contract_ env ao p x, SA)
+    | ADDRESS, env, psi, (x, SA) => psi (address_ _ x, SA)
+    | CONTRACT ao p, env, psi, (x, SA) => psi (contract_ ao p x, SA)
     | SOURCE, env, psi, SA => psi (source env, SA)
     | SENDER, env, psi, SA => psi (sender env, SA)
     | AMOUNT, env, psi, SA => psi (amount env, SA)
-    | IMPLICIT_ACCOUNT, env, psi, (x, SA) => psi (implicit_account env x, SA)
+    | IMPLICIT_ACCOUNT, env, psi, (x, SA) => psi (implicit_account x, SA)
     | NOW, env, psi, SA => psi (now env, SA)
     | PACK, env, psi, (x, SA) => psi (pack env _ x, SA)
     | UNPACK ty, env, psi, (x, SA) => psi (unpack env ty x, SA)

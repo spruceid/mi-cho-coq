@@ -1,4 +1,4 @@
-Require Import ZArith List Nat String.
+Require Import ZArith List Nat Ascii String.
 Require Import ListString.All.
 Require Import Moment.All.
 Require syntax semantics.
@@ -566,7 +566,40 @@ Qed.
         | signature => Return (syntax.Signature_constant s)
         | key => Return (syntax.Key_constant s)
         | Comparable_type key_hash => Return (syntax.Key_hash_constant s)
-        | Comparable_type address => Return (syntax.Address_constant (syntax.Mk_address s))
+        | Comparable_type address =>
+          let fail :=
+              Failed
+                _
+                (Typing
+                   _
+                   ("Address litterals should start by 'tz' or by 'KT1'"%string,
+                    s))
+          in
+          match s with
+          | String c1 (String c2 s) =>
+            if ascii_dec c1 "t" then
+              if ascii_dec c2 "z" then
+                Return (syntax.Address_constant
+                          (syntax.Implicit (syntax.Mk_key_hash s)))
+              else fail
+            else
+              match s with
+              | String c3 s =>
+                if ascii_dec c1 "K" then
+                  if ascii_dec c2 "T" then
+                    if ascii_dec c3 "1" then
+                      Return (syntax.Address_constant
+                                (syntax.Originated
+                                   (syntax.Mk_smart_contract_address s)))
+                    else
+                      fail
+                  else
+                    fail
+                else fail
+              | _ => fail
+              end
+          | _ => fail
+          end
         | Comparable_type timestamp =>
           match tm with
           | Optimized => Failed _ (Typing _ ("Not optimized"%string, (d, ty)))

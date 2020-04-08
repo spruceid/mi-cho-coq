@@ -8,6 +8,7 @@ Require Import Lia.
 
 (* Not really needed but eases reading of proof states. *)
 Require Import String.
+Require Import Ascii.
 
 Inductive untype_mode := untype_Readable | untype_Optimized.
 
@@ -114,7 +115,13 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
     | syntax.Signature_constant s => String_constant s
     | syntax.Key_constant s => String_constant s
     | syntax.Key_hash_constant s => String_constant s
-    | syntax.Address_constant (Mk_address c) => String_constant c
+    | syntax.Address_constant c =>
+      match c with
+      | syntax.Implicit (syntax.Mk_key_hash s) =>
+        String_constant (String "t" (String "z" s))
+      | syntax.Originated (syntax.Mk_smart_contract_address s) =>
+        String_constant (String "K" (String "T" (String "1" s)))
+      end
     | syntax.Unit => Unit
     | syntax.True_ => True_
     | syntax.False_ => False_
@@ -463,9 +470,7 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
         rewrite tez.of_Z_to_Z.
         reflexivity.
       + simpl.
-        destruct a.
-        simpl.
-        reflexivity.
+        destruct a as [c|c]; destruct c; simpl; reflexivity.
       + simpl.
         pose (fix type_data_list (l : Datatypes.list concrete_data) :=
                 match l with
@@ -891,6 +896,48 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
     - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
   Qed.
 
+  Definition un_address ty (addr : syntax.concrete_data ty) :
+    Datatypes.option (comparable.comparable_data address) :=
+    match addr return Datatypes.option (comparable.comparable_data address) with
+    | Address_constant x => Some x
+    | _ => None
+    end.
+
+  Lemma un_address_some ty (addr : syntax.concrete_data ty) (H : ty = address) :
+    exists x, un_address ty addr = Some x.
+  Proof.
+    destruct addr; try discriminate.
+    simpl; eexists; reflexivity.
+  Qed.
+
+  Lemma un_address_some_rev ty (addr : syntax.concrete_data ty) x :
+    un_address ty addr = Some x ->
+    exists He, eq_rect ty syntax.concrete_data addr address He = Address_constant x.
+  Proof.
+    destruct addr; try discriminate.
+    simpl.
+    intro Hs; injection Hs; intro; subst x.
+    exists eq_refl.
+    reflexivity.
+  Qed.
+
+  Lemma concrete_address_inversion (addr : syntax.concrete_data (Comparable_type address)) :
+    exists x : comparable.comparable_data address,
+      addr = Address_constant x.
+  Proof.
+    case_eq (un_address address addr).
+    - intros c Hc.
+      apply un_address_some_rev in Hc.
+      destruct Hc as (Haddr, H).
+      assert (Haddr = eq_refl) by (apply Eqdep_dec.UIP_dec; apply type_dec).
+      subst Haddr.
+      simpl in H.
+      eexists; eassumption.
+    - intro H.
+      destruct (un_address_some address addr eq_refl) as (c, Hc).
+      congruence.
+  Qed.
+
   Fixpoint type_untype self_type A i t {struct i} :
     typer.type_instruction typer.Optimized (self_type := self_type) i A = error.Return t ->
     match t with
@@ -949,6 +996,20 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
           apply tez.of_Z_to_Z_eqv.
           assumption.
       - repeat mytac type_untype type_untype_seq type_untype_data.
+        destruct (concrete_address_inversion x') as (x, Hx).
+        subst x'.
+        simpl.
+        destruct s as [|c1 [|c2 s]]; try discriminate.
+        destruct (ascii_dec c1 "t").
+        + destruct (ascii_dec c2 "z"); try discriminate.
+          injection H; intros; subst x.
+          congruence.
+        + destruct s as [|c3 s]; try discriminate.
+          destruct (ascii_dec c1 "K"); try discriminate.
+          destruct (ascii_dec c2 "T"); try discriminate.
+          destruct (ascii_dec c3 "1"); try discriminate.
+          injection H; intros; subst x.
+          congruence.
       - repeat mytac type_untype type_untype_seq type_untype_data.
       - repeat mytac type_untype type_untype_seq type_untype_data.
       - repeat mytac type_untype type_untype_seq type_untype_data.

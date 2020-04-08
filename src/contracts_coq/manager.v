@@ -80,7 +80,7 @@ Definition manager_spec
   | inl (existT _ _ lam) =>
     (* %do is only available to the stored manager and rejects non-null amounts*)
     amount env = (0 ~Mutez) /\
-    sender env = address_ env unit (implicit_account env storage) /\
+    sender env = address_ unit (implicit_account storage) /\
     new_storage = storage /\
     eval_seq (no_self env) lam fuel (tt, tt) = Return (returned_operations, tt)
   end.

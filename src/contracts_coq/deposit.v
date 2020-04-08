@@ -64,7 +64,7 @@ Lemma deposit_correct :
    | inl tt => ops = nil
    | inr am => (storage_in = sender env /\
                 exists c : data (contract unit),
-                  contract_ env None unit storage_in = Some c /\
+                  contract_ None unit storage_in = Some c /\
                   ops = cons (transfer_tokens env unit tt am c) nil)
    end).
 Proof.
@@ -81,7 +81,7 @@ Proof.
     rewrite match_if_exchange.
     rewrite if_false_is_and.
     rewrite (eqb_eq address).
-    remember (contract_ env None unit storage_in) as d.
+    remember (contract_ None unit storage_in) as d.
     match goal with
       |- context [match ?x with | Some y => _ | None => _ end] =>
       remember x as d2

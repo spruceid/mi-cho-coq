@@ -167,7 +167,7 @@ Definition multisig_spec
       (fun k sig =>
          check_signature
            env k sig
-           (pack env pack_ty (chain_id_ env, address_ env unit (self env None I),
+           (pack env pack_ty (chain_id_ env, address_ unit (self env None I),
                               (counter, action)))) /\
     (count_signatures sigs >= threshold)%N /\
     new_stored_counter = (1 + stored_counter)%N /\
@@ -227,7 +227,7 @@ Definition multisig_head_spec
        (keys,
         (sigs,
          (pack env pack_ty
-               (chain_id_ env, address_ env unit (self (self_ty := Some (parameter_ty, None)) env None I), (counter, action)),
+               (chain_id_ env, address_ unit (self (self_ty := Some (parameter_ty, None)) env None I), (counter, action)),
           (action, (storage, tt)))))).
 
 Ltac fold_eval_precond :=

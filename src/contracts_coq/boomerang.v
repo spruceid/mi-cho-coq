@@ -82,7 +82,7 @@ Lemma boomerang_correct :
   <->
   (amount env = (0 ~Mutez) /\ ops = nil) \/
   (amount env <> (0 ~Mutez) /\
-    exists ctr, contract_ env None unit (source env) = Some ctr /\
+    exists ctr, contract_ None unit (source env) = Some ctr /\
            ops = ((transfer_tokens env unit tt (amount env) ctr) :: nil)%list).
 Proof.
   intros env ops fuel Hfuel.
@@ -112,7 +112,7 @@ Proof.
   - intro Hneq.
     rewrite eqb_neq in Hneq.
     do 7 (more_fuel ; simpl).
-    destruct (contract_ env None unit (source env)).
+    destruct (contract_ None unit (source env)).
     + (* Some *)
       split.
       * intro H ; right; split.
