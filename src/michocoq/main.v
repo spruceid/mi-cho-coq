@@ -3,7 +3,6 @@ Require micheline_lexer micheline_parser.
 Require micheline2michelson typer.
 Require Import syntax.
 Require Import syntax_type.
-Require dummy_contract_context.
 Require error_pp.
 Import error.Notations.
 
