@@ -365,10 +365,12 @@ Module Semantics(C : ContractContext).
     | Bitwise_variant_nat => N.lor
     end.
 
-  Definition and a (v : bitwise_variant a) : data a -> data a -> data a :=
+  Definition and a b c (v : and_variant a b c) : data a -> data b -> data c :=
     match v with
-    | Bitwise_variant_bool => andb
-    | Bitwise_variant_nat => N.land
+    | And_variant_bool => andb
+    | And_variant_nat => N.land
+    | And_variant_int =>
+      fun x y => Z.to_N (Z.land x (Z.of_N y))
     end.
 
   Definition xor a (v : bitwise_variant a) : data a -> data a -> data a :=
@@ -649,8 +651,8 @@ Module Semantics(C : ContractContext).
       | GE, (x, SA) => Return ((x >=? 0)%Z, SA)
       | @OR _ _ s, (x, (y, SA)) =>
         Return (or_fun _ (bitwise_variant_field _ s) x y, SA)
-      | @AND _ _ s, (x, (y, SA)) =>
-        Return (and _ (bitwise_variant_field _ s) x y, SA)
+      | @AND _ _ _ s, (x, (y, SA)) =>
+        Return (and _ _ _ (and_variant_field _ _ s) x y, SA)
       | @XOR _ _ s, (x, (y, SA)) =>
         Return (xor _ (bitwise_variant_field _ s) x y, SA)
       | @NOT _ _ s, (x, SA) => Return (not _ _ (not_variant_field _ s) x, SA)
@@ -1003,7 +1005,7 @@ Module Semantics(C : ContractContext).
     | LE, env, psi, (x, SA) => psi ((x <=? 0)%Z, SA)
     | GE, env, psi, (x, SA) => psi ((x >=? 0)%Z, SA)
     | @OR _ _ s _, env, psi, (x, (y, SA)) => psi (or_fun _ (bitwise_variant_field _ s) x y, SA)
-    | @AND _ _ s _, env, psi, (x, (y, SA)) => psi (and _ (bitwise_variant_field _ s) x y, SA)
+    | @AND _ _ _ s _, env, psi, (x, (y, SA)) => psi (and _ _ _ (and_variant_field _ _ s) x y, SA)
     | @XOR _ _ s _, env, psi, (x, (y, SA)) => psi (xor _ (bitwise_variant_field _ s) x y, SA)
     | @NOT _ _ s _, env, psi, (x, SA) => psi (not _ _ (not_variant_field _ s) x, SA)
     | @NEG _ _ s _, env, psi, (x, SA) => psi (neg _ (neg_variant_field _ s) x, SA)

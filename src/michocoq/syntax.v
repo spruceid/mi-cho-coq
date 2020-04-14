@@ -33,7 +33,8 @@ Require Export syntax_type.
 
 Section Overloading.
 
-(* Boolean binary opertations (OR, XOR, AND) are overloaded as bitwise operations for nat. *)
+(* Boolean binary opertations (OR and XOR) are overloaded as bitwise
+operations for nat. AND also has a case for int and nat. *)
 Inductive bitwise_variant : type -> Set :=
 | Bitwise_variant_bool : bitwise_variant bool
 | Bitwise_variant_nat : bitwise_variant nat.
@@ -41,6 +42,16 @@ Structure bitwise_struct (a : type) :=
   Mk_bitwise { bitwise_variant_field : bitwise_variant a }.
 Canonical Structure bitwise_bool : bitwise_struct bool := {| bitwise_variant_field := Bitwise_variant_bool |}.
 Canonical Structure bitwise_nat : bitwise_struct nat := {| bitwise_variant_field := Bitwise_variant_nat |}.
+
+Inductive and_variant : type -> type -> type -> Set :=
+| And_variant_bool : and_variant bool bool bool
+| And_variant_nat : and_variant nat nat nat
+| And_variant_int : and_variant int nat nat.
+Structure and_struct (a b : type) :=
+  Mk_and { and_ret_type : type; and_variant_field : and_variant a b and_ret_type }.
+Canonical Structure and_bool : and_struct bool bool := {| and_variant_field := And_variant_bool |}.
+Canonical Structure and_nat : and_struct nat nat := {| and_variant_field := And_variant_nat |}.
+Canonical Structure and_int : and_struct int nat := {| and_variant_field := And_variant_int |}.
 
 Set Warnings "-redundant-canonical-projection".
 
@@ -374,7 +385,7 @@ Inductive opcode {self_type : self_info} : forall (A B : Datatypes.list type), S
 | LE {S} : opcode (int ::: S) (bool ::: S)
 | GE {S} : opcode (int ::: S) (bool ::: S)
 | OR {b} {s : bitwise_struct b} {S} : opcode (b ::: b ::: S) (b ::: S)
-| AND {b} {s : bitwise_struct b} {S} : opcode (b ::: b ::: S) (b ::: S)
+| AND {a b} {s : and_struct a b} {S} : opcode (a ::: b ::: S) (and_ret_type _ _ s ::: S)
 | XOR {b} {s : bitwise_struct b} {S} : opcode (b ::: b ::: S) (b ::: S)
 | NOT {b} {s : not_struct b} {S} : opcode (b ::: S) (not_ret_type _ s ::: S)
 | NEG {n} {s : neg_struct n} {S} : opcode (n ::: S) (int ::: S)

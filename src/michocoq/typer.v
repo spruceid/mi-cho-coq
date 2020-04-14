@@ -313,9 +313,11 @@ Qed.
     | OR, Comparable_type nat :: Comparable_type nat :: A =>
       Return (existT _ _ (@syntax.OR _ _ syntax.bitwise_nat _))
     | AND, Comparable_type bool :: Comparable_type bool :: A =>
-      Return (existT _ _ (@syntax.AND _ _ syntax.bitwise_bool _))
+      Return (existT _ _ (@syntax.AND _ _ _ syntax.and_bool _))
     | AND, Comparable_type nat :: Comparable_type nat :: A =>
-      Return (existT _ _ (@syntax.AND _ _ syntax.bitwise_nat _))
+      Return (existT _ _ (@syntax.AND _ _ _ syntax.and_nat _))
+    | AND, Comparable_type int :: Comparable_type nat :: A =>
+      Return (existT _ _ (@syntax.AND _ _ _ syntax.and_int _))
     | XOR, Comparable_type bool :: Comparable_type bool :: A =>
       Return (existT _ _ (@syntax.XOR _ _ syntax.bitwise_bool _))
     | XOR, Comparable_type nat :: Comparable_type nat :: A =>
