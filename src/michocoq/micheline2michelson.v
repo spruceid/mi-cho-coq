@@ -65,6 +65,7 @@ Fixpoint micheline2michelson_type (bem : loc_micheline) : M type :=
        | PRIM (_, "unit") _ nil => Return unit
        | PRIM (_, "signature") _ nil => Return signature
        | PRIM (_, "operation") _ nil => Return operation
+       | PRIM (_, "chain_id") _ nil => Return chain_id
        | PRIM (_, "option") _ (a :: nil) =>
         let! a := micheline2michelson_type a in
         Return (option a)
