@@ -35,6 +35,129 @@ Module Type ContractContext.
     smart_contract_address_constant -> Datatypes.option type.
 End ContractContext.
 
+
+Definition ediv_Z x y :=
+  (if y =? 0 then None else
+     let d := x / y in
+     let r := x mod y in
+     if y >? 0 then Some (d, Z.to_N r)
+     else if r =? 0 then Some (d, 0%N)
+          else Some (d + 1, Z.to_N (r - y)))%Z.
+
+Lemma ediv_Z_correct_pos x y (Hy : (y > 0)%Z) d r :
+  (Some (x / y, Z.to_N (x mod y)) = Some (d, r) <-> (y * d + Z.of_N r = x /\ 0 <= Z.of_N r < Z.abs y))%Z.
+Proof.
+  rewrite Z.abs_eq; [|lia].
+  split.
+  - intro H; injection H; clear H.
+    intros; subst.
+    assert (0 <= x mod y < y)%Z as Hbound by (apply Z.mod_pos_bound; lia).
+    rewrite Z2N.id; [|apply Hbound].
+    split; [|assumption].
+    symmetry.
+    apply Z_div_mod_eq.
+    assumption.
+  - intros (He, Hbound).
+    f_equal.
+    assert (d = x / y)%Z.
+    + subst x.
+      rewrite Z.mul_comm.
+      rewrite Z_div_plus_full_l; [|lia].
+      assert (Z.of_N r / y = 0)%Z as Hr by (apply Z.div_small_iff; lia).
+      lia.
+    + subst d.
+      f_equal.
+      rewrite Zmod_eq; [|lia].
+      assert (x - x / y * y = Z.of_N r)%Z as Hr by lia.
+      rewrite Hr.
+      apply N2Z.id.
+Qed.
+
+Lemma ediv_Z_correct x y d r :
+  ediv_Z x y = Some (d, r) <-> (y * d + Z.of_N r = x /\ 0 <= Z.of_N r < Z.abs y)%Z.
+Proof.
+  unfold ediv_Z.
+  case_eq (y =? 0)%Z.
+  - intro Hy.
+    apply Z.eqb_eq in Hy.
+    subst y.
+    simpl.
+    split.
+    + discriminate.
+    + intros (_, Habs).
+      exfalso.
+      lia.
+  - intro Hy.
+    apply Z.eqb_neq in Hy.
+    case_eq (y >? 0)%Z.
+    + intro Hy2.
+      apply Z.gtb_lt in Hy2.
+      apply ediv_Z_correct_pos; lia.
+    + intro Hy2.
+      rewrite Z.gtb_ltb in Hy2.
+      rewrite Z.ltb_ge in Hy2.
+      assert (- y > 0)%Z as Hym by lia.
+      specialize (ediv_Z_correct_pos x (- y) Hym (- d) r); intro Hm.
+      rewrite Z.abs_opp in Hm.
+      case_eq (x mod y =? 0)%Z.
+      * intro Hr.
+        apply Z.eqb_eq in Hr.
+        assert (x mod - y = 0)%Z as Hmodm by (apply Z_mod_zero_opp_r; assumption).
+        rewrite Hmodm in Hm.
+        rewrite Z2N.inj_0 in Hm.
+        rewrite Z.mul_opp_opp in Hm.
+        rewrite <- Hm.
+        apply Z_div_zero_opp_r in Hr.
+        rewrite Hr.
+        split.
+        -- intuition congruence.
+        -- intro H; injection H; clear H.
+           intros.
+           f_equal.
+           f_equal; lia.
+      * intro Hr.
+        apply Z.eqb_neq in Hr.
+        assert (x mod - y = x mod y - y)%Z as Hmodm by (apply Z_mod_nz_opp_r; congruence).
+        rewrite Hmodm in Hm.
+        rewrite Z.mul_opp_opp in Hm.
+        rewrite <- Hm.
+        apply Z_div_nz_opp_r in Hr.
+        rewrite Hr.
+        split.
+        -- intro H; injection H; clear H.
+           intros.
+           f_equal.
+           f_equal; lia.
+        -- intro H; injection H; clear H.
+           intros.
+           f_equal.
+           f_equal; lia.
+Qed.
+
+Definition ediv_N x y :=
+  if (y =? 0)%N then None else Some (x / y, x mod y)%N.
+
+Lemma ediv_N_correct x y (Hy : (y <> 0)%N) d r :
+  (Some (x / y, x mod y) = Some (d, r) <-> (y * d + r = x /\ r < y))%N.
+Proof.
+  split.
+  - intro H; injection H; clear H.
+    intros; subst.
+    assert (x mod y < y)%N as Hbound by (apply N.mod_upper_bound; lia).
+    split; [|assumption].
+    symmetry.
+    apply N.div_mod.
+    assumption.
+  - intros (He, Hbound).
+    f_equal.
+    symmetry in He.
+    f_equal.
+    + symmetry.
+      apply N.div_unique with (r := r); assumption.
+    + symmetry.
+      apply N.mod_unique with (q := d); assumption.
+Qed.
+
 Module Semantics(C : ContractContext).
 
   Ltac more_fuel :=
@@ -463,11 +586,6 @@ Module Semantics(C : ContractContext).
     | Mul_variant_tez_nat => fun x y => tez.of_Z (tez.to_Z x * Z.of_N y)
     | Mul_variant_nat_tez => fun x y => tez.of_Z (Z.of_N x * tez.to_Z y)
     end.
-
-  Definition ediv_Z x y :=
-    if (y =? 0)%Z then None else Some (x / y, Z.to_N (x mod y))%Z.
-  Definition ediv_N x y :=
-    if (y =? 0)%N then None else Some (x / y, x mod y)%N.
 
   Definition ediv a b c d (v : ediv_variant a b c d) : data a -> data b -> data (option (pair c d)) :=
     match v with

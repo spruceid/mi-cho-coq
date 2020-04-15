@@ -28,7 +28,7 @@ Extract Constant Ascii.ascii_of_pos => "(fun x -> Char.chr (Zarith.to_int x))".
 (* Require Import Michocoq.semantics. *)
 (* Recursive Extraction Library semantics. *)
 Require Import Michocoq.comparable Michocoq.int64bv Michocoq.typer Michocoq.micheline_lexer Michocoq.micheline_parser
-Michocoq.micheline2michelson Michocoq.main.
+Michocoq.micheline2michelson Michocoq.semantics Michocoq.main.
 (* Recursive Extraction Library micheline_lexer. *)
 (* Recursive Extraction Library micheline_parser. *)
 
@@ -85,6 +85,17 @@ Extract Constant Z.opp => "Zarith.neg".
 Extract Constant Z.abs => "Zarith.abs".
 Extract Constant Z.min => "Zarith.min".
 Extract Constant Z.max => "Zarith.max".
+Extract Constant Z.land => "Zarith.logand".
+Extract Constant ediv_Z => "fun x y -> try
+    let (q, r) = Zarith.ediv_rem x y in
+    Some (q, r)
+  with _ -> None".
+
+
+Extract Constant Z.div =>
+ "fun a b -> Zarith.(if b = zero then zero else Zarith.div a b)".
+Extract Constant Z.modulo =>
+ "fun a b -> Zarith.(if b = zero then zero else Zarith.rem a b)".
 Extract Constant Z.compare => "fun x y -> Zarith.(if x < y then Lt else if x > y then Gt else Eq)".
 
 Extract Constant Z.of_N => "fun p -> p".
