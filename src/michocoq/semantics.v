@@ -300,6 +300,23 @@ Module Semantics(C : ContractContext).
              (Some (concrete_data_to_data _ y))
              (concrete_data_map_to_data l)
          end) l
+    | @Concrete_big_map a b l =>
+      (fix concrete_data_map_to_data
+           (l : Datatypes.list (elt_pair (concrete_data a) (concrete_data b))) :=
+         match l with
+         | nil => map.empty _ _ _
+         | cons (Elt _ _ x y) l =>
+           map.update
+             (comparable_data a)
+             (data b)
+             (comparable.compare a)
+             (comparable.compare_eq_iff a)
+             (comparable.lt_trans a)
+             (comparable.gt_trans a)
+             (data_to_comparable_data _ (concrete_data_to_data _ x))
+             (Some (concrete_data_to_data _ y))
+             (concrete_data_map_to_data l)
+         end) l
     | Instruction tff i => existT _ _ i
     | Chain_id_constant x => x
     end.

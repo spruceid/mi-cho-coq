@@ -535,6 +535,9 @@ with concrete_data : type -> Set :=
 | Concrete_map {a : comparable_type} {b} :
     Datatypes.list (elt_pair (concrete_data a) (concrete_data b)) ->
     concrete_data (map a b)
+| Concrete_big_map {a : comparable_type} {b} :
+    Datatypes.list (elt_pair (concrete_data a) (concrete_data b)) ->
+    concrete_data (big_map a b)
 | Instruction {a b} tff : instruction_seq None tff (a ::: nil) (b ::: nil) ->
                           concrete_data (lambda a b)
 | Chain_id_constant : chain_id_constant -> concrete_data chain_id.

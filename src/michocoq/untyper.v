@@ -136,6 +136,10 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
       Concrete_seq (List.map
                       (fun '(syntax.Elt _ _ x y) => Elt (untype_data um x) (untype_data um y))
                       l)
+    | syntax.Concrete_big_map l =>
+      Concrete_seq (List.map
+                      (fun '(syntax.Elt _ _ x y) => Elt (untype_data um x) (untype_data um y))
+                      l)
     | syntax.Instruction _ i => Instruction (untype_instruction_seq um i)
     | syntax.Chain_id_constant (Mk_chain_id c) => String_constant c
     end
@@ -530,6 +534,31 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
              rewrite IHL.
              reflexivity.
         * simpl.
+          rewrite H.
+          reflexivity.
+      + pose (fix type_data_list L :=
+                   match L with
+                   | nil => Return nil
+                   | cons (Elt x y) l =>
+                    let! x := type_data Optimized x a in
+                    let! y := type_data Optimized y b in
+                    let! l := type_data_list l in
+                    Return (cons (syntax.Elt _ _ x y) l)
+                   | _ => Failed _ (Typing _ (untype_data untype_Optimized (syntax.Concrete_big_map l), (big_map a b)))
+                   end) as type_data_map.
+        assert (forall l, type_data_map (List.map (fun '(syntax.Elt _ _ x y) => Elt (untype_data untype_Optimized x) (untype_data untype_Optimized y)) l) = Return l).
+        * intro L; induction L.
+          -- reflexivity.
+          -- simpl.
+             destruct a0.
+             rewrite untype_type_data.
+             rewrite untype_type_data.
+             rewrite IHL.
+             reflexivity.
+        * trans_refl (
+            let! l := type_data_map (List.map (fun '(syntax.Elt _ _ x y) => Elt (untype_data untype_Optimized x) (untype_data untype_Optimized y)) l) in
+            Return (@syntax.Concrete_big_map a b l)
+          ).
           rewrite H.
           reflexivity.
       + simpl.
@@ -1039,6 +1068,26 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
           induction l.
           * repeat mytac type_untype type_untype_seq type_untype_data.
           * repeat mytac type_untype type_untype_seq type_untype_data.
+            simpl.
+            f_equal.
+            apply IHl.
+            assumption.
+        + simpl.
+          f_equal.
+          match goal with | H : ?F l = Return x |- _ => pose F as type_data_list end.
+          change (type_data_list l = Return x) in H.
+          assert (exists l', l' = l) as Hl' by (exists l; reflexivity).
+          rename l into linit.
+          destruct Hl' as (l, Hl).
+          rewrite <- Hl in H.
+          rewrite <- Hl.
+          clear Hl.
+          generalize dependent x.
+          induction l; simpl in *.
+          * repeat mytac type_untype type_untype_seq type_untype_data.
+          * repeat mytac type_untype type_untype_seq type_untype_data.
+            destruct a0; try discriminate.
+            repeat mytac type_untype type_untype_seq type_untype_data.
             simpl.
             f_equal.
             apply IHl.
