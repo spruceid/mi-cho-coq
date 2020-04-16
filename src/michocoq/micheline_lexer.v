@@ -1,5 +1,5 @@
 Require Import List String Ascii ZArith.
-Require error micheline_parser.
+Require error micheline_parser bytes_repr.
 Require Import micheline_tokens location.
 Import error.Notations.
 
@@ -74,6 +74,12 @@ Definition Z_of_char (c : ascii) (acc : Z) : Z :=
 
 Definition string_snoc s c := (s ++ String c "")%string.
 
+Definition bytes_of_string loc (s : string) :=
+  match bytes_repr.of_string s with
+  | Some bs => error.Return bs
+  | None => error.Failed _ (error.Lexing loc)
+ end.
+
 Fixpoint lex_micheline (input : string) (loc : location) : error.M (list (location.location * location.location * token)) :=
   match input with
   | String first_char input =>
@@ -132,9 +138,12 @@ Fixpoint lex_micheline (input : string) (loc : location) : error.M (list (locati
                let loc := location_incr loc in
                lex_micheline_bytes s (string_snoc acc c) start loc
              else
-              let! l := lex_micheline input loc in
-              error.Return (cons (start, loc, BYTES acc) l)
-           | EmptyString => error.Return (cons (start, loc, BYTES acc) nil)
+               let! l := lex_micheline input loc in
+               let! bs := bytes_of_string start acc in
+              error.Return (cons (start, loc, BYTES bs) l)
+           | EmptyString =>
+               let! bs := bytes_of_string start acc in
+               error.Return (cons (start, loc, BYTES bs) nil)
            end) s EmptyString loc (location_incr (location_incr loc))
       | String c s =>
         if char_is_num c then error.Failed _ (error.Lexing loc)

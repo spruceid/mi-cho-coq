@@ -23,7 +23,7 @@ Fixpoint micheline_length (mich : loc_micheline) (in_seq : bool) :=
   match m with
   | NUMBER z => String.length (string_of_Z z)
   | STR s => 2 + String.length s
-  | BYTES s => 2 + String.length s
+  | BYTES s => 2 + 2 * String.length s
   | SEQ nil => 2
   | SEQ es => fold_left (fun acc m => 2 + micheline_length m true + acc) es 0
   | PRIM (_, _, s) nil nil => String.length s
@@ -38,7 +38,7 @@ Fixpoint micheline_pp_single_line (mich : loc_micheline) (in_seq : bool) :=
   match m with
   | NUMBER z => string_of_Z z
   | STR s => """" ++ s ++ """"
-  | BYTES s => "0x" ++ s
+  | BYTES bs => "0x" ++ (bytes_repr.to_string bs)
   | SEQ es => "{" ++ String.concat "; " (map (fun m => micheline_pp_single_line m true) es) ++ "}"
   | PRIM (_, _, s) nil nil => s
   | PRIM (_, _, s) annots es =>
@@ -56,7 +56,7 @@ Fixpoint micheline_pp (mich : loc_micheline) (indent : nat) (in_seq : bool)
   match mich with
   | Mk_loc_micheline (_, _, NUMBER z) => (string_of_Z z)
   | Mk_loc_micheline (_, _, STR s) => """"++s++""""
-  | Mk_loc_micheline (_, _, BYTES s) => "0x"++s
+  | Mk_loc_micheline (_, _, BYTES bs) => "0x"++bytes_repr.to_string bs
   | Mk_loc_micheline (_, _, SEQ es) =>
     let indent_space := (make_string " " indent) in
     let separator := (";"  ++ lf ++ indent_space ++ "  ") in
