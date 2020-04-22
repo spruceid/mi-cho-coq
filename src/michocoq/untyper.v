@@ -141,7 +141,7 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
                       (fun '(syntax.Elt _ _ x y) => Elt (untype_data um x) (untype_data um y))
                       l)
     | syntax.Instruction _ i => Instruction (untype_instruction_seq um i)
-    | syntax.Chain_id_constant (Mk_chain_id c) => String_constant c
+    | syntax.Chain_id_constant (Mk_chain_id c) => Bytes_constant c
     end
   with
   untype_instruction {self_type tff0 A B} (um : untype_mode) (i : syntax.instruction self_type tff0 A B) : instruction :=

@@ -615,13 +615,13 @@ Qed.
               Failed _ (Typing _ ("Cannot parse timestamp according to rfc3339"%string, s))
             end
           end
-        | chain_id => Return (syntax.Chain_id_constant (syntax.Mk_chain_id s))
         | _ => Failed _ (Typing _ (d, ty))
         end
     | Bytes_constant s =>
       fun ty =>
         match ty with
         | Comparable_type bytes => Return (syntax.Bytes_constant s)
+        | chain_id => Return (syntax.Chain_id_constant (syntax.Mk_chain_id s))
         | _ => Failed _ (Typing _ (d, ty))
         end
     | Unit =>
