@@ -178,14 +178,17 @@ Proof.
 Qed.
 
 Lemma bind_eq_return {A B : Set} f (m : M A) (b : B) :
-  (let! x := m in f x) = Return b ->
+  (let! x := m in f x) = Return b <->
   exists a : A, m = Return a /\ f a = Return b.
 Proof.
-  destruct m.
-  - discriminate.
-  - simpl.
-    exists a.
-    auto.
+  split.
+  - destruct m.
+    + discriminate.
+    + simpl.
+      exists a.
+      auto.
+  - intros (a, (Hm, Hb)).
+    subst m; exact Hb.
 Qed.
 
 

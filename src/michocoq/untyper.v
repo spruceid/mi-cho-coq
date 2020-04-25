@@ -4,9 +4,12 @@ Require Import typer.
 Require Import untyped_syntax error.
 Require Eqdep_dec.
 Import error.Notations.
+Require Import Lia.
 
 (* Not really needed but eases reading of proof states. *)
 Require Import String.
+
+Inductive untype_mode := untype_Readable | untype_Optimized.
 
   Definition untype_opcode {self_type A B} (o : @syntax.opcode self_type A B) : opcode :=
     match o with
@@ -91,14 +94,23 @@ Require Import String.
     | syntax.LOOP_or _ _ _ _ => LOOP_or
     end.
 
-  Fixpoint untype_data {a} (d : syntax.concrete_data a) : concrete_data :=
+  Fixpoint untype_data {a} (um : untype_mode) (d : syntax.concrete_data a) : concrete_data :=
     match d with
     | syntax.Int_constant z => Int_constant z
     | syntax.Nat_constant n => Int_constant (Z.of_N n)
     | syntax.String_constant s => String_constant s
     | syntax.Mutez_constant (Mk_mutez m) => Int_constant (tez.to_Z m)
     | syntax.Bytes_constant s => Bytes_constant s
-    | syntax.Timestamp_constant t => Int_constant t
+    | syntax.Timestamp_constant t =>
+      match um with
+      | untype_Readable =>
+        String_constant
+          (All.LString.to_string
+             (Moment.Print.rfc3339
+                (Moment.of_epoch t)))
+      | untype_Optimized =>
+        Int_constant t
+      end
     | syntax.Signature_constant s => String_constant s
     | syntax.Key_constant s => String_constant s
     | syntax.Key_hash_constant s => String_constant s
@@ -106,43 +118,43 @@ Require Import String.
     | syntax.Unit => Unit
     | syntax.True_ => True_
     | syntax.False_ => False_
-    | syntax.Pair x y => Pair (untype_data x) (untype_data y)
-    | syntax.Left x _ _ => Left (untype_data x)
-    | syntax.Right y _ _ => Right (untype_data y)
-    | syntax.Some_ x => Some_ (untype_data x)
+    | syntax.Pair x y => Pair (untype_data um x) (untype_data um y)
+    | syntax.Left x _ _ => Left (untype_data um x)
+    | syntax.Right y _ _ => Right (untype_data um y)
+    | syntax.Some_ x => Some_ (untype_data um x)
     | syntax.None_ => None_
-    | syntax.Concrete_list l => Concrete_seq (List.map (fun x => untype_data x) l)
-    | syntax.Concrete_set l => Concrete_seq (List.map (fun x => untype_data x) l)
+    | syntax.Concrete_list l => Concrete_seq (List.map (untype_data um) l)
+    | syntax.Concrete_set l => Concrete_seq (List.map (untype_data um) l)
     | syntax.Concrete_map l =>
       Concrete_seq (List.map
-                      (fun '(syntax.Elt _ _ x y) => Elt (untype_data x) (untype_data y))
+                      (fun '(syntax.Elt _ _ x y) => Elt (untype_data um x) (untype_data um y))
                       l)
-    | syntax.Instruction _ i => Instruction (untype_instruction_seq i)
+    | syntax.Instruction _ i => Instruction (untype_instruction_seq um i)
     | syntax.Chain_id_constant (Mk_chain_id c) => String_constant c
     end
   with
-  untype_instruction {self_type tff0 A B} (i : syntax.instruction self_type tff0 A B) : instruction :=
+  untype_instruction {self_type tff0 A B} (um : untype_mode) (i : syntax.instruction self_type tff0 A B) : instruction :=
     match i with
     | syntax.Instruction_seq i =>
-      Instruction_seq (untype_instruction_seq i)
+      Instruction_seq (untype_instruction_seq um i)
     | syntax.FAILWITH => FAILWITH
-    | syntax.IF_ f i1 i2 => IF_ (untype_if_family f) (untype_instruction_seq i1) (untype_instruction_seq i2)
-    | syntax.LOOP_ f i => LOOP_ (untype_loop_family f) (untype_instruction_seq i)
-    | syntax.DIP n _ i => DIP n (untype_instruction_seq i)
+    | syntax.IF_ f i1 i2 => IF_ (untype_if_family f) (untype_instruction_seq um i1) (untype_instruction_seq um i2)
+    | syntax.LOOP_ f i => LOOP_ (untype_loop_family f) (untype_instruction_seq um i)
+    | syntax.DIP n _ i => DIP n (untype_instruction_seq um i)
     | syntax.EXEC => EXEC
-    | syntax.PUSH a x => PUSH a (untype_data x)
-    | syntax.LAMBDA a b i => LAMBDA a b (untype_instruction_seq i)
-    | syntax.ITER i => ITER (untype_instruction_seq i)
-    | syntax.MAP i => MAP (untype_instruction_seq i)
-    | syntax.CREATE_CONTRACT g p an i => CREATE_CONTRACT g p an (untype_instruction_seq i)
+    | syntax.PUSH a x => PUSH a (untype_data um x)
+    | syntax.LAMBDA a b i => LAMBDA a b (untype_instruction_seq um i)
+    | syntax.ITER i => ITER (untype_instruction_seq um i)
+    | syntax.MAP i => MAP (untype_instruction_seq um i)
+    | syntax.CREATE_CONTRACT g p an i => CREATE_CONTRACT g p an (untype_instruction_seq um i)
     | syntax.SELF an _ => SELF an
     | syntax.Instruction_opcode o => instruction_opcode (untype_opcode o)
     end
-  with untype_instruction_seq {self_type tff0 A B} (i : syntax.instruction_seq self_type tff0 A B) : instruction_seq :=
+  with untype_instruction_seq {self_type tff0 A B} (um : untype_mode) (i : syntax.instruction_seq self_type tff0 A B) : instruction_seq :=
     match i with
     | syntax.NOOP => NOOP
-    | syntax.SEQ i1 i2 => SEQ (untype_instruction i1) (untype_instruction_seq i2)
-    | syntax.Tail_fail i => SEQ (untype_instruction i) NOOP
+    | syntax.SEQ i1 i2 => SEQ (untype_instruction um i1) (untype_instruction_seq um i2)
+    | syntax.Tail_fail i => SEQ (untype_instruction um i) NOOP
   end.
 
   Lemma stype_dec_same A : stype_dec A A = left eq_refl.
@@ -224,7 +236,7 @@ Require Import String.
   Qed.
 
   Definition untype_type_spec {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :=
-    typer.type_instruction (untype_instruction i) A =
+    typer.type_instruction (typer.Optimized) (untype_instruction untype_Optimized i) A =
     Return ((if tffi return syntax.instruction self_type tffi A B -> typer.typer_result A
                then
                  fun i =>
@@ -233,7 +245,7 @@ Require Import String.
                  typer.Inferred_type _ B) i).
 
   Definition untype_type_spec_seq {self_type} tffi A B (i : syntax.instruction_seq self_type tffi A B) :=
-    typer.type_instruction_seq (untype_instruction_seq i) A =
+    typer.type_instruction_seq typer.Optimized (untype_instruction_seq untype_Optimized i) A =
     Return ((if tffi return syntax.instruction_seq self_type tffi A B -> typer.typer_result_seq A
                then
                  fun i =>
@@ -295,7 +307,7 @@ Require Import String.
 
   Lemma untype_type_check_instruction {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :
     untype_type_spec _ _ _ i ->
-    typer.type_check_instruction typer.type_instruction (untype_instruction i) A B =
+    typer.type_check_instruction (typer.type_instruction typer.Optimized) (untype_instruction untype_Optimized i) A B =
     Return (existT _ tffi i).
   Proof.
     intro IH.
@@ -311,7 +323,7 @@ Require Import String.
 
   Lemma untype_type_check_instruction_seq {self_type} tffi A B (i : syntax.instruction_seq self_type tffi A B) :
     untype_type_spec_seq _ _ _ i ->
-    typer.type_check_instruction_seq typer.type_instruction_seq (untype_instruction_seq i) A B =
+    typer.type_check_instruction_seq (typer.type_instruction_seq typer.Optimized) (untype_instruction_seq untype_Optimized i) A B =
     Return (existT _ tffi i).
   Proof.
     intro IH.
@@ -327,7 +339,7 @@ Require Import String.
 
   Lemma untype_type_check_instruction_seq_no_tail_fail {self_type} A B (i : syntax.instruction_seq self_type false A B) :
     untype_type_spec_seq _ _ _ i ->
-    typer.type_check_instruction_seq_no_tail_fail typer.type_instruction_seq (untype_instruction_seq i) A B =
+    typer.type_check_instruction_seq_no_tail_fail (typer.type_instruction_seq typer.Optimized) (untype_instruction_seq untype_Optimized i) A B =
     Return i.
   Proof.
     intro IH.
@@ -339,7 +351,7 @@ Require Import String.
 
   Lemma untype_type_instruction_no_tail_fail {self_type} A B (i : syntax.instruction self_type false A B) :
     untype_type_spec _ _ _ i ->
-    typer.type_instruction_no_tail_fail typer.type_instruction (untype_instruction i) A = Return (existT _ _ i).
+    typer.type_instruction_no_tail_fail (typer.type_instruction typer.Optimized) (untype_instruction untype_Optimized i) A = Return (existT _ _ i).
   Proof.
     intro IH.
     unfold typer.type_instruction_no_tail_fail.
@@ -349,7 +361,7 @@ Require Import String.
 
   Lemma untype_type_instruction_seq_no_tail_fail {self_type} A B (i : syntax.instruction_seq self_type false A B) :
     untype_type_spec_seq _ _ _ i ->
-    typer.type_instruction_seq_no_tail_fail typer.type_instruction_seq (untype_instruction_seq i) A = Return (existT _ _ i).
+    typer.type_instruction_seq_no_tail_fail (typer.type_instruction_seq typer.Optimized) (untype_instruction_seq untype_Optimized i) A = Return (existT _ _ i).
   Proof.
     intro IH.
     unfold typer.type_instruction_seq_no_tail_fail.
@@ -430,7 +442,7 @@ Require Import String.
   Qed.
 
   Fixpoint untype_type_data a (d : syntax.concrete_data a) :
-    typer.type_data (untype_data d) a = Return d
+    typer.type_data typer.Optimized (untype_data untype_Optimized d) a = Return d
   with
   untype_type_instruction {self_type} tffi A B (i : syntax.instruction self_type tffi A B) :
     untype_type_spec _ _ _ i
@@ -438,7 +450,7 @@ Require Import String.
   untype_type_instruction_seq {self_type} tffi A B (i : syntax.instruction_seq self_type tffi A B) :
     untype_type_spec_seq _ _ _ i.
   Proof.
-    - destruct d; try reflexivity.
+    - destruct d; try reflexivity; try (simpl; repeat rewrite untype_type_data; reflexivity).
       + simpl.
         assert (0 <= Z.of_N n)%Z as H by apply N2Z.is_nonneg.
         rewrite <- Z.geb_le in H.
@@ -455,41 +467,15 @@ Require Import String.
         simpl.
         reflexivity.
       + simpl.
-        trans_refl (
-          let! x := typer.type_data (untype_data d1) a in
-          let! y := typer.type_data (untype_data d2) b in
-          Return (@syntax.Pair a b x y)
-        ).
-        rewrite (untype_type_data _ d1).
-        rewrite (untype_type_data _ d2).
-        reflexivity.
-      + trans_refl (
-          let! x := typer.type_data (untype_data d) a in
-          Return (@syntax.Left a b x an bn)
-        ).
-        rewrite (untype_type_data _ d).
-        reflexivity.
-      + trans_refl (
-          let! x := typer.type_data (untype_data d) b in
-          Return (@syntax.Right a b x an bn)
-        ).
-        rewrite (untype_type_data _ d).
-        reflexivity.
-      + trans_refl (
-          let! x := typer.type_data (untype_data d) a in
-          Return (@syntax.Some_ a x)
-        ).
-        rewrite (untype_type_data _ d).
-        reflexivity.
-      + pose (fix type_data_list (l : Datatypes.list concrete_data) :=
+        pose (fix type_data_list (l : Datatypes.list concrete_data) :=
                 match l with
                 | nil => Return nil
                 | cons x l =>
-                  let! x := typer.type_data x a in
+                  let! x := typer.type_data typer.Optimized x a in
                   let! l := type_data_list l in
                   Return (cons x l)
                 end) as type_data_list.
-        assert (forall l, type_data_list (List.map (fun x => untype_data x) l) = Return l).
+        assert (forall l, type_data_list (List.map (untype_data untype_Optimized) l) = Return l).
         * clear l.
           intro l; induction l.
           -- reflexivity.
@@ -497,21 +483,18 @@ Require Import String.
              rewrite untype_type_data.
              rewrite IHl.
              reflexivity.
-        * trans_refl (
-            let! l := type_data_list (List.map (fun x => untype_data x) l) in
-            Return (@syntax.Concrete_list a l)
-          ).
+        * simpl.
           rewrite H.
           reflexivity.
       + pose (fix type_data_set (l : Datatypes.list concrete_data) :=
                 match l with
                 | nil => Return nil
                 | cons x l =>
-                  let! x := typer.type_data x a in
+                  let! x := typer.type_data typer.Optimized x a in
                   let! l := type_data_set l in
                   Return (cons x l)
                 end) as type_data_set.
-        assert (forall l, type_data_set (List.map (fun x => untype_data x) l) = Return l).
+        assert (forall l, type_data_set (List.map (untype_data untype_Optimized) l) = Return l).
         * clear l.
           intro l; induction l.
           -- reflexivity.
@@ -519,23 +502,20 @@ Require Import String.
              rewrite untype_type_data.
              rewrite IHl.
              reflexivity.
-        * trans_refl (
-            let! l := type_data_set (List.map (fun x => untype_data x) l) in
-            Return (@syntax.Concrete_set a l)
-          ).
+        * simpl.
           rewrite H.
           reflexivity.
       + pose (fix type_data_list L :=
                    match L with
                    | nil => Return nil
                    | cons (Elt x y) l =>
-                    let! x := type_data x a in
-                    let! y := type_data y b in
+                    let! x := type_data typer.Optimized x a in
+                    let! y := type_data typer.Optimized y b in
                     let! l := type_data_list l in
                     Return (cons (syntax.Elt _ _ x y) l)
-                   | _ => Failed _ (Typing _ (untype_data (syntax.Concrete_map l), (map a b)))
+                   | _ => Failed _ (Typing _ (untype_data untype_Optimized (syntax.Concrete_map l), (map a b)))
                    end) as type_data_map.
-        assert (forall l, type_data_map (List.map (fun '(syntax.Elt _ _ x y) => Elt (untype_data x) (untype_data y)) l) = Return l).
+        assert (forall l, type_data_map (List.map (fun '(syntax.Elt _ _ x y) => Elt (untype_data untype_Optimized x) (untype_data untype_Optimized y)) l) = Return l).
         * intro L; induction L.
           -- reflexivity.
           -- simpl.
@@ -544,10 +524,7 @@ Require Import String.
              rewrite untype_type_data.
              rewrite IHL.
              reflexivity.
-        * trans_refl (
-            let! l := type_data_map (List.map (fun '(syntax.Elt _ _ x y) => Elt (untype_data x) (untype_data y)) l) in
-            Return (@syntax.Concrete_map a b l)
-          ).
+        * simpl.
           rewrite H.
           reflexivity.
       + simpl.
@@ -582,18 +559,12 @@ Require Import String.
           rewrite untype_type_check_instruction_seq_no_tail_fail.
           -- reflexivity.
           -- apply untype_type_instruction_seq.
-      + trans_refl (
-          let! d := typer.type_data (untype_data x) a in
-          Return (@typer.Inferred_type self_type A _ (syntax.PUSH a d))
-        ).
+      + unfold untype_type_spec.
+        simpl.
         rewrite untype_type_data.
         reflexivity.
-      + trans_refl (
-          let! existT _ tff i :=
-            typer.type_check_instruction_seq
-              typer.type_instruction_seq (untype_instruction_seq i) (a :: nil) (b :: nil) in
-          Return (@typer.Inferred_type self_type _ (lambda a b ::: A) (syntax.LAMBDA a b i))
-        ).
+      + unfold untype_type_spec.
+        simpl.
         rewrite untype_type_check_instruction_seq; auto.
       + destruct i as [c v]; destruct v.
         * unfold untype_type_spec; simpl.

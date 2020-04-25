@@ -6,6 +6,8 @@ Require Import syntax_type.
 Require Import untyped_syntax error.
 Import error.Notations.
 
+Inductive type_mode := Readable | Optimized | Any.
+
 
 Lemma andb_and a b : (a && b)%bool <-> a /\ b.
 Proof.
@@ -537,7 +539,7 @@ Qed.
     | _, _ => Failed _ (Typing _ (instruction_opcode o, A))
     end.
 
-  Fixpoint type_data (d : concrete_data) {struct d}
+  Fixpoint type_data (tm : type_mode) (d : concrete_data) {struct d}
     : forall ty, M (syntax.concrete_data ty) :=
     match d with
     | Int_constant z =>
@@ -550,7 +552,11 @@ Qed.
         | Comparable_type mutez =>
           let! m := tez.of_Z z in
           Return (syntax.Mutez_constant (syntax.Mk_mutez m))
-        | Comparable_type timestamp => Return (syntax.Timestamp_constant z)
+        | Comparable_type timestamp =>
+          match tm with
+          | Optimized | Any => Return (syntax.Timestamp_constant z)
+          | Readable => Failed _ (Typing _ ("Not readable"%string, (d, ty)))
+          end
         | _ => Failed _ (Typing _ (d, ty))
         end
     | String_constant s =>
@@ -562,12 +568,17 @@ Qed.
         | Comparable_type key_hash => Return (syntax.Key_hash_constant s)
         | Comparable_type address => Return (syntax.Address_constant (syntax.Mk_address s))
         | Comparable_type timestamp =>
-          match Moment.Parse.rfc3339_non_strict (LString.s s) with
-          | Some (moment, nil) =>
-            let z := Moment.to_epoch moment in
-            Return (syntax.Timestamp_constant z)
-          | _ =>
-            Failed _ (Typing _ ("Cannot parse timestamp according to rfc3339"%string, s))
+          match tm with
+          | Optimized => Failed _ (Typing _ ("Not optimized"%string, (d, ty)))
+          | Readable
+          | Any =>
+            match Moment.Parse.rfc3339_non_strict (LString.s s) with
+            | Some (moment, nil) =>
+              let z := Moment.to_epoch moment in
+              Return (syntax.Timestamp_constant z)
+            | _ =>
+              Failed _ (Typing _ ("Cannot parse timestamp according to rfc3339"%string, s))
+            end
           end
         | chain_id => Return (syntax.Chain_id_constant (syntax.Mk_chain_id s))
         | _ => Failed _ (Typing _ (d, ty))
@@ -600,8 +611,8 @@ Qed.
       fun ty =>
         match ty with
         | pair a b =>
-          let! x := type_data x a in
-          let! y := type_data y b in
+          let! x := type_data tm x a in
+          let! y := type_data tm y b in
           Return (syntax.Pair x y)
         | _ => Failed _ (Typing _ (d, ty))
         end
@@ -609,7 +620,7 @@ Qed.
       fun ty =>
         match ty with
         | or a an b bn =>
-          let! x := type_data x a in
+          let! x := type_data tm x a in
           Return (syntax.Left x an bn)
         | _ => Failed _ (Typing _ (d, ty))
         end
@@ -617,7 +628,7 @@ Qed.
       fun ty =>
         match ty with
         | or a an b bn =>
-          let! y := type_data y b in
+          let! y := type_data tm y b in
           Return (syntax.Right y an bn)
         | _ => Failed _ (Typing _ (d, ty))
         end
@@ -625,7 +636,7 @@ Qed.
       fun ty =>
         match ty with
         | option a =>
-          let! x := type_data x a in
+          let! x := type_data tm x a in
           Return (syntax.Some_ x)
         | _ => Failed _ (Typing _ (d, ty))
         end
@@ -644,7 +655,7 @@ Qed.
               match l with
               | nil => Return nil
               | cons x l =>
-                let! x := type_data x a in
+                let! x := type_data tm x a in
                 let! l := type_data_list l in
                 Return (cons x l)
               end
@@ -656,7 +667,7 @@ Qed.
               match l with
               | nil => Return nil
               | cons x l =>
-                let! x := type_data x a in
+                let! x := type_data tm x a in
                 let! l := type_data_list l in
                 Return (cons x l)
               end
@@ -668,8 +679,8 @@ Qed.
               match l with
               | nil => Return nil
               | cons (Elt x y) l =>
-                let! x := type_data x a in
-                let! y := type_data y b in
+                let! x := type_data tm x a in
+                let! y := type_data tm y b in
                 let! l := type_data_list l in
                 Return (cons (syntax.Elt _ _ x y) l)
               | _ => Failed _ (Typing _ (d, ty))
@@ -682,7 +693,7 @@ Qed.
       fun ty =>
         match ty with
         | lambda a b =>
-          let! existT _ tff i := type_check_instruction_seq type_instruction_seq i (cons a nil) (cons b nil) in
+          let! existT _ tff i := type_check_instruction_seq (type_instruction_seq tm) i (cons a nil) (cons b nil) in
           Return (syntax.Instruction _ i)
         | _ => Failed _ (Typing _ (d, ty))
         end
@@ -690,42 +701,42 @@ Qed.
     end
 
   with
-  type_instruction {self_type} i A {struct i} : M (typer_result (self_type := self_type) A) :=
+  type_instruction {self_type} tm i A {struct i} : M (typer_result (self_type := self_type) A) :=
     match i, A with
     | Instruction_seq i, _ =>
-      let! i := type_instruction_seq i A in
+      let! i := type_instruction_seq tm i A in
       match i with
       | Any_type_seq _ i => Return (Any_type _ (fun B => syntax.Instruction_seq (i B)))
       | Inferred_type_seq _ _ i => Return (Inferred_type _ _ (syntax.Instruction_seq i))
       end
     | FAILWITH, a :: A => Return (Any_type _ (fun B => syntax.FAILWITH))
     | IF_ f i1 i2, t :: A =>
-      type_branches f t type_instruction_seq i1 i2 A
+      type_branches f t (type_instruction_seq tm) i1 i2 A
     | LOOP_ f i, t :: A =>
-      type_loop f t type_instruction_seq i A
+      type_loop f t (type_instruction_seq tm) i A
     | EXEC, a :: lambda a' b :: B =>
       let A := a :: lambda a' b :: B in
       let A' := a :: lambda a b :: B in
       let! i := instruction_cast_domain A' A _ syntax.EXEC in
       Return (Inferred_type _ _ i)
     | PUSH a v, A =>
-      let! d := type_data v a in
+      let! d := type_data tm v a in
       Return (Inferred_type _ _ (syntax.PUSH a d))
     | LAMBDA a b i, A =>
       let! existT _ tff i :=
-        type_check_instruction_seq type_instruction_seq i (a :: nil) (b :: nil) in
+        type_check_instruction_seq (type_instruction_seq tm) i (a :: nil) (b :: nil) in
       Return (Inferred_type _ _ (syntax.LAMBDA a b i))
     | ITER i, list a :: A =>
-      let! i := type_check_instruction_seq_no_tail_fail type_instruction_seq i (a :: A) A in
+      let! i := type_check_instruction_seq_no_tail_fail (type_instruction_seq tm) i (a :: A) A in
       Return (Inferred_type _ _ (syntax.ITER (i := syntax.iter_list _) i))
     | ITER i, set a :: A =>
-      let! i := type_check_instruction_seq_no_tail_fail type_instruction_seq i (a ::: A) A in
+      let! i := type_check_instruction_seq_no_tail_fail (type_instruction_seq tm) i (a ::: A) A in
       Return (Inferred_type _ _ (syntax.ITER (i := syntax.iter_set _)i))
     | ITER i, map kty vty :: A =>
-      let! i := type_check_instruction_seq_no_tail_fail type_instruction_seq i (pair kty vty :: A) A in
+      let! i := type_check_instruction_seq_no_tail_fail (type_instruction_seq tm) i (pair kty vty :: A) A in
       Return (Inferred_type _ _ (syntax.ITER (i := syntax.iter_map _ _) i))
     | MAP i, list a :: A =>
-      let! r := type_instruction_seq_no_tail_fail type_instruction_seq i (a :: A) in
+      let! r := type_instruction_seq_no_tail_fail (type_instruction_seq tm) i (a :: A) in
       match r with
       | existT _ (b :: A') i =>
         let! i := instruction_seq_cast_range (a :: A) (b :: A') (b :: A) i in
@@ -733,7 +744,7 @@ Qed.
       | _ => Failed _ (Typing _ tt)
       end
     | MAP i, map kty vty :: A =>
-      let! r := type_instruction_seq_no_tail_fail type_instruction_seq i (pair kty vty ::: A) in
+      let! r := type_instruction_seq_no_tail_fail (type_instruction_seq tm) i (pair kty vty ::: A) in
       match r with
       | existT _ (b :: A') i =>
         let! i := instruction_seq_cast_range (pair kty vty :: A) (b :: A') (b :: A) i in
@@ -747,7 +758,7 @@ Qed.
       let A' :=
           option key_hash ::: mutez ::: g ::: B in
       let! existT _ tff i :=
-        type_check_instruction_seq (self_type := (Some (p, an))) type_instruction_seq i (pair p g :: nil) (pair (list operation) g :: nil) in
+        type_check_instruction_seq (self_type := (Some (p, an))) (type_instruction_seq tm) i (pair p g :: nil) (pair (list operation) g :: nil) in
       let! i := instruction_cast_domain A' A _ (syntax.CREATE_CONTRACT g p an i) in
       Return (Inferred_type _ _ i)
     | SELF an, A =>
@@ -760,7 +771,7 @@ Qed.
       end
     | DIP n i, S12 =>
       let! (exist _ S1 H1, S2) := take_n S12 n in
-      let! existT _ B i := type_instruction_seq_no_tail_fail type_instruction_seq i S2 in
+      let! existT _ B i := type_instruction_seq_no_tail_fail (type_instruction_seq tm) i S2 in
       let! i := instruction_cast_domain (S1 +++ S2) S12 _ (syntax.DIP n H1 i) in
       Return (Inferred_type S12 (S1 +++ B) i)
     | instruction_opcode o, A =>
@@ -769,14 +780,14 @@ Qed.
     | _, _ => Failed _ (Typing _ (i, A))
     end
   with
-  type_instruction_seq {self_type} i A {struct i} : M (typer_result_seq (self_type := self_type) A) :=
+  type_instruction_seq {self_type} tm i A {struct i} : M (typer_result_seq (self_type := self_type) A) :=
     match i, A with
     | NOOP, A => Return (Inferred_type_seq _ _ syntax.NOOP)
     | SEQ i1 i2, A =>
-      let! r1 := type_instruction i1 A in
+      let! r1 := type_instruction tm i1 A in
       match r1, i2 with
       | Inferred_type _ B i1, i2 =>
-        let! r2 := type_instruction_seq i2 B in
+        let! r2 := type_instruction_seq tm i2 B in
         match r2 with
         | Inferred_type_seq _ C i2 =>
           Return (Inferred_type_seq _ _ (syntax.SEQ i1 i2))
