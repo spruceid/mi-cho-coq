@@ -20,7 +20,8 @@
 (* DEALINGS IN THE SOFTWARE. *)
 
 
-(* The error monad *)
+(* The error monad, and various basic stuff *)
+
 Require Bool String.
 Require Import location.
 Require Import syntax_type.
@@ -41,6 +42,11 @@ Inductive M (A : Type) : Type :=
 | Return : A -> M A.
 
 Arguments Return {_} _.
+
+Lemma unreturn {A} (a b : A) : error.Return a = error.Return b -> a = b.
+Proof.
+  congruence.
+Qed.
 
 Definition bind {A B : Type} (m : M A) (f : A -> M B) :=
   match m with
@@ -93,12 +99,9 @@ Definition success {A} (m : M A) :=
 
 Definition Is_true := Bool.Is_true.
 
-Lemma Is_true_UIP b : forall x y : Is_true b, x = y.
+Lemma Is_true_UIP b (x y : Is_true b) : x = y.
 Proof.
-  destruct b.
-  - intros [] [].
-    reflexivity.
-  - contradiction.
+  destruct b; destruct x; destruct y; reflexivity.
 Defined.
 
 Coercion is_true := Is_true.
@@ -243,3 +246,50 @@ Proof.
   - intro H.
     apply H.
 Qed.
+
+Definition dif {A : Datatypes.bool -> Type} (b : Datatypes.bool) (t : b -> A b) (e : negb b -> A b) : A b.
+Proof.
+  destruct b; [apply t | apply e]; constructor.
+Defined.
+
+Lemma dif_case {A : Datatypes.bool -> Type} {b t e} {P : A b -> Prop} : (forall h, P (t h)) -> (forall h, P (e h)) -> P (dif b t e).
+Proof.
+  unfold dif.
+  destruct b.
+  - intros H _; apply H.
+  - intros _ H; apply H.
+Defined.
+
+(* Lemmas about sigT *)
+
+Definition sigT_eq_1 {A} (P : A -> Set) (xa yb : sigT P) : xa = yb -> projT1 xa = projT1 yb.
+Proof.
+  apply f_equal.
+Defined.
+
+Definition sigT_eq_2 {A} (P : A -> Set) (xa yb : sigT P) (H : xa = yb) :
+  eq_rec (projT1 xa) P (projT2 xa) (projT1 yb) (sigT_eq_1 P xa yb H) = projT2 yb.
+Proof.
+  subst xa.
+  reflexivity.
+Defined.
+
+Definition existT_eq_1 {A} (P : A -> Set) x y a b : existT P x a = existT P y b -> x = y.
+Proof.
+  apply (f_equal (@projT1 A P)).
+Defined.
+
+Definition existT_eq_2 {A} (P : A -> Set) x y a b (H : existT P x a = existT P y b ) :
+  eq_rec x P a y (existT_eq_1 P x y a b H) = b.
+Proof.
+  apply (sigT_eq_2 P (existT P x a) (existT P y b)).
+Defined.
+
+Definition existT_eq_3 {A} (P : A -> Set) x y a b :
+  existT P x a = existT P y b ->
+  sig (fun H : x = y => eq_rec x P a y H = b).
+Proof.
+  intro H.
+  exists (existT_eq_1 P x y a b H).
+  apply existT_eq_2.
+Defined.

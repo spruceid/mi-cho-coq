@@ -633,44 +633,6 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
         destruct tff; reflexivity.
   Qed.
 
-
-  Definition sigT_eq_1 {A} (P : A -> Set) (xa yb : sigT P) : xa = yb -> projT1 xa = projT1 yb.
-  Proof.
-    apply f_equal.
-  Defined.
-
-  Definition sigT_eq_2 {A} (P : A -> Set) (xa yb : sigT P) (H : xa = yb) :
-    eq_rec (projT1 xa) P (projT2 xa) (projT1 yb) (sigT_eq_1 P xa yb H) = projT2 yb.
-  Proof.
-    subst xa.
-    reflexivity.
-  Defined.
-
-  Definition existT_eq_1 {A} (P : A -> Set) x y a b : existT P x a = existT P y b -> x = y.
-  Proof.
-    apply (f_equal (@projT1 A P)).
-  Defined.
-
-  Definition existT_eq_2 {A} (P : A -> Set) x y a b (H : existT P x a = existT P y b ) :
-    eq_rec x P a y (existT_eq_1 P x y a b H) = b.
-  Proof.
-    apply (sigT_eq_2 P (existT P x a) (existT P y b)).
-  Defined.
-
-  Definition existT_eq_3 {A} (P : A -> Set) x y a b :
-    existT P x a = existT P y b ->
-    sig (fun H : x = y => eq_rec x P a y H = b).
-  Proof.
-    intro H.
-    exists (existT_eq_1 P x y a b H).
-    apply existT_eq_2.
-  Defined.
-
-  Lemma unreturn {A} (a b : A) : error.Return a = error.Return b -> a = b.
-  Proof.
-    intro H; injection H; intro; assumption.
-  Qed.
-
   Lemma type_untype_cast_seq um self_type A B C D tff i i' :
     instruction_seq_cast (self_type := self_type) (tff := tff) A B C D i = Return i' ->
     untype_instruction_seq um i = untype_instruction_seq um i'.

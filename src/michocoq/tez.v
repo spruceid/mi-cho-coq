@@ -28,7 +28,7 @@ Require Eqdep_dec.
 Require error.
 Import error.Notations.
 
-Definition mutez : Set := {t : int64bv.int64 | int64bv.sign t = false }.
+Definition mutez : Set := {t : int64bv.int64 | Bool.Is_true (negb (int64bv.sign t)) }.
 
 Definition to_int64 (t : mutez) : int64bv.int64 :=
   let (t, _) := t in t.
@@ -42,55 +42,36 @@ Proof.
   simpl in H.
   destruct H.
   f_equal.
-  apply Eqdep_dec.eq_proofs_unicity.
-  intros.
-  destruct (Bool.bool_dec x y); tauto.
+  apply error.Is_true_UIP.
 Qed.
 
 Definition to_Z (t : mutez) : Z := int64bv.to_Z (to_int64 t).
 
-Definition of_int64_aux (t : int64bv.int64) (sign : bool) :
-  int64bv.sign t = sign -> error.M mutez :=
-  if sign return int64bv.sign t = sign -> error.M mutez
-  then fun _ => error.Failed _ error.Overflow
-  else fun H => error.Return (exist _ t H).
-
 Definition of_int64 (t : int64bv.int64) : error.M mutez :=
-  of_int64_aux t (int64bv.sign t) eq_refl.
+  let! H :=
+     error.dif
+       (A := fun b => error.M (Bool.Is_true (negb b)))
+       (int64bv.sign t)
+       (fun _ => error.Failed _ error.Overflow)
+       (fun H => error.Return H)
+  in
+  @error.Return mutez (exist _ t H).
 
-Lemma of_int64_return (t : int64bv.int64) (H : int64bv.sign t = false) :
-  of_int64 t = error.Return (exist _ t H).
+Lemma of_int64_to_int64_eqv (t : int64bv.int64) (m : mutez) :
+  to_int64 m = t <-> of_int64 t = error.Return m.
 Proof.
-  unfold of_int64.
-  cut (forall b H', of_int64_aux t b H' = error.Return (exist _ t H)).
-  - intro Hl.
-    apply Hl.
-  - intros b H'.
-    unfold of_int64_aux.
-    destruct b.
-    + congruence.
-    + f_equal.
-      apply to_int64_inj.
-      reflexivity.
-Qed.
-
-Lemma of_int64_aux_sign (t : int64bv.int64) sign (e : int64bv.sign t = sign) (b : mutez) :
-  of_int64_aux t sign e = error.Return b ->
-  sign = false.
-Proof.
-  unfold of_int64_aux.
-  destruct sign.
-  - discriminate.
-  - reflexivity.
-Qed.
-
-Lemma of_int64_sign (t : int64bv.int64) (b : mutez) :
-  of_int64 t = error.Return b ->
-  int64bv.sign t = false.
-Proof.
-  destruct b.
-  unfold of_int64.
-  apply of_int64_aux_sign.
+  unfold of_int64, to_int64.
+  destruct m as (t', H).
+  rewrite error.bind_eq_return.
+  split.
+  - intro; subst.
+    exists H.
+    split; [| reflexivity].
+    apply (@error.dif_case (fun b => error.M (Bool.Is_true (negb b)))).
+    + intro Hn; destruct (int64bv.sign t); contradiction.
+    + intro H'; f_equal; apply error.Is_true_UIP.
+  - intros (H', (Hd, HR)).
+    congruence.
 Qed.
 
 Definition of_Z (t : Z) : error.M mutez :=
@@ -103,23 +84,15 @@ Proof.
   split.
   - intro; subst z.
     rewrite int64bv.of_Z_to_Z.
-    destruct t.
     simpl.
-    apply of_int64_return.
+    apply of_int64_to_int64_eqv.
+    reflexivity.
   - intro H.
     apply (error.bind_eq_return of_int64) in H.
     destruct H as (b, (Hz, Hb)).
+    apply of_int64_to_int64_eqv in Hb.
     rewrite <- int64bv.of_Z_to_Z_eqv in Hz.
-    subst z.
-    f_equal.
-    destruct t as (b', e').
-    simpl.
-    assert (int64bv.sign b = false) as e.
-    + apply of_int64_sign in Hb.
-      assumption.
-    + rewrite (of_int64_return _ e) in Hb.
-      injection Hb.
-      auto.
+    congruence.
 Qed.
 
 Lemma of_Z_to_Z (t : mutez) : of_Z (to_Z t) = error.Return t.
