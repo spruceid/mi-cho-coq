@@ -123,7 +123,7 @@ Fixpoint instruction_app i1 i2 :=
   end.
 
 (* Some macros *)
-Definition UNPAIR : instruction_seq :=
-  SEQ DUP (SEQ CAR (SEQ (DIP 1 (SEQ CDR NOOP)) NOOP)).
-Definition UNPAPAIR : instruction_seq :=
-  instruction_app UNPAIR (SEQ (DIP 1 UNPAIR) NOOP).
+Definition UNPAIR : instruction :=
+  Instruction_seq (SEQ DUP (SEQ CAR (SEQ (DIP 1 (SEQ CDR NOOP)) NOOP))).
+Definition UNPAPAIR : instruction :=
+  Instruction_seq (SEQ UNPAIR (SEQ (DIP 1 (SEQ UNPAIR NOOP)) NOOP)).
