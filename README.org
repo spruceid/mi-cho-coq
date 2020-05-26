@@ -9,12 +9,12 @@ The simplest way to install the project is to use the OPAM package manager:
 
 #+BEGIN_SRC bash
 
-# Add the coq-released opam repository because it contains the coq-ott dependency
+# Add the required opam repositories for Mi-Cho-Coq and its dependencies
 opam repo add coq-released https://coq.inria.fr/opam/released
+opam repo add coq-extra-dev https://coq.inria.fr/opam/extra-dev
 
-# Install mi-cho-coq and its dependencies (coq, ott, and coq-ott)
-opam pin add -k path coq-mi-cho-coq ./
-
+# Install mi-cho-coq and its dependencies
+opam install coq-mi-cho-coq
 #+END_SRC
 
 * Introduction
@@ -25,11 +25,11 @@ are formalized:
 - the type system
 - the syntax
 - the semantics
+- the lexing
+- the parsing
 
 This formalisation is entirely based on [[https://tezos.gitlab.io/betanet/whitedoc/michelson.html][the specification of
-Michelson]]; more precisely, it is currently based on the following
-version of this specification:
-[[https://gitlab.com/tezos/tezos/blob/16bd2b036439d76a3e89dff8fdfbd36cf1d131fe/docs/whitedoc/michelson.rst]]
+Michelson]].
 
 * Syntax
 
@@ -39,49 +39,50 @@ In Michelson, an important distinction is made between *comparable*
 types and non-comparable ones. Comparable types can be used to index
 maps and only sets of elements in comparable types are allowed.
 
-Here is the list of comparable types defined in [[./src/michocoq/syntax.v]]:
+Here is the list of comparable types defined in [[./src/michocoq/syntax_type.v]]:
 
 #+BEGIN_SRC coq
-Inductive comparable_type : Set :=
+Inductive simple_comparable_type : Set :=
 | string
 | nat
 | int
 | bytes
 | bool
 | mutez
+| address
 | key_hash
 | timestamp.
+
+Inductive comparable_type : Set :=
+| Comparable_type_simple : simple_comparable_type -> comparable_type
+| Cpair : simple_comparable_type -> comparable_type -> comparable_type.
 #+END_SRC
 
 Each comparable type is trivially a Michelson type, here is the full
-list of Michelson types as defined in [[./src/michocoq/syntax.v]]:
+list of Michelson types as defined in [[./src/michocoq/syntax_type.v]]:
 
 #+BEGIN_SRC coq
 Inductive type : Set :=
-| Comparable_type : comparable_type -> type
-| key : type
-| unit : type
-| signature : type
-| option_ : type -> type
-| list_ : type -> type
-| set_ : comparable_type -> type
-| contract : type -> type
-| address : type
-| operation : type
-| pair : type -> type -> type
-| or : type -> type -> type
-| lambda : type -> type -> type
-| map : comparable_type -> type -> type
-| big_map : comparable_type -> type -> type.
+| Comparable_type (_ : simple_comparable_type)
+| key
+| unit
+| signature
+| option (a : type)
+| list (a : type)
+| set (a : comparable_type)
+| contract (a : type)
+| operation
+| pair (a : type) (b : type)
+| or (a : type) (_ : annot_o) (b : type) (_ : annot_o)
+| lambda (a b : type)
+| map (k : comparable_type) (v : type)
+| big_map (k : comparable_type) (v : type)
+| chain_id.
 #+END_SRC
 
-Coq let us see the type =comparable_type= as a subtype of the type
-=type= by declaring the =Comparable_type= injection as an implicit
-coercion.
-
-#+BEGIN_SRC coq
-Coercion Comparable_type : comparable_type >-> type.
-#+END_SRC
+Coq lets us see the type =simple_comparable_type= as a subtype of
+=comparable_type= and =comparable_type= as a subtype of the type
+=type= using implicit coercions.
 
 ** Instructions
 
@@ -90,7 +91,8 @@ The syntax and typing of Michelson instructions is defined in file
 ill-typed instructions.
 
 #+BEGIN_SRC coq
-Inductive instruction : list type -> list type -> Set :=
+Inductive instruction :
+  forall (self_type : Datatypes.option type) (tail_fail_flag : Datatypes.bool) (A B : Datatypes.list type), Set :=
 | NOOP {A} : instruction A A
 | FAILWITH {A B a} : instruction (a ::: A) B
 | SEQ {A B C} : instruction A B -> instruction B C -> instruction A C
@@ -99,30 +101,49 @@ Inductive instruction : list type -> list type -> Set :=
 ...
 #+END_SRC
 
+The =self_type= index represents the type of the parameter of the
+whole contract, this index is needed for typing =SELF=,
+=CREATE_CONTRACT= and =LAMBDA= correctly.
+
+The =tail_fail_flag= index is a flag indicating whether or not the
+instruction output type can be inferred from its input type. Most
+instructions have this flag set to =false= meaning that the type of
+their input determines the type of their output. =FAILWITH=, sequences
+ending in =FAILWITH=, and branching instructions (such as =IF=) with
+all branches ending in =FAILWITH= have their =tail_fail_flag= set to
+=true=. Instruction sequencing ={ A ; B }= (also written =SEQ A B=)
+requires that =A= has its =tail_fail_flag= set to =false=. This
+restriction is also present in the reference Michelson typechecker; it
+permits efficient typechecking in a single pass through the contract
+code.
+
+Finally the =A= and =B= indexes are the types of respectively the
+input and output stacks of the instruction.
+
 * Semantics
 
 The semantics of types is defined by interpreting them
-by predefined Coq types using the following table (function =data= in file [[./src/michocoq/semantics.v]]:
+by predefined Coq types using the following table (functions =comparable_data= in [[./src/michocoq/comparable.v]]  =data= in file [[./src/michocoq/semantics.v]]:
 
-  | Michelson     | Coq                                   |
-  |---------------+---------------------------------------|
-  | =int=         | =Z=                                   |
-  | =nat=         | =N=                                   |
-  | =string=      | =string=                              |
-  | =bytes=       | =string=                              |
-  | =timestamp=   | =Z=                                   |
-  | =mutez=       | =int63=                               |
-  | =bool=        | =bool=                                |
-  | =unit=        | =unit=                                |
-  | =pair a b=    | =a * b=                               |
-  | =option a=    | =option a=                            |
-  | =or a b=      | =sum a b=                             |
-  | =list a=      | =list a=                              |
-  | =set a=       | =set a (lt a)=                        |
-  | =map a b=     | =map a b (lt a)=                      |
-  | =bigmap a b=  | idem                                  |
-  | =lambda a b=  | =instruction (a ::: nil) (b ::: nil)= |
-  | anything else | axiomatized                           |
+  | Michelson     | Coq                                    |
+  |---------------+----------------------------------------|
+  | =int=         | =Z=                                    |
+  | =nat=         | =N=                                    |
+  | =string=      | =string=                               |
+  | =bytes=       | =string=                               |
+  | =timestamp=   | =Z=                                    |
+  | =mutez=       | =int63=                                |
+  | =bool=        | =bool=                                 |
+  | =unit=        | =unit=                                 |
+  | =pair a b=    | =a * b=                                |
+  | =option a=    | =option a=                             |
+  | =or a b=      | =sum a b=                              |
+  | =list a=      | =list a=                               |
+  | =set a=       | =set a (lt a)=                         |
+  | =map a b=     | =map a b (lt a)=                       |
+  | =bigmap a b=  | idem                                   |
+  | =lambda a b=  | ={tff & instruction None tff [a] [b]}= |
+  | anything else | axiomatized                            |
 
 with
 #+BEGIN_SRC coq
@@ -147,15 +168,28 @@ recursive on an extra argument of type =Datatypes.nat= called the
 =fuel= of the evaluator.
 
 #+BEGIN_SRC coq
-  Fixpoint eval {A : stack_type} {B : stack_type}
-           (i : instruction A B) (fuel : Datatypes.nat) {struct fuel} :
+  Fixpoint eval {self_type} {tff} {env} {A : stack_type} {B : stack_type}
+           (i : instruction self_type tff A B) (fuel : Datatypes.nat) {struct fuel} :
     stack A -> M (stack B) :=
     match fuel with
     | O => fun SA => Failed _ Out_of_fuel
     | S n =>
-      match i in instruction A B return stack A -> M (stack B) with
+      match i, SA, env with
       ...
 #+END_SRC
+
+The =env= parameter to =eval= is a record providing the semantics of
+the following instructions:
+- forging operations: =CREATE_CONTRACT=, =SET_DELEGATE=, and
+  =TRANSFER_TOKENS=: these cannot be defined directly because the
+  =operation= type is axiomatized.
+- requesting information about the context: =AMOUNT=, =BALANCE=,
+  =CHAIN_ID=, =NOW=, =SELF=, =SENDER=, and =SOURCE=
+- cryptography: =HASH_KEY=, =BLAKE2B=, =SHA256=, =SHA512=, and
+  =CHECK_SIGNATURE= (not yet formalized)
+- serialization: =PACK= and =UNPACK= (not yet formalized)
+- manipulation of addresses: =ADDRESS=, =CONTRACT=, and
+  =IMPLICIT_ACCOUNT= (not yet formalized)
 
 * Overloading
 
@@ -187,7 +221,7 @@ Canonical Structure neg_int : neg_struct int :=
 The structure =neg_struct= is then used in the =instruction= datatype as follows:
 
 #+BEGIN_SRC coq
-Inductive instruction : list type -> list type -> Set :=
+Inductive instruction : ... :=
 ...
 | NEG {n} {s : neg_struct n} {S} : instruction (n ::: S) (int ::: S)
 ...
@@ -210,51 +244,113 @@ the =NEG= instruction:
 
   ...
 
-  Fixpoint eval {A : stack_type} {B : stack_type}
-           (i : instruction A B) (fuel : Datatypes.nat) {struct fuel} :
-    stack A -> M (stack B) :=
+  Fixpoint eval ... :=
     match fuel with
     | O => fun SA => Failed _ Out_of_fuel
     | S n =>
-      match i in instruction A B return stack A -> M (stack B) with
+      match i, SA, env with
       ...
-      | @NEG _ _ _ s =>
-        fun '(x, SA) => Return _ (neg _ (neg_variant_field _ s) x, SA)
+      | @NEG _ _ s, (x, SA), _ => Return (neg _ (neg_variant_field _ s) x, SA)
       ...
 #+END_SRC
 
-* TODO
+* Typechecking
 
-- Play with code extraction
-- Define an extension of Michelson where loops are annotated with invariants
-- check OCaml implem against the documentation
-- turn the type of operations into a Coq inductive
+An untyped version of the =instruction= inductive type is provided in
+file [[./src/michocoq/untyped_syntax.v]]. Type checking and type inference
+functions are defined in file [[./src/michocoq/typer.v]]. They are proved
+correct in file [[./src/michocoq/untyper.v]] by proving they are inverses
+of the trivial type-erasure function called =untype_instruction=.
 
-  To do this we need to implement the syntactic restriction over the
-  types allowed for the storage to break the mutual dependency between
-  this new inductive and the "semantics.data" function because the
-  Create_contract operation requires an argument of type data
-  storage_ty.
+* Micheline lexing, parsing, and pretty-printing
 
-- replace section variables by functors
+A Micheline parser is defined using Menhir in file
+[[./src/michocoq/micheline_parser.vy]]; its input is streams of Micheline
+tokens that can be produced from a mere string using the lexer in
+[[./src/michocoq/micheline_lexer.v]]. Micheline annotations are currently
+not supported.
 
-- Put notations in their own notation scope
+To go in the other direction, pretty-printing functions are defined in
+file [[./src/michocoq/micheline_pp.v]].
 
-- Formalize gas (and remove fuel)
+Finally, the bridge between parsed Micheline nodes and untyped
+instructions is defined in files [[./src/michocoq/micheline2michelson.v]]
+(that also unfolds macros) and [[./src/michocoq/michelson2micheline.v]].
 
-  eval should return (stack SA -> M (stack SB * {remaining_gas | remaining_gas < gas }))
+* Functional verification of smart contracts
 
-- Handle :-, %-, and @-annotations
+The [[./src/contracts_coq/]] directory contains some examples of verified
+Michelson smart contracts.
 
-* Possible mistakes in Michelson specification
+- [[./src/contracts_coq/boomerang.v]] is a simple example of a contract
+  that sends back whatever amount is receives to the address that
+  called it. It can be used for example to test a wallet's ability to
+  send funds without taking the risk to lose them.
 
-- Full Grammar:
-  + =FAILWITH <data>= should be =FAILWITH=
-  + the =INT= instruction is undocumented
+- [[./src/contracts_coq/deposit.v]] is an example of address-based
+  authentication. The contract stores the address of its manager (that
+  can either be an implicit account or a smart contract with a
+  parameter of type =unit=). This contract has two entrypoints: the
+  one on the left does nothing and can be called by anybody, it can be
+  used to send tokens to the deposit contract; the one on the right
+  can only be called by the manager, it takes an amount in parameter
+  and sends to the manager the requested amount.
 
-- NOOP should be documented
-- The type of the IF_... instruction is erroneous
-- Typo : "these are macros are simply"
-- The IF_SOME macro is semantically defined instead of syntactically
+- [[./src/contracts_coq/manager.v]] is the default smart contract that was
+  originated in place of all scriptless KT1 accounts during the
+  Babylon migration. Because of this, it is an extremely common smart
+  contract on the Tezos blockchain. It is quite similar to the deposit
+  contract; it stores the address of its manager (that has to be an
+  implicit account) and has two entrypoints, the default entrypoint
+  does nothing and can be used to send tokens to the contract from
+  anywhere; the other entrypoint, called =%do= can only be called by
+  the manager. There are two differences with the deposit contract in
+  the behaviour of the =%do= entrypoint: first, it checks that no
+  tokens was sent (the default entrypoint should be used for that),
+  second its parameter is not simply an amount to send to the manager
+  but a piece of code (of type =lambda unit (list operation)=) to
+  execute and emit as a result. This provides more genericity as it
+  permits for example to change the delegate of the contract, to call
+  other smart contract expecting a parameter, and to perform several
+  transfers atomically.
 
-- The type address should be comparable
+- [[./src/contracts_coq/multisig.v]] is the multisig contract supported by
+  =tezos-client=. A multisig contract is a smart contract that can be
+  used to share ownership over a bag of tokens. It is an example of
+  signature-based authentication. The contract stores a list of public
+  keys that represent the owners of the contract, a number called the
+  threshold and an anti-replay counter. It features three possible
+  actions:
+  + spending the contract tokens (by sending them to a =contract unit=)
+  + updating the delegate (including stopping delegation)
+  + updating both the threshold and the keys of the owners
+
+  To run any of these actions, the following data has to be sent to
+  the contract:
+  + the current value of the anti-replay counter
+  + the description of the action
+  + a list of optional signatures
+
+  The signatures must be given in the same order as the stored keys,
+  all provided signature must be valid and the number of provided
+  signatures must be greater or equal to the threshold. The signed
+  data contains the =chain_id= of the chain running the contract, the
+  address of the contract, the anti-replay counter, and the
+  description of the action.
+
+- [[./src/contracts_coq/generic_multisig.v]] is to the multisig contract
+  what the manager contract is to the deposit contract: it features a
+  universally-callable default entrypoint that does nothing (to
+  receive tokens), it checks that no token is sent on the main
+  entrypoint, and it generalizes the spending and delegation actions
+  using a piece of code of type =lambda unit (list operation)=.
+
+- [[./src/contracts_coq/vote.v]] is an example of a contract manipulating
+  a map and implementing a paywall. It is a vote contract that stores
+  a map from the available vote options (represented as strings) to
+  their tallies. To vote for one of the available options, a transfer
+  of 5tz (or more) to the contract is needed.
+
+* Ott semantics
+
+See [[./src/michocott/README.txt]].
