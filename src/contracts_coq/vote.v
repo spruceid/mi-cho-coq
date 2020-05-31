@@ -59,24 +59,20 @@ Definition vote_spec
   (forall s, (mem _ _ (Mem_variant_map _ int) s storage) <->
         (mem _ _ (Mem_variant_map _ int) s new_storage)) /\
   returned_operations = nil /\
-  match (get _ _ _ (Get_variant_map _ int) param storage) with
-  | Some n1 => match (get _ _ _ (Get_variant_map _ int) param new_storage) with
-              | Some n2 => n2 = (BinInt.Z.add n1 1)
-              | None => False
-              end
-  | None => False end /\
-  (forall s, s <> param ->
-   match (get _ _ _ (Get_variant_map _ int) s storage) with
-  | Some n1 => match (get _ _ _ (Get_variant_map _ int) s new_storage) with
-              | Some n2 => n2 = n1
-              | None => False
-              end
-  | None => True end).
+  (exists tally,
+      get _ _ _ (Get_variant_map _ int) param storage = Some tally /\
+      get _ _ _ (Get_variant_map _ int) param new_storage = Some (tally + 1)%Z) /\
+  (forall s,
+      s <> param ->
+      get _ _ _ (Get_variant_map _ int) s new_storage =
+      get _ _ _ (Get_variant_map _ int) s storage).
 
 Lemma l1 a b : tez.compare a b = Z.compare (tez.to_Z a) (tez.to_Z b).
 Proof.
   reflexivity.
 Defined.
+
+Opaque Z.add.
 
 Theorem vote_correct
       (env : @proto_env (Some (parameter_ty, None)))
@@ -90,13 +86,9 @@ Theorem vote_correct
   <-> vote_spec env storage param new_storage returned_operations.
 Proof.
   intro Hfuel. unfold ">=" in Hfuel.
-  unfold eval.
   rewrite return_precond.
   rewrite eval_seq_precond_correct.
-  unfold eval_seq_precond.
   do 3 (more_fuel; simpl).
-  rewrite match_if_exchange.
-  rewrite if_false_not.
   apply and_both_0.
   - change (tez.compare (5000000 ~Mutez) (amount env)) with
         (5000000 ?= (tez.to_Z (amount env)))%Z.
@@ -104,69 +96,41 @@ Proof.
     unfold ">="%Z.
     destruct (tez.to_Z (amount env) ?= 5000000)%Z; simpl; intuition discriminate.
   - (* Enough tez sent to contract *)
-    destruct (map.get str Z string_compare param storage) eqn:mapget.
-    + (* Key is in the map *)
-      split; intros.
-      * (* ->  *)
-        simpl in *.
-        repeat split; inversion H.
-        -- apply map.map_getmem with z; assumption.
-        -- intro Hstor.
-           apply map.map_updatemem.
-           assumption.
-        -- intro Hnstor.
-           destruct (string_compare s param) eqn:strcomp.
-           rewrite string_compare_Eq_correct in strcomp; subst.
-           apply map.map_getmem with z. assumption.
-           eapply map.map_updatemem_rev with (k':= param).
-           rewrite <- (compare_diff string). left. eassumption. eassumption.
-           eapply map.map_updatemem_rev with (k':= param).
-           rewrite <- (compare_diff string). right. eassumption. eassumption.
-        -- reflexivity.
-        -- rewrite mapget.
-           rewrite map.map_updateeq.
-           destruct z; try destruct p; reflexivity.
-        -- intros s Hneq.
-           destruct (map.get str Z string_compare s storage) eqn:mapget2.
-           rewrite map.map_updateneq.
-           rewrite mapget2. reflexivity. intro contra. subst; contradiction.
-           constructor.
-      * (* <- *)
-        repeat simpl.
-        destruct H as [H1 [H2 [H3 [H4 H5]]]].
-        repeat f_equal.
-        -- symmetry. assumption.
-        -- symmetry.
-           rewrite map.map_updateSome_spec.
-           split.
-           ++ unfold get, semantics.get in H5; simpl in H5.
-              simpl in *.
-              destruct (map.get str Z string_compare param storage); destruct (map.get str Z string_compare param new_storage); subst;
-                try inversion H4.
-              inversion mapget; subst. rewrite BinInt.Z.add_comm. reflexivity.
-           ++ simpl in *.
-              clear H4.
-              intros s Hdiff. specialize (H5 s).
-              assert (s <> param) as Hdiff2 by (intro contra; rewrite contra in Hdiff; contradiction);
-                apply H5 in Hdiff2.
-              unfold get, semantics.get in Hdiff2. simpl in Hdiff2.
-              destruct (map.get str Z string_compare s storage) eqn:get1;
-                destruct (map.get str Z string_compare s new_storage) eqn:get2; subst;
-                  try reflexivity.
-              inversion Hdiff2.
-              exfalso. clear H5.
-              apply map.map_getmem in get2.
-              rewrite <- H2 in get2. apply map.map_memget in get2. destruct get2 as [v get2].
-              rewrite get2 in get1. discriminate get1.
-  + (* Key is not in the map *)
-    do 2 more_fuel; simpl.
-               split; intros.
-      * (* -> *)
-        inversion H.
-      * (* <- *)
-        destruct H as [H1 [H2 [H3 [H4 H5]]]].
-        apply map.map_memget in H1. destruct H1 as [v H1].
-        simpl in H1. rewrite H1 in mapget. discriminate mapget.
+    simpl.
+    split.
+    + intros (tally, (Ht, H)).
+      rewrite Ht.
+      injection H; clear H; intros; subst.
+      repeat split.
+      * apply map.map_getmem with tally; assumption.
+      * intro Hstor.
+        apply map.map_updatemem.
+        assumption.
+      * intro Hnstor.
+        destruct (string_compare s param) eqn:strcomp.
+        rewrite string_compare_Eq_correct in strcomp; subst.
+        apply map.map_getmem with tally. assumption.
+        eapply map.map_updatemem_rev with (k':= param).
+        rewrite <- (compare_diff string). left. eassumption. eassumption.
+        eapply map.map_updatemem_rev with (k':= param).
+        rewrite <- (compare_diff string). right. eassumption. eassumption.
+      * exists tally.
+        rewrite map.map_updateeq.
+        rewrite Z.add_comm.
+        split; reflexivity.
+      * intros s Hs.
+        rewrite map.map_updateneq; intuition.
+    + (* <- *)
+      intros (Hmemp, (Hmems, (Hops, ((tally, (Hp, Hpn)), Hs)))).
+      exists tally.
+      split; [assumption|].
+      subst.
+      repeat f_equal.
+      symmetry.
+      rewrite map.map_updateSome_spec.
+      rewrite Z.add_comm.
+      split; [assumption|].
+      intuition.
 Qed.
 
 End vote.

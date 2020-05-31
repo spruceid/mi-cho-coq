@@ -148,23 +148,16 @@ Proof.
   unfold ">=" in Hfuel.
   rewrite return_precond.
   rewrite eval_seq_precond_correct.
-  unfold eval_seq_precond.
   unfold manager_spec.
   more_fuel; simpl.
   more_fuel; simpl.
   destruct param as [(tff, lam)|[]].
-  - simpl.
-    rewrite match_if_exchange.
-    more_fuel; simpl.
-    rewrite if_false_is_and.
-    rewrite (eqb_eq mutez).
+  - rewrite (eqb_eq mutez).
     apply and_both.
-    rewrite match_if_exchange.
-    rewrite if_false_is_and.
     rewrite (eqb_eq address).
     apply and_both.
     repeat rewrite fold_eval_precond.
-    fold (eval_seq_precond (S (S (S fuel))) (self_type := None)).
+    fold (eval_seq_precond (S (S fuel)) (self_type := None)).
     rewrite <- eval_seq_precond_correct.
     rewrite precond_exists.
     unfold precond_ex.
@@ -175,8 +168,7 @@ Proof.
     ++ intros ([], Hlam).
        exists (returned_operations, tt).
        auto.
-  - simpl.
-    intuition congruence.
+  - intuition congruence.
 Qed.
 
 End manager.

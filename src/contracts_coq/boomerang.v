@@ -92,42 +92,19 @@ Proof.
   unfold ">=" in Hfuel.
   more_fuel; simpl.
   more_fuel; simpl.
-  fold (simple_compare mutez).
-  fold (compare mutez).
-  rewrite match_if_exchange.
-  match goal with | |- (if ?b then _ else _) <-> _ => case_eq b end.
-  - (* true *)
-    intro Heq.
-    rewrite eqb_eq in Heq.
-    split.
-    + intro Hops.
-      injection Hops.
-      intro; subst ops.
-      intuition.
-    + intros [(Hl, Hops)|(Hr, _)].
-      * simpl.
-        subst; reflexivity.
-      * symmetry in Heq.
-        contradiction.
-  - intro Hneq.
-    rewrite eqb_neq in Hneq.
-    do 7 (more_fuel ; simpl).
-    destruct (contract_ None unit (source env)).
-    + (* Some *)
-      split.
-      * intro H ; right; split.
-        -- congruence.
-        -- eexists ; intuition ; injection H.
-           symmetry; assumption.
-      * intros [(Habs, _)| (_, (ctr, (He, Hops)))].
-        -- congruence.
-        -- injection He; intro; subst d; subst ops; reflexivity.
-    + (* None *)
-      simpl. split.
-      * intro H; inversion H.
-      * intros [(Habs, _)|(ctr, (He, (Hops, _)))].
-        -- congruence.
-        -- discriminate.
+  more_fuel; simpl.
+  more_fuel; simpl.
+  rewrite destruct_if.
+  apply or_both; apply and_both_0.
+  - rewrite (eqb_eq mutez).
+    intuition.
+  - intuition congruence.
+  - rewrite bool_not_false.
+    rewrite (eqb_eq mutez).
+    intuition.
+  - apply forall_ex.
+    intro ctr.
+    intuition congruence.
 Qed.
 
 End boomerang.

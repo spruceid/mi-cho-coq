@@ -230,9 +230,9 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma fold_eval_seq_precond fuel :
-  eval_seq_precond_body (@semantics.eval_precond fuel) =
-  @semantics.eval_seq_precond fuel (Some (parameter_ty, None)).
+Lemma fold_eval_seq_precond fuel env :
+  eval_seq_precond_body_aux (@semantics.eval_precond fuel) env false =
+  @semantics.eval_seq_precond fuel (Some (parameter_ty, None)) env false.
 Proof.
   reflexivity.
 Qed.
@@ -259,8 +259,6 @@ Proof.
   unfold "+", params, storage, multisig_head_spec.
   unfold eval_seq_precond.
   do 5 (more_fuel; simpl).
-  rewrite match_if_exchange.
-  rewrite if_false_is_and.
   rewrite (eqb_eq nat).
   intuition.
 Qed.
@@ -300,25 +298,19 @@ Lemma multisig_iter_body_correct env k n sigs packed
     8 <= fuel ->
     precond (eval_seq env multisig_iter_body fuel (k, (n, (sigs, (packed, st))))) psi
     <->
-    match sigs with
-    | nil => false
-    | cons None sigs => psi (n, (sigs, (packed, st)))
-    | cons (Some sig) sigs =>
-      check_signature env k sig packed = true /\
-      psi ((1 + n)%N, (sigs, (packed, st)))
+    exists (sig_o : data (option signature)) (sigs_tl : data (list (option signature))),
+      sigs = cons sig_o sigs_tl /\
+      match sig_o with
+      | None => psi (n, (sigs_tl, (packed, st)))
+      | Some sig =>
+        check_signature env k sig packed = true /\
+        psi ((1 + n)%N, (sigs_tl, (packed, st)))
     end.
 Proof.
   intro Hfuel.
   rewrite eval_seq_precond_correct.
   unfold eval_seq_precond.
-  repeat (more_fuel; simpl).
-  destruct sigs as [|[sig|] sigs].
-  - reflexivity.
-  - rewrite match_if_exchange.
-    rewrite if_false_is_and.
-    apply and_both.
-    reflexivity.
-  - reflexivity.
+  repeat (more_fuel; simpl); reflexivity.
 Qed.
 
 Definition multisig_iter :
@@ -357,7 +349,6 @@ Proof.
       simpl.
       intuition reflexivity.
     + intros (first_sigs, (remaining_sigs, (Hlen, (Happ, (_, H))))).
-      simpl in Hlen.
       apply List.length_zero_iff_nil in Hlen.
       subst first_sigs.
       simpl in Happ.
@@ -371,81 +362,50 @@ Proof.
     rewrite fold_eval_seq_precond.
     rewrite <- eval_seq_precond_correct.
     subst mib.
-    rewrite multisig_iter_body_correct.
-    + destruct sigs as [|[sig|] sigs].
-      * split; [intro H; inversion H|].
-        intros (first_sigs, (remaining_sigs, (Hlen, (Happ, _)))).
-        symmetry in Happ.
-        apply List.app_eq_nil in Happ.
-        destruct Happ as (Hfirst, _).
-        subst first_sigs.
+    rewrite multisig_iter_body_correct; [|lia].
+    split.
+    + intros ([sig|], (sigs_tl, (Hsigs, H))); subst sigs; (rewrite IHkeys in H; [|assumption]).
+      * destruct H as (Hsig, (first_sigs, (remaining_sigs, (Hlen, (Htl, (Hcheck, H)))))).
+        subst.
+        exists (cons (Some sig) first_sigs).
+        exists remaining_sigs.
+        simpl.
+        rewrite N.add_assoc in H.
+        rewrite Hsig.
+        intuition congruence.
+      * destruct H as (first_sigs, (remaining_sigs, (Hlen, (Htl, (Hcheck, H))))).
+        subst.
+        exists (cons None first_sigs).
+        exists remaining_sigs.
+        simpl.
+        intuition congruence.
+    + intros (first_sigs, (remaining_sigs, (Hlen, (Hsigs, (Hf, H))))).
+      subst.
+      destruct first_sigs as [|[sig|] sigs].
+      * contradiction.
+      * exists (Some sig).
+        exists (List.app sigs remaining_sigs).
+        split; [reflexivity|].
+        rewrite IHkeys; [|assumption].
+        split.
+        -- apply Bool.Is_true_eq_true.
+           apply Is_true_and_left in Hf.
+           assumption.
+        -- apply Is_true_and_right in Hf.
+           exists sigs.
+           exists remaining_sigs.
+           simpl in H.
+           rewrite N.add_assoc.
+           simpl in Hlen.
+           intuition congruence.
+      * exists None.
+        exists (List.app sigs remaining_sigs).
+        split; [reflexivity|].
+        rewrite IHkeys; [|assumption].
+        exists sigs.
+        exists remaining_sigs.
         simpl in Hlen.
-        discriminate.
-      * split.
-        -- intros (Hcheck, Hrec).
-           specialize (IHkeys (1 + n)%N sigs packed fuel Hfuel).
-           rewrite IHkeys in Hrec.
-           destruct Hrec as (first_sigs, (remaining_sigs, (Hlen, (Happ, (Hchecks, H))))).
-           exists (Some sig :: first_sigs)%list.
-           exists remaining_sigs.
-           split ; [simpl; f_equal; assumption|].
-           subst sigs.
-           split ; [reflexivity|].
-           split.
-           ++ simpl.
-              rewrite Hcheck.
-              exact Hchecks.
-           ++ rewrite N.add_assoc in H.
-              exact H.
-        -- intros (first_sigs, (remaining_sigs, (Hlen, (Happ, (Hchecks, H))))).
-           destruct first_sigs as [|[first_sig|] first_sigs].
-           ++ simpl in Hlen.
-              discriminate.
-           ++ simpl in Happ.
-              injection Happ.
-              intro Hsigs; subst sigs.
-              intro Hsig; subst first_sig.
-              simpl in Hchecks.
-              destruct (check_signature env key sig packed).
-              ** simpl in Hchecks.
-                 split; [reflexivity|].
-                 apply (IHkeys _ _ _ _ Hfuel).
-                 exists first_sigs; exists remaining_sigs.
-                 simpl in Hlen.
-                 apply NPeano.Nat.succ_inj in Hlen.
-                 split; [assumption|].
-                 split; [reflexivity|].
-                 split; [assumption|].
-                 simpl in H.
-                 rewrite N.add_assoc.
-                 exact H.
-              ** simpl in Hchecks.
-                 inversion Hchecks.
-           ++ simpl in Happ.
-              discriminate.
-      * rewrite (IHkeys _ _ _ _ Hfuel).
-        split;
-          intros (first_sigs, (remaining_sigs, (Hlen, (Happ, (Hchecks, H))))).
-        -- exists (None :: first_sigs)%list.
-           exists remaining_sigs.
-           split; [simpl; f_equal; exact Hlen|].
-           subst sigs.
-           split; [reflexivity|].
-           split; [exact Hchecks|].
-           exact H.
-        -- destruct first_sigs as [|[first_sig|] first_sigs].
-           ++ simpl in Hlen; discriminate.
-           ++ simpl in Happ; discriminate.
-           ++ exists first_sigs.
-              exists remaining_sigs.
-              simpl in Hlen.
-              apply NPeano.Nat.succ_inj in Hlen.
-              split; [assumption|].
-              simpl in Happ.
-              split; [injection Happ; auto|].
-              split; [exact Hchecks|].
-              exact H.
-    + lia.
+        intuition congruence.
 Qed.
 
 Definition multisig_tail :
@@ -500,8 +460,6 @@ Proof.
   repeat more_fuel.
   unfold eval_seq_precond.
   simpl.
-  rewrite match_if_exchange.
-  rewrite if_false_is_and.
   rewrite (leb_le nat).
   unfold lt, lt_comp, compare, simple_compare.
   rewrite N.compare_lt_iff.

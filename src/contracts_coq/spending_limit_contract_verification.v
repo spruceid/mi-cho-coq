@@ -871,14 +871,10 @@ Proof.
   repeat rewrite fold_eval_precond.
   unfold slc_ep_transfer1_check_signature_spec.
 
-  rewrite match_if_exchange.
-  rewrite if_false_is_and.
   rewrite (eqb_eq key_hash).
 
   apply and_both_0.
   apply eq_sym_iff.
-  rewrite match_if_exchange.
-  rewrite if_false_is_and.
   apply and_both.
 
   rewrite Heqtransfer_loop.
@@ -1026,7 +1022,7 @@ Proof.
   rewrite Heqprog. unfold slc_ep_transfer.
 
   rewrite Nat.add_comm in Hfuel.
-  change (@eval_seq_precond_body (@eval_precond ?fuel)) with (@eval_seq_precond fuel).
+  rewrite fold_eval_seq_precond_aux.
   rewrite eval_seq_assoc.
   rewrite slc_ep_transfer1_check_signature_correct; [| my_simple_fuel].
   unfold slc_ep_transfer1_check_signature_spec.
@@ -1084,11 +1080,7 @@ Proof.
   unfold eval_seq_precond.
   do 5 (more_fuel; simpl).
   repeat rewrite fold_eval_precond.
-  rewrite match_if_exchange.
-  rewrite if_false_is_and.
   rewrite (eqb_eq key_hash).
-  rewrite match_if_exchange.
-  rewrite if_false_is_and.
   unfold slc_spec. rewrite N.add_comm.
 
   destruct payload as [ (foo, slave_key_hash') | ((lam_ff, lam), slave_key_hash') ].

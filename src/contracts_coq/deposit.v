@@ -75,38 +75,17 @@ Proof.
   unfold eval_seq_precond.
   do 5 (more_fuel ; simpl).
   destruct input as [[]|am].
-  - do 2 (more_fuel ; simpl).
-    intuition congruence.
-  - do 11 (more_fuel ; simpl).
-    rewrite match_if_exchange.
-    rewrite if_false_is_and.
-    rewrite (eqb_eq address).
-    remember (contract_ None unit storage_in) as d.
-    match goal with
-      |- context [match ?x with | Some y => _ | None => _ end] =>
-      remember x as d2
-    end.
-    assert (d = d2) as Hdd2 by (subst; reflexivity).
-    rewrite <- Hdd2.
-    subst d2; clear Hdd2.
-    destruct d.
-    + split.
-      * intros (Hsend, Hops).
-        subst storage_in.
-        injection Hops; intros; subst; clear Hops.
-        do 2 (split; [reflexivity|]).
-        exists d; split; reflexivity.
-      * intros (Hstorage, (Hsend, (c, (Hcd, Hops)))).
-        split; [symmetry; assumption|].
-        subst ops.
-        f_equal.
-        injection Hcd.
-        intro; subst.
-        reflexivity.
-    + split.
-      * intuition.
-      * intros (_, (_, (c, (Habs, _)))).
-        discriminate.
+  - intuition congruence.
+  - rewrite (eqb_eq address).
+    split.
+    + intros (Hsender, (y, (Hy, H))).
+      injection H; clear H; intros; subst.
+      repeat (split; try reflexivity).
+      exists y; intuition.
+    + intros (Hout, (Hsender, (y, (Hy, Hops)))).
+      subst.
+      split; try reflexivity.
+      exists y; intuition.
 Qed.
 
 End deposit.

@@ -1277,7 +1277,7 @@ Module Semantics(C : ContractContext).
     | CHAIN_ID, env, psi, SA => psi (chain_id_ env, SA)
     end.
 
-  Fixpoint eval_seq_precond_body
+  Fixpoint eval_seq_precond_body_aux
            (eval_precond_n : forall {self_type},
                @proto_env self_type ->
                forall {tff0 A B},
@@ -1290,10 +1290,22 @@ Module Semantics(C : ContractContext).
     match i, env, psi, SA with
     | NOOP, env, psi, st => psi st
     | SEQ B C, env, psi, st =>
-      eval_precond_n env B (@eval_seq_precond_body (@eval_precond_n) _ env _ _ _ C psi) st
+      eval_precond_n env B (@eval_seq_precond_body_aux (@eval_precond_n) _ env _ _ _ C psi) st
     | Tail_fail i, env, psi, st =>
       eval_precond_n env i psi st
     end.
+
+  Definition eval_seq_precond_body
+           (eval_precond_n : forall {self_type},
+               @proto_env self_type ->
+               forall {tff0 A B},
+                 instruction self_type tff0 A B ->
+                 (stack B -> Prop) -> stack A -> Prop)
+           {self_type} env tff0 : forall A B
+           (i : instruction_seq self_type tff0 A B)
+           (psi : stack B -> Prop)
+           (SA : stack A), Prop :=
+    if tff0 then fun A B i psi SA => false else @eval_seq_precond_body_aux (@eval_precond_n) self_type env tff0.
 
   Definition eval_precond_body
              (eval_precond_n : forall {self_type},
@@ -1309,10 +1321,65 @@ Module Semantics(C : ContractContext).
     | Instruction_seq i, env, psi, SA =>
       eval_seq_precond_body (@eval_precond_n) env _ _ _ i psi SA
     | FAILWITH, _, _, _ => false
-    | IF_ f bt bf, env, psi, (x, SA) =>
-      match (if_family_destruct f x) with
-      | inl SB => eval_seq_precond_body (@eval_precond_n) env _ _ _ bt psi (stack_app SB SA)
-      | inr SB => eval_seq_precond_body (@eval_precond_n) env _ _ _ bf psi (stack_app SB SA)
+
+    | @IF_ _ _ _ tffa tffb _ _ _ IF_bool bt bf, env, psi, (x, SA) =>
+      match tffa, tffb with
+      | false, true =>
+        x = true /\ eval_seq_precond_body (@eval_precond_n) env _ _ _ bt psi SA
+      | true, false =>
+        x = false /\ eval_seq_precond_body (@eval_precond_n) env _ _ _ bf psi SA
+      | true, true =>
+        false
+      | false, false =>
+      if x then eval_seq_precond_body (@eval_precond_n) env _ _ _ bt psi SA
+      else eval_seq_precond_body (@eval_precond_n) env _ _ _ bf psi SA
+      end
+    | @IF_ _ _ _ tffa tffb _ _ _ (IF_or a an b bn) bt bf, env, psi, (x, SA) =>
+      match tffa, tffb with
+      | false, true =>
+        exists y,
+        x = inl y /\
+        eval_seq_precond_body (@eval_precond_n) env _ _ _ bt psi (y, SA)
+      | true, false =>
+        exists y,
+        x = inr y /\ eval_seq_precond_body (@eval_precond_n) env _ _ _ bf psi (y, SA)
+      | true, true =>
+        false
+      | false, false =>
+        match x with
+        | inl y => eval_seq_precond_body (@eval_precond_n) env _ _ _ bt psi (y, SA)
+        | inr y => eval_seq_precond_body (@eval_precond_n) env _ _ _ bf psi (y, SA)
+        end
+      end
+    | @IF_ _ _ _ tffa tffb _ _ _ (IF_option a) bt bf, env, psi, (x, SA) =>
+      match tffa, tffb with
+      | false, true =>
+        x = None /\ eval_seq_precond_body (@eval_precond_n) env _ _ _ bt psi SA
+      | true, false =>
+        exists y,
+        x = Some y /\ eval_seq_precond_body (@eval_precond_n) env _ _ _ bf psi (y, SA)
+      | true, true =>
+        false
+      | false, false =>
+        match x with
+        | None => eval_seq_precond_body (@eval_precond_n) env _ _ _ bt psi SA
+        | Some y => eval_seq_precond_body (@eval_precond_n) env _ _ _ bf psi (y, SA)
+        end
+      end
+    | @IF_ _ _ _ tffa tffb _ _ _ (IF_list a) bt bf, env, psi, (x, SA) =>
+      match tffa, tffb with
+      | false, true =>
+        exists (hd : data a) (tl : data (list a)),
+        x = cons hd tl /\ eval_seq_precond_body (@eval_precond_n) env _ _ _ bt psi (hd, (tl, SA))
+      | true, false =>
+        x = nil /\ eval_seq_precond_body (@eval_precond_n) env _ _ _ bf psi SA
+      | true, true =>
+        false
+      | false, false =>
+        match x with
+        | cons hd tl => eval_seq_precond_body (@eval_precond_n) env _ _ _ bt psi (hd, (tl, SA))
+        | nil => eval_seq_precond_body (@eval_precond_n) env _ _ _ bf psi SA
+        end
       end
     | LOOP_ f body, env, psi, (x, SA) =>
       match (loop_family_destruct f x) with
@@ -1390,6 +1457,37 @@ Module Semantics(C : ContractContext).
     - destruct (stack_split st); reflexivity.
   Qed.
 
+  Lemma precond_eval_tf_both :
+    (forall sty A B (i : instruction sty true A B) fuel env psi stA, precond (eval env i fuel stA) psi = false) *
+    (forall sty A B (i : instruction_seq sty true A B) fuel env psi stA, precond (eval_seq env i fuel stA) psi = false).
+  Proof.
+    apply tail_fail_induction_and_seq; intros; (destruct fuel as [|fuel]; simpl; [intuition|]); simpl.
+    - destruct stA; simpl.
+      reflexivity.
+    - destruct stA as (x, stA); simpl.
+      destruct (if_family_destruct f x); [apply H|apply H0].
+    - change (eval_seq env (SEQ i1 i2) ?fuel stA) with
+          (let! r := eval env i1 fuel stA in eval_seq env i2 fuel r).
+      rewrite precond_bind.
+      destruct (eval env i1 (S fuel) stA); simpl.
+      + reflexivity.
+      + apply H.
+    - change (eval_seq env (Tail_fail i) ?fuel stA) with
+          (eval env i fuel stA).
+      apply H.
+    - apply H.
+  Qed.
+
+  Lemma precond_eval_tf : forall sty A B (i : instruction sty true A B) fuel env psi stA, precond (eval env i fuel stA) psi = false.
+  Proof.
+    apply precond_eval_tf_both.
+  Qed.
+
+  Lemma precond_eval_seq_tf : forall sty A B (i : instruction_seq sty true A B) fuel env psi stA, precond (eval_seq env i fuel stA) psi = false.
+  Proof.
+    apply precond_eval_tf_both.
+  Qed.
+
   Lemma eval_seq_precond_correct_aux n
         (eval_precond_correct : forall sty env tff0 A B (i : instruction sty tff0 A B) st psi,
             precond (eval env i n st) psi <-> eval_precond n env i psi st)
@@ -1399,14 +1497,18 @@ Module Semantics(C : ContractContext).
     unfold eval_seq_precond in *.
     induction i; simpl; fold data stack.
      - reflexivity.
-     - apply eval_precond_correct.
-     - unfold eval_seq.
-       simpl.
-       rewrite precond_bind.
-       rewrite <- eval_precond_correct.
-       apply precond_eqv.
-       intro SB.
-       apply IHi.
+     - rewrite precond_eval_seq_tf.
+       reflexivity.
+     - destruct tff.
+       + rewrite precond_eval_seq_tf.
+         reflexivity.
+       + unfold eval_seq.
+         simpl.
+         rewrite precond_bind.
+         rewrite <- eval_precond_correct.
+         apply precond_eqv.
+         intro SB.
+         apply IHi.
   Qed.
 
   Lemma eval_precond_correct {sty env tff0 A B} (i : instruction sty tff0 A B) n st psi :
@@ -1418,12 +1520,38 @@ Module Semantics(C : ContractContext).
     intro eval_seq_precond_correct.
     unfold eval_seq_precond in *.
 
-    destruct i; simpl; fold data stack.
+    destruct i; fold data stack; simpl.
     - apply eval_seq_precond_correct.
     - destruct st; reflexivity.
-    - destruct st as (x, st); destruct (if_family_destruct _ x); apply eval_seq_precond_correct.
+    - destruct st as (x, st).
+      case_eq (if_family_destruct i x); intros;
+        refine (iff_trans (eval_seq_precond_correct _ _ _ _ _ _ _ _) _).
+      + destruct i; destruct x; try discriminate; repeat destruct s;
+          destruct tffa; try contradiction; destruct tffb;
+            simpl; try reflexivity; (intuition + fail);
+              simpl in H; try discriminate; try injection H; intros; subst;
+                try assumption.
+        * destruct H0 as (y, (He, _)); discriminate.
+        * eexists; intuition.
+        * destruct H0 as (y, (He, H1)); injection He; intros; subst; intuition.
+        * destruct H0 as (y, (He, _)); discriminate.
+        * eexists; eexists; intuition.
+        * destruct H0 as (hd, (tl, (He, H1))); injection He; intros; subst; intuition.
+      + destruct i; destruct x; try discriminate; repeat destruct s;
+          destruct tffa; try contradiction; destruct tffb;
+            simpl; try reflexivity; (intuition + fail);
+              simpl in H; try discriminate; try injection H; intros; subst;
+                try assumption.
+        * eexists; intuition.
+        * destruct H0 as (y, (He, H1)); injection He; intros; subst; intuition.
+        * destruct H0 as (y, (He, _)); discriminate.
+        * eexists; intuition.
+        * destruct H0 as (y, (He, H1)); injection He; intros; subst; intuition.
+        * destruct H0 as (hd, (tl, (He, _))); discriminate.
     - destruct st as (x, st); destruct (loop_family_destruct _ x).
       + rewrite precond_bind.
+        change (eval_seq_precond_body_aux ?en env false ?A ?B ?i ?psi ?st)
+          with (eval_seq_precond_body en env false A B i psi st).
         rewrite <- eval_seq_precond_correct.
         apply precond_eqv.
         intro st'.
@@ -1435,6 +1563,8 @@ Module Semantics(C : ContractContext).
       destruct (iter_destruct (iter_elt_type collection i) collection
                               (iter_variant_field collection i) x) as [(hd, tl)|].
       + rewrite precond_bind.
+        change (eval_seq_precond_body_aux ?en env false ?A ?B ?i ?psi ?st)
+          with (eval_seq_precond_body en env false A B i psi st).
         rewrite <- eval_seq_precond_correct.
         apply precond_eqv.
         intro SA.
@@ -1445,6 +1575,8 @@ Module Semantics(C : ContractContext).
                              (map_out_collection_type collection b i)
                              (map_variant_field collection b i) x) as [(hd, tl)|].
       + rewrite precond_bind.
+        change (eval_seq_precond_body_aux ?en env false ?A ?B ?i ?psi ?st)
+          with (eval_seq_precond_body en env false A B i psi st).
         rewrite <- eval_seq_precond_correct.
         apply precond_eqv.
         intros (bb, SA).
@@ -1504,12 +1636,18 @@ Module Semantics(C : ContractContext).
     eval_seq_precond n env (instruction_app_aux i1 H i2) psi st <->
     eval_seq_precond n env i1 (eval_seq_precond n env i2 psi) st.
   Proof.
-    induction i1; unfold eval_seq_precond; simpl.
+    induction i1.
     - reflexivity.
     - discriminate.
-    - apply eval_precond_eqv.
-      intro stB.
-      apply (IHi1 _ _ _ _).
+    - destruct tffb.
+      + simpl eval_seq_precond.
+        rewrite <- eval_seq_precond_correct.
+        destruct (eval_seq env (SEQ i i1) n st); reflexivity.
+      + subst tff.
+        simpl.
+        apply eval_precond_eqv.
+        intro stB.
+        apply (IHi1 _ _ _ _).
   Qed.
 
   Lemma eval_seq_assoc {sty env tff0 A B C}
@@ -1602,6 +1740,20 @@ Module Semantics(C : ContractContext).
   Lemma fold_eval_precond fuel :
     @eval_precond_body (@eval_precond fuel) =
     @eval_precond (S fuel).
+  Proof.
+    reflexivity.
+  Qed.
+
+  Lemma fold_eval_seq_precond_aux self_type fuel env :
+    @eval_seq_precond_body_aux (@eval_precond fuel) self_type env false =
+    @eval_seq_precond fuel self_type env false.
+  Proof.
+    reflexivity.
+  Qed.
+
+  Lemma fold_eval_seq_precond fuel :
+    @eval_seq_precond_body (@eval_precond fuel) =
+    @eval_seq_precond fuel.
   Proof.
     reflexivity.
   Qed.
