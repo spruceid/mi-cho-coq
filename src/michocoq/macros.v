@@ -70,10 +70,10 @@ Definition FAIL {SA SB} : instruction self_type Datatypes.true SA SB :=
   Instruction_seq { UNIT; FAILWITH }.
 
 Definition ASSERT {S} : instruction self_type Datatypes.false (bool ::: S) S :=
-  IF_ IF_bool {} { FAIL }.
+  Instruction_seq { IF_ IF_bool {} { FAIL }}.
 
 Definition ASSERT_op S (op : instruction self_type Datatypes.false (int ::: S) (bool ::: S)) : instruction self_type Datatypes.false (int ::: S) S :=
-  IFop _ _ _ _ {} { FAIL } op.
+  Instruction_seq { IFop _ _ _ _ {} { FAIL } op}.
 
 Definition ASSERT_EQ {S} := ASSERT_op S EQ.
 Definition ASSERT_NEQ {S} := ASSERT_op S NEQ.
@@ -94,16 +94,16 @@ Definition ASSERT_CMPLE {a S} := ASSERT_CMPop a S LE.
 Definition ASSERT_CMPGE {a S} := ASSERT_CMPop a S GE.
 
 Definition ASSERT_NONE {a S} : instruction self_type Datatypes.false (option a ::: S) S :=
-  IF_NONE {} { FAIL }.
+  Instruction_seq { IF_NONE {} { FAIL } }.
 
 Definition ASSERT_SOME {a S} : instruction self_type Datatypes.false (option a ::: S) (a ::: S) :=
-  IF_NONE { FAIL } {}.
+  Instruction_seq { IF_NONE { FAIL } {} }.
 
 Definition ASSERT_LEFT {a b an bn S} : instruction self_type Datatypes.false (or a an b bn ::: S) (a ::: S) :=
-  IF_LEFT {} { FAIL }.
+  Instruction_seq { IF_LEFT {} { FAIL } }.
 
 Definition ASSERT_RIGHT {a b an bn S} : instruction self_type Datatypes.false (or a an b bn ::: S) (b ::: S) :=
-  IF_LEFT { FAIL } {}.
+  Instruction_seq { IF_LEFT { FAIL } {} }.
 
 Definition DROP1 {a SA} : instruction self_type Datatypes.false (a ::: SA) SA :=
   DROP (A := a ::: nil) 1 eq_refl.
@@ -149,10 +149,10 @@ Definition CDDR {a b c S} : instruction self_type Datatypes.false (pair a (pair 
   Instruction_seq { CDR; CDR}.
 
 Definition IF_SOME {a SA SB tffa tffb} (bt : instruction_seq self_type tffa _ _) (bf : instruction_seq self_type tffb _ _) : instruction self_type _ (option a ::: SA) SB :=
-  IF_NONE bf bt.
+  Instruction_seq { IF_NONE bf bt }.
 
 Definition IF_RIGHT {a an b bn SA SB tffa tffb} (bt : instruction_seq self_type tffa _ _) (bf : instruction_seq self_type tffb _ _) : instruction self_type _ (or a an b bn ::: SA) SB :=
-  IF_LEFT bf bt.
+  Instruction_seq { IF_LEFT bf bt }.
 
 Definition SET_CAR {a b S} : instruction self_type Datatypes.false (pair a b ::: a ::: S) (pair a b ::: S) :=
   Instruction_seq { CDR; SWAP; PAIR }%michelson.
@@ -175,4 +175,3 @@ Definition PAPAIR {a b c S} : instruction self_type Datatypes.false (a ::: b :::
   Instruction_seq { DIP1 { PAIR }; PAIR }.
 
 End macros.
-

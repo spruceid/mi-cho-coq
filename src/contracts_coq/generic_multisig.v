@@ -294,9 +294,11 @@ Definition multisig_iter_body :
       SWAP
     }.
 
+Opaque N.add.
+
 Lemma multisig_iter_body_correct env k n sigs packed
       (st : stack (action_ty ::: storage_ty ::: nil)) fuel psi :
-    7 <= fuel ->
+    8 <= fuel ->
     semantics.eval_seq_precond fuel env multisig_iter_body psi (k, (n, (sigs, (packed, st))))
     <->
     match sigs with
@@ -318,7 +320,7 @@ Proof.
     + split.
       * intro H; inversion H.
       * intros (H, _); discriminate.
-  - do 3 (more_fuel; simpl).
+  - do 4 (more_fuel; simpl).
     reflexivity.
 Qed.
 
@@ -340,7 +342,7 @@ Qed.
 
 Lemma multisig_iter_correct env keys n sigs packed
       (st : stack (action_ty ::: storage_ty ::: nil)) fuel psi :
-    length keys + 7 <= fuel ->
+    length keys + 8 <= fuel ->
     semantics.eval_precond fuel env multisig_iter psi (keys, (n, (sigs, (packed, st)))) <->
     (exists first_sigs remaining_sigs,
         length first_sigs = length keys /\
@@ -507,8 +509,8 @@ Proof.
   unfold multisig_tail.
   unfold eval_seq_precond.
   simpl.
-  rewrite match_if_exchange.
   more_fuel; simpl.
+  rewrite match_if_exchange.
   more_fuel; simpl.
   case sigs.
   - case_eq (BinInt.Z.leb (comparison_to_int (threshold ?= n)%N) Z0).
@@ -534,12 +536,12 @@ Proof.
       unfold gt, gt_comp, compare in Hgt.
       rewrite N.compare_gt_iff in Hgt.
       split.
-      * intro H; inversion H.
+      * more_fuel; intro H; inversion H.
       * intros (_, (Hle, _)).
         apply N.lt_nge in Hgt.
         contradiction.
   - intros d l; split; intro H.
-    + destruct (comparison_to_int (threshold ?= n)%N <=? 0)%Z; inversion H.
+    + more_fuel; destruct (comparison_to_int (threshold ?= n)%N <=? 0)%Z; inversion H.
     + destruct H; discriminate.
 Qed.
 
@@ -590,7 +592,7 @@ Proof.
     simpl.
     repeat fold_eval_precond.
     subst mi.
-    rewrite multisig_iter_correct; [| rewrite PeanoNat.Nat.add_comm; refine (NPeano.Nat.le_trans _ _ _ Hfuel _); omega].
+    rewrite multisig_iter_correct; [| rewrite PeanoNat.Nat.add_comm; apply Peano.le_n_S; assumption].
     split.
     + intros (first_sigs, (remaining_sigs, (Hlen, (Hsigs, (Hcheck, Heval))))).
       subst mt.

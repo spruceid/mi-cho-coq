@@ -159,7 +159,7 @@ Proof.
               rewrite <- H2 in get2. apply map.map_memget in get2. destruct get2 as [v get2].
               rewrite get2 in get1. discriminate get1.
   + (* Key is not in the map *)
-    more_fuel; simpl.
+    do 2 more_fuel; simpl.
                split; intros.
       * (* -> *)
         inversion H.

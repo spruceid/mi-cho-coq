@@ -109,6 +109,25 @@ concrete_data : Set :=
 
 Coercion instruction_opcode : opcode >-> instruction.
 
+Fixpoint instruction_app i1 i2 :=
+  match i1 with
+  | NOOP => i2
+  | SEQ i11 i12 => SEQ i11 (instruction_app i12 i2)
+  end.
+
+Module notations.
+
+Delimit Scope michelson_untyped_scope with michelson_untyped.
+Bind Scope michelson_untyped_scope with instruction.
+Bind Scope michelson_untyped_scope with instruction_seq.
+
+Notation "A ;;; B" := (instruction_app A B) (at level 100, right associativity).
+Notation "A ;; B" := (SEQ A B) (at level 100, right associativity).
+
+Notation "{ }" := NOOP : michelson_untyped_scope.
+
+Notation "{ A ; .. ; B }" := (SEQ A .. (SEQ B NOOP) ..) : michelson_untyped_scope.
+
 Notation "'IF'" := (IF_ IF_bool).
 Notation "'IF_LEFT'" := (IF_ IF_or).
 Notation "'IF_NONE'" := (IF_ IF_option).
@@ -116,14 +135,11 @@ Notation "'IF_CONS'" := (IF_ IF_list).
 Notation "'LOOP'" := (LOOP_ LOOP_bool).
 Notation "'LOOP_LEFT'" := (LOOP_ LOOP_or).
 
-Fixpoint instruction_app i1 i2 :=
-  match i1 with
-  | NOOP => i2
-  | SEQ i11 i12 => SEQ i11 (instruction_app i12 i2)
-  end.
+End notations.
+Import notations.
 
 (* Some macros *)
 Definition UNPAIR : instruction :=
-  Instruction_seq (SEQ DUP (SEQ CAR (SEQ (DIP 1 (SEQ CDR NOOP)) NOOP))).
+  Instruction_seq {DUP; CAR; DIP 1 {CDR}}.
 Definition UNPAPAIR : instruction :=
-  Instruction_seq (SEQ UNPAIR (SEQ (DIP 1 (SEQ UNPAIR NOOP)) NOOP)).
+  Instruction_seq {UNPAIR; DIP 1 {UNPAIR}}.

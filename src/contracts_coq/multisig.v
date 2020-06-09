@@ -297,7 +297,7 @@ Definition multisig_iter_body :
 
 Lemma multisig_iter_body_correct env k n sigs packed
       (st : stack (action_ty ::: storage_ty ::: nil)) fuel psi :
-    6 <= fuel ->
+    8 <= fuel ->
     precond (eval_seq env multisig_iter_body fuel (k, (n, (sigs, (packed, st))))) psi
     <->
     match sigs with
@@ -335,7 +335,7 @@ Definition multisig_iter :
 
 Lemma multisig_iter_correct env keys n sigs packed
       (st : stack (action_ty ::: storage_ty ::: nil)) fuel psi :
-    length keys + 6 <= fuel ->
+    length keys + 8 <= fuel ->
     precond (eval env multisig_iter fuel (keys, (n, (sigs, (packed, st))))) psi <->
     (exists first_sigs remaining_sigs,
         length first_sigs = length keys /\
@@ -477,9 +477,11 @@ Proof.
   reflexivity.
 Qed.
 
+Opaque N.add.
+
 Lemma multisig_tail_correct
       env threshold n sigs packed action counter keys psi fuel :
-    4 <= fuel ->
+    5 <= fuel ->
     precond (eval_seq env multisig_tail fuel (threshold, (n, (sigs, (packed, (action, ((counter, (threshold, keys)), tt))))))) psi <->
     ((threshold <= n)%N /\
      match action with
@@ -526,7 +528,7 @@ Lemma multisig_correct
   let params : data parameter_ty := ((counter, action), sigs) in
   let storage : data storage_ty := (stored_counter, (threshold, keys)) in
   let new_storage : data storage_ty := (new_stored_counter, (new_threshold, new_keys)) in
-  length keys + 7 <= fuel ->
+  length keys + 9 <= fuel ->
   eval_seq env multisig fuel ((params, storage), tt) = Return ((returned_operations, new_storage), tt) <->
   multisig_spec env counter action sigs stored_counter threshold keys new_stored_counter new_threshold new_keys returned_operations.
 Proof.

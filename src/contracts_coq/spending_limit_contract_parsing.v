@@ -19,12 +19,14 @@
 (* FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER *)
 (* DEALINGS IN THE SOFTWARE. *)
 
-Require Import main syntax_type syntax.
+Require main syntax_type syntax.
 
 Require Import spending_limit_contract_string String.
 
 Definition slc_contract_file_m := main.contract_file_M slc_contract 500.
 Definition slc_contract_file_m' := main.print_info slc_contract 500.
+Require untyper.
+Require Import untyped_syntax.
 
 Fact slc_contract_well_parsed :  error.is_true (error.success slc_contract_file_m).
 Proof. exact I. Defined.
@@ -46,14 +48,9 @@ Module SLC_equiv.
 
   Definition dsl_parameter := Eval cbv in syntax.contract_file_parameter dsl_contract_file.
 
-  (* Problem: different parameter types because of ignored annotations *)
-  Fact dsl_parameter_is_not_parameter_ty :
-    slc_def.slc_contract_file <> dsl_contract_file.
+  Goal slc_def.slc_contract_file = dsl_contract_file.
   Proof.
-    intro H.
-    injection H.
-    intros.
-    discriminate.
+    reflexivity.
   Qed.
 
 End SLC_equiv.

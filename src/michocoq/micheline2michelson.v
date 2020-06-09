@@ -5,7 +5,7 @@ Require Import Lia.
 Require micheline_lexer.
 Require Coq.Program.Wf.
 Import error.Notations.
-
+Import untyped_syntax.notations.
 Open Scope string.
 
 Definition micheline2michelson_sctype (bem : loc_micheline) : M simple_comparable_type :=
@@ -34,9 +34,6 @@ Fixpoint micheline2michelson_ctype (bem : loc_micheline) : M comparable_type :=
     let! a := micheline2michelson_sctype bem in
     Return (Comparable_type_simple a)
   end.
-
-Notation "A ;; B" := (untyped_syntax.SEQ A B) (at level 100, right associativity).
-Notation "A ;;; B" := (untyped_syntax.instruction_app A B) (at level 100, right associativity).
 
 Definition extract_one_field_annot_from_list annots : M annot_o :=
   match annots with
@@ -158,8 +155,8 @@ Definition op_of_string (s : String.string) b e :=
   | _ => Failed _ (Expansion b e)
   end.
 
-Definition FAIL := UNIT ;; FAILWITH ;; NOOP.
-Definition ASSERT := (IF_ IF_bool) NOOP FAIL.
+Definition FAIL := Instruction_seq {UNIT; FAILWITH}.
+Definition ASSERT := Instruction_seq {IF_ IF_bool {} {FAIL}}.
 
 Definition IF_op_of_string (s : String.string) b e bt bf :=
   match s with
@@ -177,20 +174,20 @@ Definition ASSERT_op_of_string (s : String.string) b e :=
   | _ => Failed _ (Expansion b e)
   end.
 
-Definition ASSERT_NONE := IF_NONE NOOP FAIL.
-Definition ASSERT_SOME := IF_NONE FAIL NOOP.
-Definition ASSERT_LEFT := IF_LEFT NOOP FAIL.
-Definition ASSERT_RIGHT := IF_LEFT FAIL NOOP.
+Definition ASSERT_NONE := Instruction_seq {IF_NONE {} {FAIL}}.
+Definition ASSERT_SOME := Instruction_seq {IF_NONE {FAIL} {}}.
+Definition ASSERT_LEFT := Instruction_seq {IF_LEFT {} {FAIL}}.
+Definition ASSERT_RIGHT := Instruction_seq {IF_LEFT {FAIL} {}}.
 
-Fixpoint DUP_Sn n :=
+Fixpoint DUP_Sn n : instruction_seq :=
   match n with
-  | 0 => instruction_opcode DUP ;; NOOP
-  | S n => DIP 1 (DUP_Sn n) ;; instruction_opcode SWAP ;; NOOP
+  | 0 => {DUP}
+  | S n => {DIP 1 (DUP_Sn n); SWAP}
   end.
 
-Definition IF_SOME bt bf := IF_NONE bf bt.
-Definition IF_RIGHT bt bf := IF_LEFT bf bt.
-Definition IF_NIL bt bf := IF_CONS bf bt.
+Definition IF_SOME bt bf := Instruction_seq {IF_NONE bf bt}.
+Definition IF_RIGHT bt bf := Instruction_seq {IF_LEFT bf bt}.
+Definition IF_NIL bt bf := Instruction_seq {IF_CONS bf bt}.
 
 Inductive cadr : Set :=
 | Cadr_CAR : cadr -> cadr
@@ -201,32 +198,32 @@ Fixpoint micheline2michelson_cadr (x : cadr) : instruction_seq :=
   match x with
   | Cadr_CAR x => CAR ;; micheline2michelson_cadr x
   | Cadr_CDR x => CDR ;; micheline2michelson_cadr x
-  | Cadr_nil => NOOP
+  | Cadr_nil => {}
   end.
 
 Fixpoint micheline2michelson_set_cadr (x : cadr) : instruction_seq :=
   match x with
   | Cadr_CAR Cadr_nil =>
-    CDR ;; SWAP ;; PAIR ;; NOOP
+    {CDR; SWAP; PAIR}
   | Cadr_CDR Cadr_nil =>
-    CAR ;; PAIR ;; NOOP
+    {CAR; PAIR}
   | Cadr_CAR x =>
-    DUP ;; DIP 1 (CAR;; micheline2michelson_set_cadr x) ;; CDR ;; SWAP ;; PAIR ;; NOOP
+    {DUP; DIP 1 (CAR;; micheline2michelson_set_cadr x); CDR; SWAP; PAIR}
   | Cadr_CDR x =>
-    DUP ;; DIP 1 (CDR;; micheline2michelson_set_cadr x) ;; CAR ;; PAIR ;; NOOP
-  | Cadr_nil => NOOP (* Should not happen *)
+    {DUP; DIP 1 (CDR;; micheline2michelson_set_cadr x); CAR; PAIR}
+  | Cadr_nil => {} (* Should not happen *)
   end.
 
 Fixpoint micheline2michelson_map_cadr (x : cadr) (code : instruction_seq) : instruction_seq :=
   match x with
   | Cadr_CAR Cadr_nil =>
-    DUP ;; CDR ;; DIP 1 ( CAR ;; code ) ;; SWAP ;; PAIR ;; NOOP
+    {DUP; CDR; DIP 1 (CAR;; code); SWAP; PAIR}
   | Cadr_CDR Cadr_nil =>
-    DUP ;; CDR ;; code ;;; SWAP ;; CAR ;; PAIR ;; NOOP
+    {DUP; CDR} ;;; code ;;; {SWAP; CAR; PAIR}
   | Cadr_CAR x =>
-    DUP ;; DIP 1 (CAR;; micheline2michelson_map_cadr x code) ;; CDR ;; SWAP ;; PAIR ;; NOOP
+    {DUP; DIP 1 (CAR;; micheline2michelson_map_cadr x code); CDR; SWAP; PAIR}
   | Cadr_CDR x =>
-    DUP ;; DIP 1 (CDR;; micheline2michelson_map_cadr x code) ;; CAR ;; PAIR ;; NOOP
+    {DUP; DIP 1 (CDR;; micheline2michelson_map_cadr x code); CAR; PAIR}
   | Cadr_nil => code (* Should not happen *)
   end.
 
@@ -259,7 +256,7 @@ Inductive papair_d : direction -> Set :=
 
 Fixpoint parse_papair (d : direction) (s : Datatypes.list papair_token) (fail : exception)
          (fuel : Datatypes.nat) (Hs : List.length s < fuel) {struct fuel} :
-  M (papair_d d * { r : Datatypes.list papair_token | List.length r < List.length s}).
+  M (papair_d d * sig (fun r : Datatypes.list papair_token => List.length r < List.length s)).
 Proof.
   destruct fuel.
   - destruct (PeanoNat.Nat.nlt_0_r _ Hs).
@@ -267,7 +264,7 @@ Proof.
     + exact (Failed _ fail).
     + refine (match c, d
               return M (papair_d d *
-                        { r : Datatypes.list papair_token | List.length r < S (List.length s)})
+                        (sig (fun r : Datatypes.list papair_token => List.length r < S (List.length s))))
               with
               | token_P, d1 =>
                 let! (l, exist _ s1 Hl) := parse_papair Left s fail fuel _ in
@@ -343,24 +340,21 @@ Defined.
 
 Fixpoint micheline2michelson_papair (x : papair) : instruction_seq :=
   match x with
-  | Papair_PAIR => PAIR ;; NOOP
-  | Papair_A y => DIP 1 (micheline2michelson_papair y) ;; PAIR ;; NOOP
-  | Papair_I x => micheline2michelson_papair x ;;; PAIR ;; NOOP
+  | Papair_PAIR => {PAIR}
+  | Papair_A y => {DIP 1 (micheline2michelson_papair y); PAIR}
+  | Papair_I x => micheline2michelson_papair x ;;; {PAIR}
   | Papair_P x y => micheline2michelson_papair x ;;;
-                    DIP 1 (micheline2michelson_papair y) ;;
-                    PAIR ;; NOOP
+                    {DIP 1 (micheline2michelson_papair y); PAIR}
   end.
 
-Definition UNPAIR := DUP ;; CAR ;; DIP 1 (CDR ;; NOOP) ;; NOOP.
-
-Fixpoint micheline2michelson_unpapair (x : papair) : instruction_seq :=
+Fixpoint micheline2michelson_unpapair (x : papair) : instruction :=
   match x with
   | Papair_PAIR => UNPAIR
-  | Papair_A y => UNPAIR ;;; DIP 1 (micheline2michelson_unpapair y) ;; NOOP
-  | Papair_I x => UNPAIR ;;; micheline2michelson_unpapair x
-  | Papair_P x y => UNPAIR ;;;
-                    DIP 1 (micheline2michelson_unpapair y) ;;
-                    micheline2michelson_unpapair x
+  | Papair_A y => Instruction_seq {UNPAIR; DIP 1 { micheline2michelson_unpapair y }}
+  | Papair_I x => Instruction_seq {UNPAIR; micheline2michelson_unpapair x}
+  | Papair_P x y => Instruction_seq {UNPAIR;
+                    DIP 1 {micheline2michelson_unpapair y};
+                    micheline2michelson_unpapair x}
   end.
 
 Definition parse_papair_full (s : String.string) (fail : exception) :
@@ -378,7 +372,7 @@ Definition parse_papair_full (s : String.string) (fail : exception) :
   end.
 
 Definition parse_unpapair_full (s : String.string) (fail : exception)
-  : M instruction_seq :=
+  : M instruction :=
   let! toks : Datatypes.list papair_token := lex_papair s fail in
   let! (l, exist _ toks2 Htoks2) := parse_papair Left toks fail (S (List.length toks)) ltac:(simpl; lia) in
   let! (r, exist _ toks3 Htoks3) := parse_papair Right toks2 fail (S (List.length toks2)) ltac:(simpl; lia) in
@@ -393,10 +387,13 @@ Definition parse_unpapair_full (s : String.string) (fail : exception)
 
 
 Definition return_instruction (i : instruction) : M instruction_seq :=
-  Return (i ;; NOOP).
+  Return {i}%michelson_untyped.
 
 Definition return_opcode (op : opcode) : M instruction_seq :=
   return_instruction (instruction_opcode op).
+
+Definition return_macro (i : instruction_seq) : M instruction_seq :=
+  return_instruction (Instruction_seq i).
 
 Fixpoint micheline2michelson_instruction (bem : loc_micheline) : M instruction_seq :=
   let 'Mk_loc_micheline ((b, e), m) := bem in
@@ -585,7 +582,7 @@ Fixpoint micheline2michelson_instruction (bem : loc_micheline) : M instruction_s
 
 
   (* Macros *)
-  | PRIM (_, "FAIL") _ nil => Return FAIL
+  | PRIM (_, "FAIL") _ nil => return_instruction FAIL
   | PRIM (_, "ASSERT") _ nil => return_instruction ASSERT
   | PRIM (_, "ASSERT_NONE") _ nil => return_instruction ASSERT_NONE
   | PRIM (_, "ASSERT_SOME") _ nil => return_instruction ASSERT_SOME
@@ -607,27 +604,29 @@ Fixpoint micheline2michelson_instruction (bem : loc_micheline) : M instruction_s
 
   | PRIM (_, String "C" (String "M" (String "P" s))) _ nil =>
     let! op := op_of_string s b e in
-    Return (COMPARE ;; op ;; NOOP)
-  | PRIM (_, String "I" (String "F" (String "C" (String "M" (String "P" s)))))
-         _ (i1 :: i2 :: nil) =>
+    return_macro {COMPARE; op}
+  | PRIM (_,
+       String "I" (String "F" (String "C" (String "M" (String "P" s))))) _ (i1 :: i2 :: nil) =>
     let! i1 := micheline2michelson_instruction i1 in
     let! i2 := micheline2michelson_instruction i2 in
     let! op := op_of_string s b e in
-    Return (COMPARE ;; op ;; IF_ IF_bool i1 i2 ;; NOOP)
-  | PRIM (_, String "I" (String "F" s)) _ (i1 :: i2 :: nil) =>
+    return_macro {COMPARE; op; IF_ IF_bool i1 i2}
+  | PRIM (_,
+       String "I" (String "F" s)) _ (i1 :: i2 :: nil) =>
     let! i1 := micheline2michelson_instruction i1 in
     let! i2 := micheline2michelson_instruction i2 in
     let! op := op_of_string s b e in
-    Return (op ;; IF_ IF_bool i1 i2 ;; NOOP)
-  | PRIM (_, String "A" (String "S" (String "S" (String "E" (String "R" (String "T"
+    return_macro {op; IF_ IF_bool i1 i2}
+  | PRIM (_,
+      String "A" (String "S" (String "S" (String "E" (String "R" (String "T"
       (String "_" (String "C" (String "M" (String "P" s)))))))))) _ nil =>
     let! op := op_of_string s b e in
-    Return (COMPARE ;; op ;; IF_ IF_bool NOOP FAIL ;; NOOP)
+    return_macro {COMPARE; op; IF_ IF_bool {} {FAIL}}
 
   | PRIM (_, String "A" (String "S" (String "S" (String "E" (String "R" (String "T"
       (String "_" s))))))) _ nil =>
     let! op := op_of_string s b e in
-    Return (op ;; IF_ IF_bool NOOP FAIL ;; NOOP)
+    return_macro {op; IF_ IF_bool {} {FAIL}}
 
   | PRIM (_, "CR") _ nil =>
     Failed _ (Expansion_prim b e "CR")
@@ -651,7 +650,7 @@ Fixpoint micheline2michelson_instruction (bem : loc_micheline) : M instruction_s
                       | _ => Failed _ (Expansion_prim b e prim)
                       end in
     let! x := get_cadr s in
-    Return (micheline2michelson_cadr x)
+    return_macro (micheline2michelson_cadr x)
 
   | PRIM (_, String "S" (String "E"(String "T"(String "_"(String "C" s)))))
          _ nil =>
@@ -668,7 +667,7 @@ Fixpoint micheline2michelson_instruction (bem : loc_micheline) : M instruction_s
                       | _ => Failed _ (Expansion_prim b e prim)
                       end in
     let! x := get_cadr s in
-    Return (micheline2michelson_set_cadr x)
+    return_macro (micheline2michelson_set_cadr x)
 
   | PRIM (_, String "M" (String "A"(String "P"(String "_"(String "C" s)))))
          _ (a :: nil) =>
@@ -686,7 +685,7 @@ Fixpoint micheline2michelson_instruction (bem : loc_micheline) : M instruction_s
                       end in
     let! x := get_cadr s in
     let! code := micheline2michelson_instruction a in
-    Return (micheline2michelson_map_cadr x code)
+    return_macro (micheline2michelson_map_cadr x code)
 
   | PRIM (_, String "D" (String "I" s)) _ (a :: nil) =>
     let is_diip := fix is_diip s :=
@@ -701,7 +700,7 @@ Fixpoint micheline2michelson_instruction (bem : loc_micheline) : M instruction_s
     else Failed _ (Expansion_prim b e (String "D" (String "I" s)))
   | PRIM (_, "DUP") _ (Mk_loc_micheline (_, NUMBER n) :: nil) =>
     match BinInt.Z.to_nat n with
-    | S n => Return (DUP_Sn n)
+    | S n => return_macro (DUP_Sn n)
     | O => Failed _ (Expansion b e)
     end
   | PRIM (_, String "D" (String "U" (String "U" s))) _ nil =>
@@ -711,20 +710,22 @@ Fixpoint micheline2michelson_instruction (bem : loc_micheline) : M instruction_s
                      | String "U" s => is_duup s
                      | _ => false
                      end in
-    if is_duup s then Return (DUP_Sn (String.length s))
+    if is_duup s then return_macro (DUP_Sn (String.length s))
     else Failed _ (Expansion_prim b e (String "D" (String "U" (String "U" s))))
 
   (* PAPAIR *)
   | PRIM (_, String "P" s) _ nil =>
     let prim := String "P" s in
     let fail := Expansion_prim b e prim in
-    parse_papair_full s fail
+    let! full := parse_papair_full s fail in
+    return_macro full
 
   (* UNPAPAIR *)
   | PRIM (_, String "U" (String "N" (String "P" s))) _ nil =>
     let prim := String "U" (String "N" (String "P" s)) in
     let fail := Expansion_prim b e prim in
-    parse_unpapair_full s fail
+    let! full := parse_unpapair_full s fail in
+    return_instruction full
 
   (* Unknown case *)
   | PRIM (_, s) _ _ => Failed _ (Expansion_prim b e s)

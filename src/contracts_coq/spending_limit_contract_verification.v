@@ -796,7 +796,6 @@ Definition sig_header_ty :=
 
 Definition slc_ep_transfer1_check_signature_spec
     (env : @proto_env (Some (parameter_ty, None)))
-    (fuel : Datatypes.nat)
     (transactions : data (list (pair mutez (contract unit))))
     (slave_key : data key)
     (slave_signature : data signature)
@@ -850,11 +849,11 @@ Lemma slc_ep_transfer1_check_signature_correct
     let params_transfer : data parameter_transfer_ty := ((transactions, new_slave_key_hash), (slave_key, slave_signature)) in
     let storage_context : data storage_context_ty := (slave_key_hash, ((threshold, time_limit), (queue_left, queue_right))) in
     let storage_auth : data storage_auth_ty := (master_key_hash, (master_salt, slave_salt)) in
-    eval_seq_precond (S (S (S (S (S (S (S fuel))))))) env (slc_ep_transfer1_check_signature)
+    eval_seq_precond fuel env (slc_ep_transfer1_check_signature)
                  psi (params_transfer, (storage_context, (storage_auth, tt)))
     <->
     slc_ep_transfer1_check_signature_spec
-      env fuel transactions slave_key slave_signature slave_key_hash new_slave_key_hash
+      env transactions slave_key slave_signature slave_key_hash new_slave_key_hash
       time_limit queue_left queue_right
       threshold master_salt slave_salt master_key_hash
       psi.
@@ -1010,7 +1009,7 @@ Lemma slc_ep_transfer_correct :
     fuel ->
     eval_seq_precond (4 + fuel) env dsl (fun x : stack [pair (list operation) storage_ty] => x = (output, tt))
                  (inr (inr p3), (slave_key_hash, (threshold, time_limit, (queue_left, queue_right)), (master_key_hash, (master_salt, slave_salt))), tt) <->
-    slc_spec env fuel
+    slc_spec env (S fuel)
              (inr (inr p3), (slave_key_hash, (threshold, time_limit, (queue_left, queue_right)), (master_key_hash, (master_salt, slave_salt))))
              output.
 Proof.
@@ -1075,7 +1074,7 @@ Lemma slc_ep_master_correct:
          (queue_left queue_right : data (list (pair timestamp mutez))) (master_key_hash : data key_hash) (master_salt slave_salt : data nat)
          (output : data (pair (list operation) storage_ty)) (fuel : Datatypes.nat),
     30 <= fuel ->
-    eval_seq_precond (4 + fuel) env dsl (fun x : stack [pair (list operation) storage_ty] => x = (output, tt))
+    eval_seq_precond (5 + fuel) env dsl (fun x : stack [pair (list operation) storage_ty] => x = (output, tt))
                  (inr (inl p2), (slave_key_hash, (threshold, time_limit, (queue_left, queue_right)), (master_key_hash, (master_salt, slave_salt))), tt) <->
     slc_spec env fuel
              (inr (inl p2), (slave_key_hash, (threshold, time_limit, (queue_left, queue_right)), (master_key_hash, (master_salt, slave_salt))))
@@ -1084,7 +1083,7 @@ Proof.
   intros env p2 slave_key_hash threshold time_limit queue_left queue_right master_key_hash master_salt slave_salt output fuel Hfuel.
   destruct p2 as ((key, signature), payload).
   unfold eval_seq_precond.
-  do 5 (more_fuel; simpl).
+  do 7 (more_fuel; simpl).
   repeat rewrite fold_eval_precond.
   rewrite match_if_exchange.
   rewrite if_false_is_and.
@@ -1114,7 +1113,7 @@ Qed.
 Theorem slc_correct env input output :
   forall fuel,
     fuel >= slc_fuel_bound input ->
-    eval_seq env dsl (4 + fuel) (input, tt) = Return (output, tt) <->
+    eval_seq env dsl (5 + fuel) (input, tt) = Return (output, tt) <->
     slc_spec env fuel input output.
 Proof.
   unfold ">=".
@@ -1132,7 +1131,7 @@ Proof.
   (* Entry point : master call *)
   - apply slc_ep_master_correct. apply Hfuel.
   (* Entry point : transfer *)
-  - apply slc_ep_transfer_correct. apply Hfuel.
+  - apply slc_ep_transfer_correct. etransitivity. apply Hfuel. omega.
 Qed.
 
 End Spending_limit_contract_verification.
