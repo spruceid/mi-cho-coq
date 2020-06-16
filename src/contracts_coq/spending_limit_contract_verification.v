@@ -122,7 +122,7 @@ Lemma slc_ep_transfer2_transaction_iter_body_correct {A} env fuel :
   forall (psi : stack (list operation ::: mutez ::: A) -> Prop)
          (element : data (pair mutez (contract unit)))
          (st : stack (list operation ::: mutez ::: A)),
-  7 <= fuel ->
+  3 <= fuel ->
   eval_seq_precond fuel env slc_ep_transfer2_transaction_iter_body
                psi
                (element, st) <->
@@ -154,7 +154,7 @@ Lemma slc_ep_transfer2_transaction_iter_correct
     (oplist : data (list operation))
     fuel
     (threshold : data mutez),
-    50 + Datatypes.length transaction_list <= fuel ->
+    4 + Datatypes.length transaction_list <= fuel ->
     eval_precond fuel env (ITER (i := iter_list _) slc_ep_transfer2_transaction_iter_body) psi
                  (transaction_list, (oplist, (threshold, st))) <->
     exists final_threshold,
@@ -172,7 +172,7 @@ Proof.
   rewrite <- eval_precond_correct.
   rewrite precond_iter_bounded
           with (body_spec := slc_ep_transfer2_transaction_iter_body_spec env)
-               (fuel_bound := 7).
+               (fuel_bound := 3).
   - generalize dependent oplist.
     generalize dependent threshold.
     induction transaction_list as [| (head_mut, ct) transaction_list_tail ]; intros threshold oplist.
@@ -270,7 +270,7 @@ Definition slc_ep_transfer_loop_body_spec self_type (env : @proto_env self_type)
 
 Lemma slc_ep_transfer_loop_body_correct env fuel psi (q1 q2 : data (list (pair timestamp mutez))) amount st :
   (* sum (queue) + amount = init_thresh *)
-  30 + Datatypes.length q2 * 14 <= fuel ->
+  6 + Datatypes.length q2 <= fuel ->
   eval_precond fuel  env slc_ep_transfer_loop_body psi (q1, (q2, (amount, st)))
   <-> slc_ep_transfer_loop_body_spec _ env (q1, (q2, (amount, st))) psi.
 Proof.
@@ -363,7 +363,7 @@ Lemma slc_ep_transfer_loop_correct1
       (q1 q2 : data (list (pair timestamp mutez)))
       (amount : data mutez)
       (st : stack (storage_auth_ty ::: nil)) :
-  Datatypes.length q1 * 14 + Datatypes.length q2 * 14 + 48 <= fuel ->
+  Datatypes.length q1 + Datatypes.length q2 + 6 <= fuel ->
   queue_cut_before_now q1 (now env) = true ->
   eval_precond  fuel env slc_ep_transfer_loop psi (true, (q1, (q2, (amount, st)))) <->
   (exists amount' ,
@@ -436,7 +436,7 @@ Lemma slc_ep_transfer_loop_correct2':
     (q1 : data (list (pair timestamp mutez)))
     fuel (x: data (pair timestamp mutez))
     (q2 : data (list (pair timestamp mutez)))
-    ( Hfuel: 50 + Datatypes.length q2 * 14 <= fuel)
+    ( Hfuel: 6 + Datatypes.length q2 <= fuel)
     (Hqueue_cut : queue_cut_before_now (x::q1) (now env) = false)
     (amount : data mutez)
     (st : stack (storage_auth_ty ::: nil)),
@@ -512,9 +512,9 @@ Proof.
        exists sum. split. auto.
        destruct (IHq1 fuel (tz,ts) q2 Hfuel Hqueue_ind sum st) as [Ia Ib].
        apply Ib. exists am.  split; auto.
-    + 
+    +
    (* fuel bound *)
-    apply le_trans with (50 +Datatypes.length q2 * 14); omega.
+    omega.
 Qed.
 
 (*****************************************************************)
@@ -531,7 +531,7 @@ Lemma slc_ep_transfer_loop_correct3'
       (q2 : data (list (pair timestamp mutez)))
       (amount : data mutez)
       (st : stack (storage_auth_ty ::: nil)) :
-  50 + Datatypes.length q2 * 14 <= fuel ->
+  6 + Datatypes.length q2 <= fuel ->
   (eval_precond (S fuel) env slc_ep_transfer_loop psi (true, ([], (q2, (amount, st)))) <->
    eval_precond fuel env slc_ep_transfer_loop psi (negb (list_empty_b q2), (List.rev q2, ([], (amount, st))))).
 Proof.
@@ -551,7 +551,7 @@ Lemma slc_ep_transfer_loop_correct3
       (q2 : data (list (pair timestamp mutez)))
       (amount : data mutez)
       (st : stack (storage_auth_ty ::: nil)) :
-  50 + Datatypes.length q2 * 14 <= fuel ->
+  7 + Datatypes.length q2 <= fuel ->
   (eval_precond (S fuel) env slc_ep_transfer_loop psi (true, ([], (x :: q2, (amount, st)))) <->
    eval_precond fuel env slc_ep_transfer_loop psi (true, (List.rev (x :: q2), ([], (amount, st))))).
 Proof.
@@ -566,11 +566,11 @@ Lemma slc_ep_transfer_loop_correct4
       psi
       (amount : data mutez)
       (st : stack (storage_auth_ty ::: nil)) :
-  50 <= fuel ->
+  1 <= fuel ->
   (eval_precond fuel env slc_ep_transfer_loop psi (false, ([], ([], (amount, st)))) <->
    psi (([], ([], (amount, st))))).
 Proof.
-  intros Hfuel. do 2 more_fuel. simpl. intuition.
+  intros Hfuel. do 1 more_fuel. simpl. intuition.
 Qed.
 
 Lemma slc_ep_transfer_loop_correct2
@@ -580,7 +580,7 @@ Lemma slc_ep_transfer_loop_correct2
       (q1 q2 : data (list (pair timestamp mutez)))
       (amount : data mutez)
       (st : stack (storage_auth_ty ::: nil)) :
-      50 + Datatypes.length q1 * 14 + Datatypes.length q2 * 14 <= fuel ->
+      6 + Datatypes.length q1 + Datatypes.length q2 <= fuel ->
       queue_cut_before_now q1 (now env) = false ->
       eval_precond (Datatypes.length q1 + 1 + fuel) env slc_ep_transfer_loop
                    psi (true, (q1, (q2, (amount, st)))) <->
@@ -725,7 +725,7 @@ Lemma slc_ep_transfer_loop_correct
       (q1 q2 : data (list (pair timestamp mutez)))
       (amount : data mutez)
       (st : stack (storage_auth_ty ::: nil)) :
-  Datatypes.length q1 * 18 + Datatypes.length q2 * 16 + 54 <= fuel ->
+  2 * Datatypes.length q1 + 2 * Datatypes.length q2 + 8 <= fuel ->
   eval_precond fuel env slc_ep_transfer_loop psi (true, (q1, (q2, (amount, st)))) <->
   (exists (amount' : data mutez),
       let (q1', q2') := update_queue q1 q2 (now env) in
@@ -737,7 +737,7 @@ Proof.
   destruct (queue_cut_before_now q1 (now env)) eqn:Hqueue.
 
   (* If now is in q1 *)
-  - rewrite slc_ep_transfer_loop_correct1; try simple_fuel; try assumption.
+  - rewrite slc_ep_transfer_loop_correct1; [| simple_fuel | assumption].
     unfold update_queue. rewrite Hqueue.
     ex_under (rewrite queue_cut_before_now_allowed_amount at 1 by assumption).
     reflexivity.
@@ -746,7 +746,7 @@ Proof.
   - (* extract fuel *)
     extract_fuel (Datatypes.length q1 + 1).
 
-    rewrite slc_ep_transfer_loop_correct2; try assumption; try simple_fuel.
+    rewrite slc_ep_transfer_loop_correct2; [| simple_fuel | assumption].
 
     destruct q2.
 
@@ -771,22 +771,26 @@ Proof.
       destruct (queue_cut_before_now (List.rev (d :: q2)) (now env)) eqn:HnowInQ2; try assumption.
 
       (* If now is in (List.rev (d :: q2)) *)
-      * rewrite slc_ep_transfer_loop_correct1. reflexivity.
+      * rewrite slc_ep_transfer_loop_correct1; [reflexivity| | assumption].
         (* fuel arithmetic *)
         simpl (Datatypes.length []). rewrite List.rev_length. simple_fuel.
-        assumption.
 
       (* If now is not in (List.rev (d :: q2)) *)
       * (* extract fuel *)
         extract_fuel (Datatypes.length (List.rev (d :: q2)) + 1).
 
-        rewrite slc_ep_transfer_loop_correct2; [|my_simple_fuel|assumption].
-        apply forall_ex; intro amount'.
-        rewrite slc_ep_transfer_loop_correct4; [|my_simple_fuel].
-        rewrite remove_past_no_now by assumption.
-        reflexivity.
-
-        symmetry. apply le_plus_minus. my_simple_fuel.
+        rewrite slc_ep_transfer_loop_correct2; [| |assumption].
+        -- apply forall_ex; intro amount'.
+           rewrite slc_ep_transfer_loop_correct4; [|my_simple_fuel].
+           rewrite remove_past_no_now by assumption.
+           reflexivity.
+        -- etransitivity; [|apply Hfuel].
+           simpl (Datatypes.length []). do 2 rewrite List.rev_length.
+           pose (x := Datatypes.length q1).
+           pose (y := Datatypes.length (d :: q2)).
+           change (6 + y + 0 <= 2 * x + 2 * y + 8 - (x  + 1) - (y + 1)).
+           omega.
+        -- symmetry. apply le_plus_minus. my_simple_fuel.
 Qed.
 
 Definition sig_header_ty :=
@@ -845,7 +849,7 @@ Lemma slc_ep_transfer1_check_signature_correct
                          list (pair timestamp mutez) ::: storage_auth_ty ::: nil) ->
                Prop) :
   forall fuel,
-    84 + Datatypes.length queue_left * 18 + Datatypes.length queue_right * 16 <= fuel ->
+    11 + Datatypes.length queue_left * 2 + Datatypes.length queue_right * 2 <= fuel ->
     let params_transfer : data parameter_transfer_ty := ((transactions, new_slave_key_hash), (slave_key, slave_signature)) in
     let storage_context : data storage_context_ty := (slave_key_hash, ((threshold, time_limit), (queue_left, queue_right))) in
     let storage_auth : data storage_auth_ty := (master_key_hash, (master_salt, slave_salt)) in
@@ -862,7 +866,7 @@ Proof.
   unfold slc_ep_transfer1_check_signature.
   remember slc_ep_transfer_loop as transfer_loop.
   rewrite <- plus_assoc in Hfuel.
-  do 30 more_fuel'.
+  do 6 more_fuel'.
   unfold eval_seq_precond.
   simpl.
   repeat rewrite fold_eval_precond.
@@ -904,7 +908,7 @@ Lemma slc_ep_transfer3_register_correct
       (threshold : data mutez)
       (q1 q2 : data (list (pair timestamp mutez)))
       (st : data storage_auth_ty) :
-  50 <= fuel ->
+  7 <= fuel ->
   eval_precond fuel env slc_ep_transfer3_register
                  psi
                 (transaction_oplist,
@@ -923,13 +927,9 @@ Lemma slc_ep_transfer3_register_correct
 Proof.
   intros Hfuel.
   simpl.
-  do 14 (more_fuel; simpl eval_precond).
-  more_fuel.
-  simpl (eval_precond (S fuel) env SUB _). unfold eval_precond_body.
-  remember (fun SA : _ => _) as psi'.
-  do 9 (more_fuel; simpl eval_precond).
+  do 7 (more_fuel; simpl eval_precond).
   rewrite precond_exists.
-  now subst psi'.
+  reflexivity.
 Qed.
 
 Open Scope string_scope.
@@ -992,11 +992,11 @@ Definition slc_fuel_bound (input : data (pair parameter_ty storage_ty)) :=
     let '(slave_key_hash, ((threshold, time_limit), (queue_left, queue_right))) := storage_context in
     match param with
       (* entry point: receive *)
-      | inl _ => 14
+      | inl _ => 0
       (* entry point: master *)
-      | inr (inl _) => 30
+      | inr (inl _) => 5
       (* entry point: transfer *)
-      | inr (inr ((transactions, _), _)) => Datatypes.length transactions + Datatypes.length queue_left * 18 + Datatypes.length queue_right * 16 + 89
+      | inr (inr ((transactions, _), _)) => Datatypes.length transactions + Datatypes.length queue_left * 2 + Datatypes.length queue_right * 2 + 11
     end.
 
 
@@ -1005,7 +1005,7 @@ Lemma slc_ep_transfer_correct :
          (queue_left queue_right : data (list (pair timestamp mutez))) (master_key_hash : data key_hash) (master_salt slave_salt : data nat)
          (output : data (pair (list operation) storage_ty)) (fuel : Datatypes.nat),
     (let (d, _) := p3 in
-     let (transactions, _) := d in Datatypes.length transactions + Datatypes.length queue_left * 18 + Datatypes.length queue_right * 16 + 89) <=
+     let (transactions, _) := d in Datatypes.length transactions + Datatypes.length queue_left * 2 + Datatypes.length queue_right * 2 + 12) <=
     fuel ->
     eval_seq_precond (4 + fuel) env dsl (fun x : stack [pair (list operation) storage_ty] => x = (output, tt))
                  (inr (inr p3), (slave_key_hash, (threshold, time_limit, (queue_left, queue_right)), (master_key_hash, (master_salt, slave_salt))), tt) <->
@@ -1021,7 +1021,7 @@ Proof.
   unfold eval_seq_precond.
   rewrite Nat.add_comm in Hfuel.
   simpl eval_seq_precond_body.
-  do 5 more_fuel'; simpl.
+  do 1 more_fuel'; simpl.
   rewrite Nat.add_comm in Hfuel.
   repeat rewrite fold_eval_precond.
   rewrite Heqprog. unfold slc_ep_transfer.
@@ -1073,7 +1073,7 @@ Lemma slc_ep_master_correct:
   forall env (p2 : data parameter_master_ty) (slave_key_hash : data key_hash) (threshold : data mutez) (time_limit : data int)
          (queue_left queue_right : data (list (pair timestamp mutez))) (master_key_hash : data key_hash) (master_salt slave_salt : data nat)
          (output : data (pair (list operation) storage_ty)) (fuel : Datatypes.nat),
-    30 <= fuel ->
+    5 <= fuel ->
     eval_seq_precond (5 + fuel) env dsl (fun x : stack [pair (list operation) storage_ty] => x = (output, tt))
                  (inr (inl p2), (slave_key_hash, (threshold, time_limit, (queue_left, queue_right)), (master_key_hash, (master_salt, slave_salt))), tt) <->
     slc_spec env fuel
@@ -1083,7 +1083,7 @@ Proof.
   intros env p2 slave_key_hash threshold time_limit queue_left queue_right master_key_hash master_salt slave_salt output fuel Hfuel.
   destruct p2 as ((key, signature), payload).
   unfold eval_seq_precond.
-  do 7 (more_fuel; simpl).
+  do 5 (more_fuel; simpl).
   repeat rewrite fold_eval_precond.
   rewrite match_if_exchange.
   rewrite if_false_is_and.
@@ -1127,11 +1127,14 @@ Proof.
   destruct param as [ [] | [ p2 | p3 ] ]; simpl in Hfuel.
 
   (* Entry point: receive *)
-  - unfold eval_seq_precond. more_fuel. simpl. intuition congruence.
+  - unfold eval_seq_precond. simpl. intuition congruence.
   (* Entry point : master call *)
   - apply slc_ep_master_correct. apply Hfuel.
   (* Entry point : transfer *)
-  - apply slc_ep_transfer_correct. etransitivity. apply Hfuel. omega.
+  - apply slc_ep_transfer_correct. destruct p3 as ((transactions, _), _).
+    apply le_n_S in Hfuel.
+    rewrite <- Nat.add_succ_r in Hfuel.
+    assumption.
 Qed.
 
 End Spending_limit_contract_verification.
