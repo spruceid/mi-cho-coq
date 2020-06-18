@@ -8,13 +8,30 @@ Open Scope string.
 Definition dummy_loc : location := Mk_loc 0 0.
 Definition dummy_mich (m : micheline) : loc_micheline :=
   Mk_loc_micheline (dummy_loc, dummy_loc, m).
-Definition dummy_prim (p : String.string) (l : Datatypes.list loc_micheline) :=
-  dummy_mich (PRIM (dummy_loc, dummy_loc, p) l).
+Definition dummy_prim (p : String.string)
+           (l : Datatypes.list loc_micheline) :=
+  dummy_mich (PRIM (dummy_loc, dummy_loc, p) [] l).
+Definition dummy_annot (s : String.string) := Mk_annot (dummy_loc, dummy_loc, s).
 Definition dummy_seq (m : loc_micheline) : loc_micheline :=
   match m with
   | Mk_loc_micheline (_, _, SEQ _) => m
   | _ => dummy_mich (SEQ [m])
   end.
+
+Definition add_annot (s : annot_o) (m : micheline) :=
+  match s with
+  | None => m
+  | Some s =>
+    match m with
+    | PRIM prim annots l =>
+      PRIM prim (dummy_annot s :: annots) l
+    | m => m
+    end
+  end.
+
+Definition add_annot_loc (s : annot_o) (m : loc_micheline) :=
+  let 'Mk_loc_micheline (b, e, m) := m in
+  Mk_loc_micheline (b, e, add_annot s m).
 
 Definition michelson2micheline_sctype (ct : simple_comparable_type) :=
   match ct with
@@ -38,13 +55,7 @@ Fixpoint michelson2micheline_ctype (ct: comparable_type) : loc_micheline :=
   end.
 
 Definition michelson2micheline_atype michelson2micheline_type (t : type) (an : annot_o) : loc_micheline :=
-  match an, michelson2micheline_type t with
-  | None, m => m
-  | Some an, Mk_loc_micheline (loca, locb, (PRIM (loc1, loc2, p) l)) =>
-    Mk_loc_micheline (loca, locb, (PRIM (loc1, loc2, p) (dummy_prim an nil :: l)))
-  | Some an, m => (* Cannot happen *)
-    dummy_prim "strange_annotated_type" nil
-  end.
+  add_annot_loc an (michelson2micheline_type t).
 
 Fixpoint michelson2micheline_type (t : type) : loc_micheline :=
   match t with
@@ -143,9 +154,8 @@ Definition michelson2micheline_opcode (o : opcode) : loc_micheline :=
   | SET_DELEGATE => dummy_prim "SET_DELEGATE" []
   | BALANCE => dummy_prim "BALANCE" []
   | ADDRESS => dummy_prim "ADDRESS" []
-  | CONTRACT None t => dummy_prim "CONTRACT" [michelson2micheline_type t]
-  | CONTRACT (Some an) t =>
-    dummy_prim "CONTRACT" [dummy_prim an []; michelson2micheline_type t]
+  | CONTRACT an t =>
+    add_annot_loc an (dummy_prim "CONTRACT" [michelson2micheline_type t])
   | SOURCE => dummy_prim "SOURCE" []
   | SENDER => dummy_prim "SENDER" []
   | AMOUNT => dummy_prim "AMOUNT" []
@@ -204,8 +214,7 @@ Fixpoint michelson2micheline_instruction (i : instruction) : loc_micheline :=
                             dummy_mich (SEQ (michelson2micheline_ins_seq i))]
   | DIP n i => dummy_prim "DIP" [dummy_mich (NUMBER (BinInt.Z.of_nat n));
                                    dummy_mich (SEQ (michelson2micheline_ins_seq i))]
-  | SELF None => dummy_prim "SELF" []
-  | SELF (Some an) => dummy_prim "SELF" [dummy_prim an []]
+  | SELF an => add_annot_loc an (dummy_prim "SELF" [])
   | EXEC => dummy_prim "EXEC" []
   | instruction_opcode o =>
     michelson2micheline_opcode o

@@ -26,10 +26,11 @@ Fixpoint micheline_length (mich : loc_micheline) (in_seq : bool) :=
   | BYTES s => 2 + String.length s
   | SEQ nil => 2
   | SEQ es => fold_left (fun acc m => 2 + micheline_length m true + acc) es 0
-  | PRIM (_, _, s) nil => String.length s
-  | PRIM (_, _, s) es =>
+  | PRIM (_, _, s) nil nil => String.length s
+  | PRIM (_, _, s) annots es =>
     (if in_seq then 0 else 2) + String.length s +
-    fold_left (fun acc m => 1 + micheline_length m false + acc) es 0
+    fold_left (fun acc m => 1 + micheline_length m false + acc) es 0 +
+    fold_left (fun acc '(Mk_annot (_, _, annot)) => 1 + String.length annot + acc) annots 0
   end.
 
 Fixpoint micheline_pp_single_line (mich : loc_micheline) (in_seq : bool) :=
@@ -39,9 +40,11 @@ Fixpoint micheline_pp_single_line (mich : loc_micheline) (in_seq : bool) :=
   | STR s => """" ++ s ++ """"
   | BYTES s => "0x" ++ s
   | SEQ es => "{" ++ String.concat "; " (map (fun m => micheline_pp_single_line m true) es) ++ "}"
-  | PRIM (_, _, s) nil => s
-  | PRIM (_, _, s) es =>
-    let res := s ++ " " ++ String.concat " " (map (fun m => micheline_pp_single_line m false) es) in
+  | PRIM (_, _, s) nil nil => s
+  | PRIM (_, _, s) annots es =>
+    let annots_strings := map (fun '(Mk_annot (_, _, annot)) => annot) annots in
+    let args_strings := map (fun m => micheline_pp_single_line m false) es in
+    let res := s ++ " " ++ String.concat " " (List.app annots_strings args_strings) in
     (if in_seq then res else "(" ++ res ++")")
   end.
 
@@ -62,17 +65,19 @@ Fixpoint micheline_pp (mich : loc_micheline) (indent : nat) (in_seq : bool)
                              (fun m => micheline_pp m (indent+2) true seq_lf)
                              es))
          ++ lf ++ indent_space ++ "}"
-  | Mk_loc_micheline (_, _, PRIM (_, _, s) nil) => s
-  | Mk_loc_micheline (_, _, PRIM (_, _, s) es) =>
+  | Mk_loc_micheline (_, _, PRIM (_, _, s) nil nil) => s
+  | Mk_loc_micheline (_, _, PRIM (_, _, s) annots es) =>
     let newIndent := indent + 1 + String.length s in
     let separator := lf++(make_string " " newIndent) in
+    let annots_strings := map (fun '(Mk_annot (_, _, annot)) => annot) annots in
+    let args_strings := (map
+                           (fun m =>
+                              micheline_pp m newIndent false
+                                           (negb (eqb_string s "PUSH")))
+                           es) in
     let res := s++" "++
                 (String.concat
                    separator
-                   (map
-                      (fun m =>
-                         micheline_pp m newIndent false
-                                      (negb (eqb_string s "PUSH")))
-                      es)) in
+                   (List.app annots_strings args_strings)) in
     if in_seq then res else "("++res++")"
   end.

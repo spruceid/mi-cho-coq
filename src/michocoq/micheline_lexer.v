@@ -24,6 +24,7 @@ Goal (char_is_num "_"%char = false). reflexivity. Qed.
 Goal (char_is_num "0"%char = true). reflexivity. Qed.
 Goal (char_is_num "9"%char = true). reflexivity. Qed.
 
+(* Could be replaced by Ascii.eqb if we drop support for Coq 8.8 *)
 Definition eqb_ascii (a b : ascii) : bool :=
  match a, b with
  | Ascii a0 a1 a2 a3 a4 a5 a6 a7,

@@ -35,12 +35,17 @@ Definition self_type_M :=
   let! a := michelson_M in
   error.Return a.(micheline2michelson.parameter).
 
+Definition root_annot_M :=
+  let! a := michelson_M in
+  error.Return a.(micheline2michelson.root_annotation).
+
 Definition storage_type_M :=
   let! a := michelson_M in
   error.Return a.(micheline2michelson.storage).
 
 Definition contract_file_M : error.M syntax.contract_file :=
   let! self_type := self_type_M in
+  let! root_annot := root_annot_M in
   let! storage_type := storage_type_M in
   let! existT _ tff code :=
     let! a := michelson_M in
@@ -48,7 +53,7 @@ Definition contract_file_M : error.M syntax.contract_file :=
     typer.type_check_instruction_seq (typer.type_instruction_seq typer.Any) i _ _ in
   error.Return
     {| contract_file_parameter := self_type;
-       contract_file_annotation := None;
+       contract_file_annotation := root_annot;
        contract_file_storage := storage_type;
        contract_tff := tff;
        contract_file_code := code; |}.

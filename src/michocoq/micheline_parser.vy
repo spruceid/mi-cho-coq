@@ -31,11 +31,11 @@ atom:
       Mk_loc_micheline (b, e, NUMBER z) }
   | PRIMt {
       let '((b, e), _) := $1 in
-      Mk_loc_micheline (b, e, PRIM $1 nil)
+      Mk_loc_micheline (b, e, PRIM $1 nil nil)
     }
   | LPAREN PRIMt RPAREN {
       let '((b, e), _) := $2 in
-      Mk_loc_micheline (b, e, PRIM $2 nil)
+      Mk_loc_micheline (b, e, PRIM $2 nil nil)
     }
   | LPAREN app RPAREN { $2 }
   | LBRACE seq RBRACE {
@@ -47,30 +47,30 @@ atom:
 app:
     PRIMt arguments {
       let '((b, _), _) := $1 in
-      let '((_, e), l) := $2 in
-      Mk_loc_micheline (b, e, PRIM $1 l)
+      let '((_, e), l1, l2) := $2 in
+      Mk_loc_micheline (b, e, PRIM $1 l1 l2)
     }
 ;
 
 annotation:
     ANNOTATIONt {
       let '((b, e), s) := $1 in
-      (b, e, s)
+      Mk_annot (b, e, s)
     }
 ;
 
 
 argument:
-    atom { let '(Mk_loc_micheline ((b, e), n)) := $1 in (b, e, Arg_node $1) }
-  | annotation { let '(((b, e), a)) := $1 in (b, e, Arg_annotation (b, e, a)) }
+    atom { let '(Mk_loc_micheline ((b, e), n)) := $1 in (b, e, nil, cons $1 nil) }
+  | annotation { let '(Mk_annot ((b, e), a)) := $1 in (b, e, cons $1 nil, nil) }
 ;
 
 arguments:
-    argument { let '(((b, e), arg)) := $1 in (b, e, cons arg nil) }
+    argument { $1 }
   | argument arguments {
-      let '(((b, _), a)) := $1 in
-      let '((_, e), l) := $2 in
-      (b, e, cons a l)
+      let '((b, _), l1, l2) := $1 in
+      let '((_, e), l3, l4) := $2 in
+      (b, e, List.app l1 l3, List.app l2 l4)
     }
 ;
 
