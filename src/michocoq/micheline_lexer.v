@@ -170,7 +170,7 @@ Fixpoint lex_micheline (input : string) (loc : location) : error.M (list (locati
              end) input (String c ""%string) loc loc
         else
           if char_is_annot c then (* Annotations are ignored *)
-            (fix lex_micheline_annot input loc :=
+            (fix lex_micheline_annot (input : string) (acc : string) start loc :=
                match input with
                | String c s =>
                  if (orb (char_is_alpha c)
@@ -178,11 +178,12 @@ Fixpoint lex_micheline (input : string) (loc : location) : error.M (list (locati
                               (orb (char_is_annot c)
                                    (char_is_dot c)))) then
                    let loc := location_incr loc in
-                   lex_micheline_annot s loc
+                   lex_micheline_annot s (string_snoc acc c) start loc
                  else
-                   lex_micheline input loc
-               | EmptyString => error.Return nil
-               end) input loc
+                   let! l := lex_micheline input loc in
+                error.Return (cons (start, loc, ANNOTATION acc) l)
+               | EmptyString => error.Return (cons (start, loc, ANNOTATION acc) nil)
+               end) input (String c ""%string) loc loc
           else
             error.Failed _ (error.Lexing loc)
     end

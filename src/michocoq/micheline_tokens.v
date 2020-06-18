@@ -14,6 +14,7 @@ Inductive token :=
 | STR : string -> token
 | NUMBER : Z -> token
 | BYTES : string -> token
+| ANNOTATION : string -> token
 | EOF.
 
 Definition parser_token := micheline_parser.Aut.GramDefs.token.
@@ -44,6 +45,7 @@ Definition token_to_parser (t : (location * location * token)) : parser_token :=
   | STR s => micheline_parser.STRt (b, e, s)
   | NUMBER n => micheline_parser.NUMBERt (b, e, n)
   | BYTES s => micheline_parser.BYTESt (b, e, s)
+  | ANNOTATION s => micheline_parser.ANNOTATIONt (b, e, s)
   | EOF => micheline_parser.EOF (b, e)
   end.
 

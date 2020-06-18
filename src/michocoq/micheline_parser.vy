@@ -3,13 +3,15 @@ Require Import micheline_syntax location.
 %}
 
 %token <location * location> LBRACE RBRACE SEMICOLON LPAREN RPAREN EOF
-%token <location * location * string> PRIMt STRt BYTESt
+%token <location * location * string> PRIMt STRt BYTESt ANNOTATIONt
 %token <location * location * Z> NUMBERt
 
 %start <loc_micheline> file
 %start <list (loc_micheline)> seq_file
 
-%type <location * location * list (loc_micheline) > atoms
+%type <location * location * list annotation * list loc_micheline > argument
+%type <location * location * list annotation * list loc_micheline > arguments
+%type <annotation> annotation
 %type <list (loc_micheline) > seq
 %type <loc_micheline> atom app micheline
 
@@ -43,19 +45,32 @@ atom:
 ;
 
 app:
-    PRIMt atoms {
+    PRIMt arguments {
       let '((b, _), _) := $1 in
       let '((_, e), l) := $2 in
       Mk_loc_micheline (b, e, PRIM $1 l)
     }
 ;
 
-atoms:
-    atom { let '(Mk_loc_micheline ((b, e), _)) := $1 in (b, e, cons $1 nil) }
-  | atom atoms {
-      let '(Mk_loc_micheline ((b, _), _)) := $1 in
+annotation:
+    ANNOTATIONt {
+      let '((b, e), s) := $1 in
+      (b, e, s)
+    }
+;
+
+
+argument:
+    atom { let '(Mk_loc_micheline ((b, e), n)) := $1 in (b, e, Arg_node $1) }
+  | annotation { let '(((b, e), a)) := $1 in (b, e, Arg_annotation (b, e, a)) }
+;
+
+arguments:
+    argument { let '(((b, e), arg)) := $1 in (b, e, cons arg nil) }
+  | argument arguments {
+      let '(((b, _), a)) := $1 in
       let '((_, e), l) := $2 in
-      (b, e, cons $1 l)
+      (b, e, cons a l)
     }
 ;
 
