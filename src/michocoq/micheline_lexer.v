@@ -16,13 +16,13 @@ Definition char_is_annot (c : ascii) :=
   | _ => false
   end.
 
-Check (eq_refl : char_is_num "a"%char = false).
-Check (eq_refl : char_is_num "z"%char = false).
-Check (eq_refl : char_is_num "A"%char = false).
-Check (eq_refl : char_is_num "Z"%char = false).
-Check (eq_refl : char_is_num "_"%char = false).
-Check (eq_refl : char_is_num "0"%char = true).
-Check (eq_refl : char_is_num "9"%char = true).
+Goal (char_is_num "a"%char = false). reflexivity. Qed.
+Goal (char_is_num "z"%char = false). reflexivity. Qed.
+Goal (char_is_num "A"%char = false). reflexivity. Qed.
+Goal (char_is_num "Z"%char = false). reflexivity. Qed.
+Goal (char_is_num "_"%char = false). reflexivity. Qed.
+Goal (char_is_num "0"%char = true). reflexivity. Qed.
+Goal (char_is_num "9"%char = true). reflexivity. Qed.
 
 Definition eqb_ascii (a b : ascii) : bool :=
  match a, b with
@@ -46,13 +46,14 @@ Definition char_is_hex (c : ascii) :=
       (orb (andb (leb "A"%char c) (leb c "F"%char))
            (char_is_num c)).
 
-Check (eq_refl : char_is_alpha "a"%char = true).
-Check (eq_refl : char_is_alpha "z"%char = true).
-Check (eq_refl : char_is_alpha "A"%char = true).
-Check (eq_refl : char_is_alpha "Z"%char = true).
-Check (eq_refl : char_is_alpha "_"%char = true).
-Check (eq_refl : char_is_alpha "0"%char = false).
-Check (eq_refl : char_is_alpha "9"%char = false).
+Goal (char_is_alpha "a"%char = true). reflexivity. Qed.
+Goal (char_is_alpha "z"%char = true). reflexivity. Qed.
+Goal (char_is_alpha "A"%char = true). reflexivity. Qed.
+Goal (char_is_alpha "Z"%char = true). reflexivity. Qed.
+Goal (char_is_alpha "_"%char = true). reflexivity. Qed.
+Goal (char_is_alpha "0"%char = false). reflexivity. Qed.
+Goal (char_is_alpha "9"%char = false). reflexivity. Qed.
+
 
 Definition Z_of_char (c : ascii) (acc : Z) : Z :=
   match c with
