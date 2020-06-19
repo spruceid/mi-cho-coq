@@ -303,14 +303,15 @@ Definition opt_merge {A : Set} (m1 m2 : Datatypes.option A) : Datatypes.option A
   | None => m2
   end.
 
+
+(* Returns [Some a] if the root annotation [an] is exactly [Some e];
+   returns [None] otherwise *)
 Definition get_entrypoint_root (e : annotation) (a : type) (an : annot_o) :
   Datatypes.option type :=
-  opt_bind an (fun e' =>
-                 match String.string_dec e e' with
-                 | left _ => Some a
-                 | right _ => None
-                 end).
+  opt_bind an (fun e' => if String.string_dec e e' then Some a else None).
 
+(* Returns the first entrypoint to match e in the annotated type (a, an).
+   The traversal is depth-first *)
 Fixpoint get_entrypoint (e : annotation) (a : type) (an : annot_o) : Datatypes.option type :=
   opt_merge (get_entrypoint_root e a an)
             (match a with
@@ -319,13 +320,18 @@ Fixpoint get_entrypoint (e : annotation) (a : type) (an : annot_o) : Datatypes.o
              | _ => None
              end).
 
-Definition get_entrypoint_opt (e : annot_o) (a : type) (an : annot_o) :
-  Datatypes.option type :=
+(* Returns the type of the default entrypoint *)
+Definition get_default_entrypoint (a : type) (an : annot_o) : Datatypes.option type :=
+  opt_merge (get_entrypoint default_entrypoint.default a an)
+            (Some a).
+
+Definition get_entrypoint_opt (e : annot_o) (a : type) (an : annot_o) : Datatypes.option type :=
   match e with
-  | None =>
-    opt_merge (get_entrypoint default_entrypoint.default a an)
-              (Some a)
-  | Some e => get_entrypoint e a an
+  | None => get_default_entrypoint a an
+  | Some e =>
+    if String.string_dec e default_entrypoint.default
+    then get_default_entrypoint a an
+    else get_entrypoint e a an
   end.
 
 Definition isSome {A : Set} (m : Datatypes.option A) : Prop :=
