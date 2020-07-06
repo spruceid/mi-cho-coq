@@ -1292,22 +1292,30 @@ Module Semantics(C : ContractContext).
     apply eval_seq_assoc_aux.
   Qed.
 
-  (* If we know a fuel bound on the body of an ITER, we have a rather simple formula for eval_precond: *)
+  (* This is a helper lemma to reason on the semantics of the ITER instruction
+     on lists in the particular (very common) case in which we know an upper
+     bound to the fuel consumed by the ITER body (independent of the stack).
+
+     In this special case, we show that precond (eval ... ITER) ... psi is
+     a List.fold_right whose accumulator is the post condition.
+   *)
   Lemma precond_iter_bounded st env a (l : data (list a)) A (body : instruction_seq st _ (a ::: A) A)
-        fuel_bound body_spec :
-    (forall fuel (x : data a) (input_stack : stack A) (psi : stack A -> Prop),
+        fuel_bound body_spec
+    (Hbody_correct :
+       forall fuel (x : data a) (input_stack : stack A) (psi : stack A -> Prop),
         fuel_bound <= fuel ->
-        precond (eval_seq env body fuel (x, input_stack)) psi <-> body_spec psi x input_stack) ->
-    (forall psi1 psi2 x input_stack,
+        precond (eval_seq env body fuel (x, input_stack)) psi
+        <-> body_spec psi x input_stack)
+    (Hbody_spec_extensional :
+       forall psi1 psi2 x input_stack,
         (forall x, psi1 x <-> psi2 x) ->
-        body_spec psi1 x input_stack <-> body_spec psi2 x input_stack) ->
-    forall fuel input_stack psi,
-      S fuel_bound + List.length l <= fuel ->
+        body_spec psi1 x input_stack <-> body_spec psi2 x input_stack) :
+    forall fuel input_stack psi
+      (Hfuel_bound : S fuel_bound + List.length l <= fuel),
       precond (eval env (ITER body) fuel (l, input_stack)) psi
       <->
       List.fold_right (fun x psi st => body_spec psi x st) psi l input_stack.
   Proof.
-    intros H Hbs.
     induction l; intros fuel input_stack psi Hfuel.
     - simpl.
       more_fuel.
@@ -1317,9 +1325,9 @@ Module Semantics(C : ContractContext).
       more_fuel.
       simpl.
       rewrite precond_bind.
-      unfold eval_seq in H.
-      rewrite H.
-      + apply Hbs.
+      unfold eval_seq in Hbody_correct.
+      rewrite Hbody_correct.
+      + apply Hbody_spec_extensional.
         intro s.
         apply IHl.
         rewrite <- plus_n_Sm in Hfuel.
