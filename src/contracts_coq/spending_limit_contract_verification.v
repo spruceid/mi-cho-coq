@@ -273,31 +273,28 @@ Lemma slc_ep_transfer_loop_body_correct env fuel psi (q1 q2 : data (list (pair t
 Proof.
   intros Hfuel.
   unfold slc_ep_transfer_loop_body.
-  simpl.
-  destruct q1; simpl.
-  - destruct q2; simpl.
-    + now (do 5 more_fuel; simpl).
+  cbn.
+  destruct q1.
+  - destruct q2.
+    + now (do 5 (more_fuel; cbn)).
     + simpl in Hfuel.
-      more_fuel; simpl.
-      more_fuel; simpl.
-      more_fuel; simpl.
+      do 3 (more_fuel; cbn).
       destruct q2; [reflexivity|].
       match goal with |- context[eval_precond fuel env (@ITER ?st ?c ?i ?A ?code) ?psi] =>
                       remember (eval_precond fuel env (@ITER st c i A code) psi) as eval_itercode
       end.
       more_fuel.
-      simpl eval_precond.
+      cbn.
       subst eval_itercode.
       rewrite reverse_correct; [|my_simple_fuel].
-      simpl.
       rewrite <- List.app_assoc.
       reflexivity.
   - destruct d as (ts, tz).
-    do 6 (more_fuel; simpl).
+    do 6 (more_fuel; cbn).
     rewrite <- comparison_to_int_leb.
     rewrite <- comparison_to_int_opp.
     destruct (_ >=? _)%Z.
-    + rewrite precond_exists. simpl. unfold precond_ex.
+    + rewrite precond_exists. unfold precond_ex.
       apply forall_ex.
       intro x.
       apply and_both_0; [|reflexivity].
@@ -741,7 +738,10 @@ Proof.
 
   (* If now is not in q1 *)
   - (* extract fuel *)
-    extract_fuel (Datatypes.length q1 + 1).
+    fuel_replace
+      ((Datatypes.length q1 + 1) +
+       (Datatypes.length q1 + 2 * Datatypes.length q2 + 7)).
+    more_fuel_add.
 
     rewrite slc_ep_transfer_loop_correct2; [| simple_fuel | assumption].
 
@@ -774,20 +774,20 @@ Proof.
 
       (* If now is not in (List.rev (d :: q2)) *)
       * (* extract fuel *)
-        extract_fuel (Datatypes.length (List.rev (d :: q2)) + 1).
+        fuel_replace
+          ((Datatypes.length (List.rev (d :: q2)) + 1) +
+           (Datatypes.length q1 + Datatypes.length (d :: q2) + 6));
+          [|rewrite List.rev_length; simpl; omega].
+        more_fuel_add.
 
         rewrite slc_ep_transfer_loop_correct2; [| |assumption].
         -- apply forall_ex; intro amount'.
            rewrite slc_ep_transfer_loop_correct4; [|my_simple_fuel].
            rewrite remove_past_no_now by assumption.
            reflexivity.
-        -- etransitivity; [|apply Hfuel].
-           simpl (Datatypes.length []). do 2 rewrite List.rev_length.
-           pose (x := Datatypes.length q1).
-           pose (y := Datatypes.length (d :: q2)).
-           change (6 + y + 0 <= 2 * x + 2 * y + 8 - (x  + 1) - (y + 1)).
+        -- rewrite List.rev_length.
+           simpl Datatypes.length in *.
            omega.
-        -- symmetry. apply le_plus_minus. my_simple_fuel.
 Qed.
 
 Definition sig_header_ty :=
@@ -829,6 +829,7 @@ Definition slc_ep_transfer1_check_signature_spec
                      (q2', ((master_key_hash, (master_salt, (slave_salt + 2)%N)), tt)))))))))).
 Transparent add.
 Opaque N.add.
+Opaque int64bv.of_Z_safe.
 
 Lemma slc_ep_transfer1_check_signature_correct
         (env : @proto_env (Some (parameter_ty, None)))
@@ -862,10 +863,11 @@ Proof.
   intros fuel Hfuel params_transfer storage_context storage_auth.
   unfold slc_ep_transfer1_check_signature.
   remember slc_ep_transfer_loop as transfer_loop.
-  rewrite <- plus_assoc in Hfuel.
-  do 6 more_fuel'.
+  change 11 with (6 + 5) in Hfuel.
+  repeat rewrite <- plus_assoc in Hfuel.
+  more_fuel_add.
   unfold eval_seq_precond.
-  simpl.
+  cbn.
   repeat rewrite fold_eval_precond.
   unfold slc_ep_transfer1_check_signature_spec.
 
@@ -882,16 +884,16 @@ Proof.
   rewrite Heqtransfer_loop.
   (* todo: rewrite precond (eval ) in lemmes to eval_precond *)
   rewrite slc_ep_transfer_loop_correct.
-  apply forall_ex.
-  intro amount'.
-  destruct (update_queue queue_left queue_right (now env)) eqn:Hq1q2.
-  apply and_both.
+  - apply forall_ex.
+    intro amount'.
+    destruct (update_queue queue_left queue_right (now env)) eqn:Hq1q2.
+    apply and_both.
 
-  rewrite N.add_comm.
-  reflexivity.
+    rewrite N.add_comm.
+    reflexivity.
 
   (* fuel stuff *)
-  my_simple_fuel.
+  - my_simple_fuel.
 Qed.
 
 Lemma slc_ep_transfer3_register_correct

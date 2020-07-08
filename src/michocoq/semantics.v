@@ -160,6 +160,10 @@ Qed.
 
 Module Semantics(C : ContractContext).
 
+  (* more_fuel replaces
+   *   Hfuel : S n <= fuel  with Hfuel : n <= fuel
+   *   and fuel in the goal with S fuel
+   *)
   Ltac more_fuel :=
   match goal with
     | Hfuel : (_ <= ?fuel) |- _ =>
@@ -167,6 +171,13 @@ Module Semantics(C : ContractContext).
       [inversion Hfuel; fail
       | apply le_S_n in Hfuel]
   end.
+
+  (* Test *)
+  Goal forall fuel (Hfuel : 42 <= fuel) (F : Datatypes.nat -> Prop), F fuel.
+  Proof.
+    intros.
+    more_fuel.
+  Abort.
 
   (* Like more_fuel, but attempts to keep Peano numbers in
    * the decimal representation *)
@@ -177,25 +188,82 @@ Module Semantics(C : ContractContext).
       rewrite <- plus_assoc in Hfuel; more_fuel
     end.
 
+  Lemma more_fuel_add_lemma a b fuel fuel' :
+    fuel' = fuel - a ->
+    a + b <= fuel ->
+    (b <= fuel' /\ fuel = a + fuel').
+  Proof.
+    intros H Hfuel; subst fuel'.
+    split.
+    - apply (NPeano.Nat.sub_le_mono_r (a + b) fuel a) in Hfuel.
+      rewrite minus_plus in Hfuel.
+      assumption.
+    - apply le_plus_minus.
+      transitivity (a + b).
+      + apply Nat.le_add_r.
+      + assumption.
+  Qed.
+
+  (* fuel replace n replaces
+   *   Hfuel : a <= fuel  with Hfuel : n <= fuel
+   * if lia cannot prove n <= a, a subgoal is generated.
+   *)
+  Ltac fuel_replace n :=
+    match goal with
+    | Hfuel : ?a <= ?fuel |- _ =>
+      apply (le_trans n a fuel) in Hfuel; [|try lia]
+    end.
+
+  (* Test *)
+  Goal forall fuel a b (Hfuel : a + b <= fuel), b + a <= fuel.
+  Proof.
+    intros.
+    fuel_replace (b + a).
+  Abort.
+
+  (* more_fuel_add replaces
+   *   Hfuel : a + b <= fuel  with Hfuel : b <= fuel
+   *   and fuel in the goal with a + fuel
+   *)
+  Ltac more_fuel_add :=
+    match goal with
+    | Hfuel : (?a + ?b <= ?fuel) |- _ =>
+      remember (fuel - a) as fuel' eqn:Heqfuel';
+      apply (more_fuel_add_lemma a b fuel fuel' Heqfuel') in Hfuel;
+      destruct Hfuel as (Hfuel, Heqfuel);
+      subst fuel; rename fuel' into fuel; clear Heqfuel'
+    end.
+
+  (* Test *)
+  Goal forall a b fuel (Hfuel : a + b <= fuel) F, F fuel.
+  Proof.
+    intros.
+    more_fuel_add.
+  Abort.
+
+  Lemma extract_fuel_lemma n fuel f (Hfuel : n <= fuel) (Hf : f <= n) :
+    f + (n - f) <= fuel.
+  Proof.
+    rewrite <- le_plus_minus; assumption.
+  Qed.
+
   (* extract_fuel f replaces
    *   Hfuel : n <= fuel  with Hfuel : n - f <= fuel
    *   and fuel in the goal with f + fuel
-   * supposes that f <= fuel.
+   * if lia cannot prove f <= fuel, a subgoal is generated.
    *)
   Ltac extract_fuel f :=
     match goal with
-    | [ fuel : Datatypes.nat |- _ ] =>
-      match goal with
-      | [ Hfuel : ?n <= fuel |- _ ] =>
-        replace fuel with (f + (fuel - f)) in *; [
-          remember (fuel - f) as fuel' eqn:Heqfuel'; cut (n <= f + fuel' <-> n - f <= fuel'); [
-            intros Heqfuel; apply Heqfuel in Hfuel;
-            clear Heqfuel Heqfuel' fuel; rename fuel' into fuel
-          | try omega
-          ] | try omega
-        ]
-      end
+    | Hfuel : ?n <= ?fuel |- _ =>
+      apply (extract_fuel_lemma n fuel f) in Hfuel; [more_fuel_add|try lia]
     end.
+
+  (* Test *)
+  Goal forall x fuel (Hfuel : x + 4 <= fuel) F, F fuel.
+  Proof.
+    intros.
+    extract_fuel 2.
+  Abort.
 
   Export C.
 
