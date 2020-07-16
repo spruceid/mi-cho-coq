@@ -38,6 +38,9 @@ Definition hide_ntf {st A B} (i : instruction st false A B) :
            sigT (fun tff => instruction st tff A B) :=
   existT _ false i.
 
+Definition hide_ntf_seq {st A B} (i : instruction_seq st false A B) :
+           sigT (fun tff => instruction_seq st tff A B) :=
+  existT _ false i.
 
 
 (* Manipulations of options *)
@@ -209,6 +212,11 @@ Definition dig0dug0_opt {st tff A C} (i : instruction_seq st tff A C) :
     let? i1' :=
        match i1 return Datatypes.option (instruction_seq st' false A' B) with
        | DIP 0 _ i => cast_instruction_seq_opt i
+       | @DIP _ _ A _ _ _ i =>
+         let 'existT _ _ i := hide_ntf_seq i in
+         match i with @NOOP _ B => cast_instruction_seq_opt (@NOOP st' (A +++ B))
+                 | _ => None
+         end
        | Instruction_seq i => cast_instruction_seq_opt i
        | Instruction_opcode op =>
          match op with
@@ -243,6 +251,9 @@ Inductive dig0dug0_opt_rel {st} :
             (i1 : instruction_seq st false A B)
             (i2 : instruction_seq st tff B C) :
     dig0dug0_opt_rel (SEQ (DIP (A := nil) 0 eq_refl i1) i2) (instruction_app i1 i2)
+| D0D0_DIP_NOOP {tff A B C n Hn}
+            (i : instruction_seq st tff (A ++ B) C) :
+    dig0dug0_opt_rel (SEQ (DIP (A := A) n Hn NOOP) i) i
 | D0D0_DROP0 {tff A B}
              (i : instruction_seq st tff A B) :
     dig0dug0_opt_rel (SEQ (DROP (A := nil) 0 eq_refl) i) i
@@ -283,6 +294,8 @@ Ltac mytac :=
     | hide_tf _ = existT _ _ _ =>
       apply error.existT_eq_3 in H
     | hide_ntf _ = existT _ _ _ =>
+      apply error.existT_eq_3 in H
+    | hide_ntf_seq _ = existT _ _ _ =>
       apply error.existT_eq_3 in H
     | sig _ =>
       destruct H
@@ -347,9 +360,13 @@ Proof.
       * repeat mytac.
         constructor.
       * destruct n; try discriminate.
-        destruct A; try discriminate.
-        repeat mytac.
-        constructor.
+        -- destruct A; try discriminate.
+           repeat mytac.
+           constructor.
+        -- destruct (hide_ntf_seq i1) eqn:Hi1eq.
+           destruct i2; try discriminate.
+           repeat mytac.
+           constructor.
       * destruct o; try discriminate; destruct n as [|[|n]]; try discriminate.
         -- destruct S1; try discriminate.
            repeat mytac.
@@ -366,8 +383,17 @@ Proof.
         -- destruct A; try discriminate.
            repeat mytac.
            constructor.
-  - intro Hi; destruct Hi; unfold dig0dug0_opt, hide_tf, hide_ntf;
-      repeat (rewrite cast_instruction_seq_same; simpl); reflexivity.
+  - intro Hi; destruct Hi; unfold dig0dug0_opt, hide_tf, hide_ntf, hide_ntf_seq;
+      repeat (rewrite cast_instruction_seq_same; simpl); try reflexivity.
+    destruct n.
+    + destruct A; try discriminate.
+      rewrite cast_instruction_seq_same.
+      simpl.
+      rewrite cast_instruction_seq_same.
+      reflexivity.
+    + simpl.
+      rewrite cast_instruction_seq_same.
+      reflexivity.
 Qed.
 
 Definition dig0dug0_aux {st tff A B} (i : instruction_seq st tff A B) : instruction_seq st tff A B :=
@@ -422,6 +448,7 @@ Proof.
     destruct Hi; simpl; try reflexivity;
       try (symmetry; apply untyped_instruction_app_NOOP);
       try apply untype_instruction_seq_app.
+    destruct n; reflexivity.
   - intro HN.
     simpl.
     destruct i; try reflexivity.
@@ -444,8 +471,11 @@ Proof.
       * repeat mytac.
       * repeat mytac.
         destruct tffa; simpl in *; repeat mytac; reflexivity.
-      * destruct n; destruct A as [|a A]; try discriminate; repeat mytac;
-          reflexivity.
+      * destruct n; destruct A as [|a A]; try discriminate; repeat mytac.
+        destruct (hide_ntf_seq i1) eqn:Heqi1.
+        destruct i; simpl in *; repeat mytac.
+        -- discriminate.
+        -- reflexivity.
       * repeat mytac.
         destruct o; try reflexivity.
         -- destruct n as [|[|n]]; destruct S1 as [|a [|b S1]];
@@ -1450,6 +1480,31 @@ Module Semantics_Preservation (C : semantics.ContractContext).
       assumption.
   Qed.
 
+  Lemma stack_app_split (S1 S2 : Datatypes.list type) (s1 : stack S1) (s2 : stack S2) sA :
+    stack_split sA = (s1, s2) <-> sA = stack_app s1 s2.
+  Proof.
+    generalize s2; clear s2.
+    induction S1; intro s2.
+    - simpl.
+      simpl in s1.
+      destruct s1.
+      split; congruence.
+    - simpl.
+      simpl in s1.
+      destruct s1 as (x, s1).
+      simpl in sA.
+      destruct sA as (y, sA).
+      case_eq (stack_split sA).
+      intros s1' s2' HsA.
+      split.
+      + rewrite IHS1 in HsA.
+        congruence.
+      + intro H; injection H; intros.
+        subst y.
+        rewrite <- IHS1 in H0.
+        congruence.
+  Qed.
+
   Lemma same_semantics_dig0dug0 :
     same_semantics (@dig0dug0).
   Proof.
@@ -1485,6 +1540,18 @@ Module Semantics_Preservation (C : semantics.ContractContext).
         rewrite Hi1.
         constructor.
       + rewrite eval_seq_SEQ.
+        unfold eval_seq in Hsucc.
+        apply error.success_bind in Hsucc.
+        destruct Hsucc as (stAB, (HDIP, _)).
+        destruct fuel; [simpl in HDIP; discriminate|].
+        simpl.
+        simpl in HDIP.
+        destruct (stack_split stA) as (stA', stB) eqn:HstA.
+        simpl.
+        f_equal.
+        apply stack_app_split.
+        assumption.
+      + rewrite eval_seq_SEQ.
         destruct fuel; [simpl in Hsucc; contradiction|].
         reflexivity.
       + rewrite eval_seq_SEQ.
@@ -1519,31 +1586,6 @@ Module Semantics_Preservation (C : semantics.ContractContext).
       simpl.
       reflexivity.
     - reflexivity.
-  Qed.
-
-  Lemma stack_app_split (S1 S2 : Datatypes.list type) (s1 : stack S1) (s2 : stack S2) sA :
-    stack_split sA = (s1, s2) <-> sA = stack_app s1 s2.
-  Proof.
-    generalize s2; clear s2.
-    induction S1; intro s2.
-    - simpl.
-      simpl in s1.
-      destruct s1.
-      split; congruence.
-    - simpl.
-      simpl in s1.
-      destruct s1 as (x, s1).
-      simpl in sA.
-      destruct sA as (y, sA).
-      case_eq (stack_split sA).
-      intros s1' s2' HsA.
-      split.
-      + rewrite IHS1 in HsA.
-        congruence.
-      + intro H; injection H; intros.
-        subst y.
-        rewrite <- IHS1 in H0.
-        congruence.
   Qed.
 
   Lemma same_semantics_digndugn :

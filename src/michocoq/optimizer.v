@@ -65,6 +65,7 @@ Definition dig0dug0 :=
        | SEQ (DUG 0) i => i
        | SEQ (DROP 0) i => i
        | SEQ (DIP 0 i1) i2 => instruction_app i1 i2
+       | SEQ (DIP n NOOP) i => i
        | SEQ (DIG 1) i => SEQ SWAP i
        | SEQ (DUG 1) i => SEQ SWAP i
        | SEQ (Instruction_seq i1) i2 => instruction_app i1 i2
