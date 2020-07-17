@@ -283,6 +283,12 @@ Ltac destructable_list l :=
   | cons _ _ => idtac
   end.
 
+Lemma pair_injection a1 a2 a3 a4 :
+  pair a1 a2 = pair a3 a4 -> a1 = a3 /\ a2 = a4.
+Proof.
+  intro H; injection H; auto.
+Qed.
+
 Ltac mytac :=
   match goal with
   | H : ?A |- _ =>
@@ -331,6 +337,8 @@ Ltac mytac :=
     | Some _ = Some _ =>
       apply unsome in H
     | Some _ = None => discriminate
+    | pair _ _ = pair _ _ =>
+      apply pair_injection in H
     | cast_instruction_seq_opt _ = _ =>
       rewrite cast_instruction_seq_same in H
     | option_bind (Some _) _ = _ =>
@@ -782,8 +790,418 @@ Proof.
          repeat mytac.
 Qed.
 
-(* DIG n - DUG n *)
+Definition un_pair_opcode {st A B} (op : @opcode st A B) : Datatypes.option Datatypes.unit :=
+  match op with
+  | PAIR => Some tt
+  | _ => None
+  end.
 
+Lemma un_pair_opcode_pair st a b A : un_pair_opcode (@PAIR st a b A) = Some tt.
+Proof.
+  reflexivity.
+Qed.
+
+Definition un_pair {st tff A B} (i : instruction st tff A B) : Datatypes.option Datatypes.unit :=
+  let? op := unopcode i in un_pair_opcode op.
+
+Lemma un_pair_pair st a b A : un_pair (@PAIR st a b A) = Some tt.
+Proof.
+  reflexivity.
+Qed.
+
+Definition uncar_opcode {st A B} (op : @opcode st A B) : Datatypes.option Datatypes.unit :=
+  match op with
+  | CAR => Some tt
+  | _ => None
+  end.
+
+Definition uncar {st tff A B} (i : instruction st tff A B) : Datatypes.option Datatypes.unit :=
+  let? op := unopcode i in uncar_opcode op.
+
+Definition uncdr_opcode {st A B} (op : @opcode st A B) : Datatypes.option Datatypes.unit :=
+  match op with
+  | CDR => Some tt
+  | _ => None
+  end.
+
+Definition uncdr {st tff A B} (i : instruction st tff A B) : Datatypes.option Datatypes.unit :=
+  let? op := unopcode i in uncdr_opcode op.
+
+Definition undup_opcode {st A B} (op : @opcode st A B) : Datatypes.option Datatypes.unit :=
+  match op with
+  | DUP => Some tt
+  | _ => None
+  end.
+
+Definition undup {st tff A B} (i : instruction st tff A B) : Datatypes.option Datatypes.unit :=
+  let? op := unopcode i in undup_opcode op.
+
+Definition undip {st tff A B} (i : instruction st tff A B) :
+  Datatypes.option (sigT (fun n => sigT (fun tff => sigT (fun A => sigT (fun B => instruction_seq st tff A B))))) :=
+  match i with
+  | DIP n _ i => Some (existT _ n (existT _ _ (existT _ _ (existT _ _ i))))
+  | _ => None
+  end.
+
+Definition unnoop {st tff A B} (i : instruction_seq st tff A B) : Datatypes.option Datatypes.unit :=
+  match i with NOOP => Some tt | _ => None end.
+
+Lemma unnoop_correct {st tff A B} (i : instruction_seq st tff A B) :
+  unnoop i = Some tt ->
+  exists Htff : tff = false,
+  exists HAB : A = B,
+    eq_rect tff (fun tff => instruction_seq st tff A B) i false Htff = eq_rect A (instruction_seq st false A) NOOP B HAB.
+Proof.
+  intro H.
+  destruct i; try discriminate.
+  exists eq_refl.
+  exists eq_refl.
+  reflexivity.
+Qed.
+
+(* PAIR-UNPAIR *)
+
+Definition pair_unpair_opt {st tff A D} (i : instruction_seq st tff A D) :
+  Datatypes.option (instruction_seq st tff A D) :=
+  let? existT _ _ (existT _ _ i1) := unseq_fst i in
+  let '(existT _ _ i1) := hide_ntf i1 in
+  let? tt := un_pair i1 in
+  let? existT _ _ (existT _ _ i) := unseq_snd i in
+
+  let? existT _ _ (existT _ _ i2) := unseq_fst i in
+  let '(existT _ _ i2) := hide_ntf i2 in
+  let? tt := undup i2 in
+  let? existT _ _ (existT _ _ i) := unseq_snd i in
+
+  let? existT _ _ (existT _ _ i3) := unseq_fst i in
+  let '(existT _ _ i3) := hide_ntf i3 in
+  let? tt := uncar i3 in
+  let? existT _ _ (existT _ _ i) := unseq_snd i in
+
+  let? existT _ _ (existT _ _ i4) := unseq_fst i in
+  let '(existT _ _ i4) := hide_ntf i4 in
+  let? (existT _ n (existT _ _ (existT _ _ (existT _ _ i4)))) := undip i4 in
+  let? tt := (if n =? 1 then Some tt else None) in
+  let? existT _ _ (existT _ _ i) := unseq_snd i in
+
+  let? existT _ _ (existT _ _ i5) := unseq_fst i4 in
+  let '(existT _ _ i5) := hide_ntf i5 in
+  let? tt := uncdr i5 in
+  let? existT _ _ (existT _ _ i4) := unseq_snd i4 in
+
+  let? tt := unnoop i4 in
+  cast_instruction_seq_opt i.
+
+Inductive pair_unpair_rel {st tff} :
+  forall {A B} (i i' : instruction_seq st tff A B), Prop :=
+| Pair_unpair_intro {a b A B} (i : instruction_seq st tff (a ::: b ::: A) B) :
+    pair_unpair_rel (SEQ PAIR (SEQ DUP (SEQ CAR (SEQ (DIP (A := a ::: nil) 1 eq_refl (SEQ CDR NOOP)) i)))) i.
+
+Lemma pair_unpair_opt_pair_unpair {st tff A D} (i i' : instruction_seq st tff A D) :
+  pair_unpair_opt i = Some i' <-> pair_unpair_rel i i'.
+Proof.
+  split.
+  - unfold pair_unpair_opt.
+    intro H.
+    apply bind_some in H; destruct H as ((A1, (B1, i1)), (He1, H)).
+    case_eq (hide_ntf i1); intros tff1 i1' Hi1'; rewrite Hi1' in H.
+    apply bind_some in H; destruct H as ((), (Hei1', H)).
+    apply bind_some in H; destruct H as ((A2, (B2, i2)), (He2, H)).
+    apply bind_some in H; destruct H as ((A3, (B3, i3)), (He3, H)).
+    case_eq (hide_ntf i3); intros tff3 i3' Hi3'; rewrite Hi3' in H.
+    apply bind_some in H; destruct H as ((), (Hei1'', H)).
+    apply bind_some in H; destruct H as ((A4, (B4, i4)), (He4, H)).
+    apply bind_some in H; destruct H as ((A5, (B5, i5)), (He5, H)).
+    case_eq (hide_ntf i5); intros tff5 i5' Hi5'; rewrite Hi5' in H.
+    apply bind_some in H; destruct H as ((), (Hei5'', H)).
+    apply bind_some in H; destruct H as ((A6, (B6, i6)), (He6, H)).
+    apply bind_some in H; destruct H as ((A7, (B7, i7)), (He7, H)).
+    case_eq (hide_ntf i7); intros tff7 i7' Hi7'; rewrite Hi7' in H.
+    apply bind_some in H; destruct H as ((n, (tff8, (A8, (B8, i8)))), (He8, H)).
+    apply bind_some in H; destruct H as ((), (Hn, H)).
+    apply bind_some in H; destruct H as ((A10, (B10, i10)), (He10, H)).
+    apply bind_some in H; destruct H as ((A9, (B9, i9)), (He9, H)).
+    case_eq (hide_ntf i9); intros tff9 i9' Hi9'; rewrite Hi9' in H.
+    apply bind_some in H; destruct H as ((), (He9', H)).
+    apply bind_some in H; destruct H as ((A11, (B11, i11)), (He11, H)).
+    apply bind_some in H; destruct H as ((), (He11', H)).
+    destruct i1'; try discriminate. destruct o; try discriminate.
+    destruct i3'; try discriminate. destruct o; try discriminate.
+    destruct i5'; try discriminate. destruct o; try discriminate.
+    destruct i7'; try discriminate.
+    destruct i9'; try discriminate. destruct o; try discriminate.
+    destruct n as [|[|]]; try discriminate.
+    simpl in *.
+    assert (n0 = 1) as Hn0 by (repeat mytac; assumption); subst n0.
+    destruct A1 as [|a3[|]]; try discriminate.
+    destruct i; try discriminate.
+    destruct i2; try discriminate.
+    destruct i4; try discriminate.
+    destruct i6; try discriminate.
+    destruct i8; try discriminate.
+    simpl in *.
+    repeat mytac.
+    simpl in *.
+    apply unnoop_correct in He11'.
+    repeat mytac.
+    simpl in *.
+    subst.
+    constructor.
+  - intro H.
+    destruct H.
+    unfold pair_unpair_opt.
+    simpl.
+    apply cast_instruction_seq_same.
+Qed.
+
+Definition pair_unpair_aux {st tff A D} (i : instruction_seq st tff A D) :
+  instruction_seq st tff A D :=
+  opt_get (pair_unpair_opt i) i.
+
+Definition pair_unpair {st tff A B} (i : instruction_seq st tff A B) : instruction_seq st tff A B :=
+  visit_instruction_seq (@pair_unpair_aux) i.
+
+Lemma untype_inversion_pair {st tff A B um} (i : instruction st tff A B) :
+  untyper.untype_instruction um i =
+  untyped_syntax.instruction_opcode untyped_syntax.PAIR ->
+  exists a b SA
+         (H : tff = false)
+         (HA : A = a ::: b ::: SA)
+         (HB : B = pair a b ::: SA),
+    eq_rec
+      _
+      (fun A => instruction st false A (pair a b ::: SA))
+      (eq_rec
+         _
+         (fun B => instruction st false A B)
+         (eq_rec _ (fun tff => instruction st tff A B) i _ H) _ HB) _ HA
+    = Instruction_opcode PAIR.
+Proof.
+  destruct i; try discriminate.
+  destruct o; try discriminate.
+  simpl.
+  intros _.
+  do 3 eexists.
+  do 3 (exists eq_refl).
+  reflexivity.
+Qed.
+
+Lemma untype_inversion_dup {st tff A B um} (i : instruction st tff A B) :
+  untyper.untype_instruction um i =
+  untyped_syntax.instruction_opcode untyped_syntax.DUP ->
+  exists a SA
+         (H : tff = false)
+         (HA : A = a ::: SA)
+         (HB : B = a ::: a ::: SA),
+    eq_rec
+      _
+      (fun A => instruction st false A (a ::: a ::: SA))
+      (eq_rec
+         _
+         (fun B => instruction st false A B)
+         (eq_rec _ (fun tff => instruction st tff A B) i _ H) _ HB) _ HA
+    = Instruction_opcode DUP.
+Proof.
+  destruct i; try discriminate.
+  destruct o; try discriminate.
+  simpl.
+  intros _.
+  do 2 eexists.
+  do 3 (exists eq_refl).
+  reflexivity.
+Qed.
+
+Lemma untype_inversion_car {st tff A B um} (i : instruction st tff A B) :
+  untyper.untype_instruction um i =
+  untyped_syntax.instruction_opcode untyped_syntax.CAR ->
+  exists a b SA
+         (H : tff = false)
+         (HA : A = pair a b ::: SA)
+         (HB : B = a ::: SA),
+    eq_rec
+      _
+      (fun A => instruction st false A (a ::: SA))
+      (eq_rec
+         _
+         (fun B => instruction st false A B)
+         (eq_rec _ (fun tff => instruction st tff A B) i _ H) _ HB) _ HA
+    = Instruction_opcode CAR.
+Proof.
+  destruct i; try discriminate.
+  destruct o; try discriminate.
+  simpl.
+  intros _.
+  do 3 eexists.
+  do 3 (exists eq_refl).
+  reflexivity.
+Qed.
+
+Lemma untype_inversion_cdr {st tff A B um} (i : instruction st tff A B) :
+  untyper.untype_instruction um i =
+  untyped_syntax.instruction_opcode untyped_syntax.CDR ->
+  exists a b SA
+         (H : tff = false)
+         (HA : A = pair a b ::: SA)
+         (HB : B = b ::: SA),
+    eq_rec
+      _
+      (fun A => instruction st false A (b ::: SA))
+      (eq_rec
+         _
+         (fun B => instruction st false A B)
+         (eq_rec _ (fun tff => instruction st tff A B) i _ H) _ HB) _ HA
+    = Instruction_opcode CDR.
+Proof.
+  destruct i; try discriminate.
+  destruct o; try discriminate.
+  simpl.
+  intros _.
+  do 3 eexists.
+  do 3 (exists eq_refl).
+  reflexivity.
+Qed.
+
+Lemma untype_inversion_dip {st tff A B um} (i : instruction st tff A B)
+      (i' : untyped_syntax.instruction_seq) n :
+  untyper.untype_instruction um i = untyped_syntax.DIP n i' ->
+  exists S1 S2 S3
+         (H : tff = false)
+         (HA : A = S1 +++ S2)
+         (HB : B = S1 +++ S3)
+         (Hn : n = List.length S1)
+         (i'' : instruction_seq st false S2 S3),
+    eq_rec
+      _
+      (fun A => instruction st false A (S1 +++ S3))
+      (eq_rec
+         _
+         (fun B => instruction st false A B)
+         (eq_rec _ (fun tff => instruction st tff A B) i _ H) _ HB) _ HA
+    = @DIP (List.length S1) _ S1 S2 S3 eq_refl i'' /\
+    untyper.untype_instruction_seq um i'' = i'.
+Proof.
+  destruct i; try discriminate.
+  simpl.
+  intro H.
+  injection H.
+  intros; subst; clear H.
+  do 3 eexists.
+  do 4 (exists eq_refl).
+  eexists.
+  split; reflexivity.
+Qed.
+
+Lemma untype_inversion_noop {st tff A B um} (i : instruction_seq st tff A B) :
+  untyper.untype_instruction_seq um i = untyped_syntax.NOOP ->
+  exists (H : tff = false) (HB : B = A),
+    eq_rec _ (fun B => instruction_seq st false A B) (eq_rec _ (fun tff => instruction_seq st tff A B) i _ H) _ HB = NOOP.
+Proof.
+  destruct i; try discriminate.
+  intros _.
+  do 2 (exists eq_refl).
+  reflexivity.
+Qed.
+
+Lemma untype_pair_unpair : untype_fun_seq (@pair_unpair) (optimizer.pair_unpair).
+Proof.
+  unfold untype_fun_seq, pair_unpair, optimizer.pair_unpair.
+  apply untype_visit_instruction_seq; [| reflexivity].
+  intros st tff A D i; simpl.
+  unfold pair_unpair_aux.
+  unfold opt_get.
+  case_eq (pair_unpair_opt i).
+  - intros i' H.
+    rewrite pair_unpair_opt_pair_unpair in H.
+    destruct H.
+    reflexivity.
+  - intro H.
+    unfold pair_unpair_opt in H.
+    case_eq (untyper.untype_instruction_seq untyper.untype_Optimized i);
+      try reflexivity.
+    intros ui1 ui23 Hi.
+    destruct ui1; try reflexivity.
+    destruct o; try reflexivity.
+    destruct ui23; try reflexivity.
+    destruct i0; try reflexivity.
+    destruct o; try reflexivity.
+    destruct ui23; try reflexivity.
+    destruct i0; try reflexivity.
+    destruct o; try reflexivity.
+    destruct ui23; try reflexivity.
+    destruct i0; try reflexivity.
+    destruct n; try reflexivity.
+    destruct n; try reflexivity.
+    destruct i0; try reflexivity.
+    destruct i0; try reflexivity.
+    destruct o; try reflexivity.
+    destruct i1; try reflexivity.
+    exfalso.
+    generalize (untype_inversion_seq Hi).
+    intro Hiinv.
+    destruct Hiinv as [(Htff, (i', Hi')) | (B, (i1, (i23, Hi123)))]; [repeat mytac; discriminate |].
+    subst i.
+    simpl in Hi.
+    injection Hi; clear Hi.
+    intros Hi Hi1.
+    generalize (untype_inversion_seq Hi).
+    intro Hiinv.
+    destruct Hiinv as [(Htff, (i', Hi')) | (C, (i2, (i34, Hi234)))]; [repeat mytac; discriminate |].
+    subst i23.
+    simpl in Hi.
+    injection Hi; clear Hi.
+    intros Hi Hi2.
+    generalize (untype_inversion_seq Hi).
+    intro Hiinv.
+    destruct Hiinv as [(Htff, (i', Hi')) | (E, (i3, (i45, Hi345)))]; [repeat mytac; discriminate |].
+    subst i34.
+    simpl in Hi.
+    injection Hi; clear Hi.
+    intros Hi Hi3.
+    generalize (untype_inversion_seq Hi).
+    intro Hiinv.
+    destruct Hiinv as [(Htff, (i', Hi')) | (F, (i4, (i56, Hi456)))].
+    + repeat mytac.
+      simpl in Hi.
+      injection Hi; clear Hi.
+      intros Hi23 Hi'.
+      apply untype_inversion_dip in Hi'.
+      destruct Hi' as (_, (_, (_, (Htff, _)))); discriminate.
+    + subst i45.
+      simpl in Hi.
+      injection Hi; clear Hi.
+      intros Hi Hi4.
+      apply untype_inversion_dip in Hi4.
+      destruct Hi4 as (S1, (S2, (S3, (Hfalse, (HE, (HF, (HS1, (i'', (Hi4, Hi''))))))))).
+      destruct S1 as [|a[|]]; try discriminate. clear HS1.
+      apply untype_inversion_pair in Hi1.
+      destruct Hi1 as (a', (b, (SA, (Hf, (HA, (HB, Hi1)))))).
+      apply untype_inversion_dup in Hi2.
+      destruct Hi2 as (ab, (SA', (Hf', (HB', (HC, Hi2))))).
+      apply untype_inversion_car in Hi3.
+      destruct Hi3 as (a'', (b', (SA'', (Hf'', (HC', (HE', Hi3)))))).
+      simpl in *.
+      repeat mytac.
+      simpl in *.
+      generalize (untype_inversion_seq Hi'').
+      intro Hiinv.
+      destruct Hiinv as [(Htff, (i', Hi')) | (A, (i1, (i23, Hi123)))].
+      * discriminate.
+      * subst i''.
+        simpl in Hi''.
+        injection Hi''; clear Hi''.
+        intros Hi Hi1.
+        apply untype_inversion_noop in Hi.
+        destruct Hi as (Hf, (HA, Hi)).
+        repeat mytac.
+        apply untype_inversion_cdr in Hi1.
+        destruct Hi1 as (a', (b, (SA, (Hf, (HB, (HA, Hi)))))).
+        repeat mytac.
+        simpl in H.
+        rewrite cast_instruction_seq_same in H.
+        discriminate.
+Qed.
+
+(* DIG n - DUG n *)
 
 Definition undig_opcode {st A B} (op : @opcode st A B) : Datatypes.option Datatypes.nat :=
   match op with
@@ -1201,15 +1619,17 @@ Qed.
 Definition cleanup {st tff A B} (i : instruction_seq st tff A B)
   : instruction_seq st tff A B :=
   pushdrop
-    (swapswap
-       (digndugn
-          (dig0dug0 i))).
+    (pair_unpair
+       (swapswap
+          (digndugn
+             (dig0dug0 i)))).
 
 Lemma untype_cleanup : untype_fun_seq (@cleanup) (optimizer.cleanup).
 Proof.
   intros st tff A B i.
   unfold cleanup, optimizer.cleanup.
   rewrite (@untype_pushdrop st tff A B); f_equal.
+  rewrite (@untype_pair_unpair st tff A B); f_equal.
   rewrite (@untype_swapswap st tff A B); f_equal.
   rewrite (@untype_digndugn st tff A B); f_equal.
   rewrite (@untype_dig0dug0 st tff A B); f_equal.
@@ -1569,6 +1989,19 @@ Module Semantics_Preservation (C : semantics.ContractContext).
     - reflexivity.
   Qed.
 
+  Lemma same_semantics_pair_unpair :
+    same_semantics (@pair_unpair).
+  Proof.
+    apply same_semantics_visit_seq.
+    - apply same_semantics_opt.
+      intros st tff env A D i i' stA fuel HS Hsucc.
+      apply pair_unpair_opt_pair_unpair in HS.
+      destruct HS.
+      destruct stA as (x, (y, stA)).
+      destruct fuel as [|[|fuel]]; [contradiction|contradiction|].
+      reflexivity.
+    - reflexivity.
+  Qed.
 
   Lemma same_semantics_swapswap :
     same_semantics (@swapswap).
@@ -1661,6 +2094,7 @@ Module Semantics_Preservation (C : semantics.ContractContext).
   Proof.
     unfold cleanup.
     apply same_semantics_compose; [exact same_semantics_push_drop|].
+    apply same_semantics_compose; [exact same_semantics_pair_unpair|].
     apply same_semantics_compose; [exact same_semantics_swapswap|].
     apply same_semantics_compose; [exact same_semantics_digndugn|].
     exact same_semantics_dig0dug0.

@@ -89,6 +89,14 @@ Definition swapswap :=
        | i => i
        end).
 
+Definition pair_unpair :=
+  visit_instruction_seq
+    (fun i =>
+       match i with
+       | SEQ PAIR (SEQ DUP (SEQ CAR (SEQ (DIP 1 (SEQ CDR NOOP)) i))) => i
+       | i => i
+       end).
+
 Definition push_drop :=
   visit_instruction_seq
     (fun i =>
@@ -101,9 +109,10 @@ Definition push_drop :=
 (** Clean some stuff in the code *)
 Definition cleanup (ins : instruction_seq) : instruction_seq :=
   push_drop
-    (swapswap
-       (digndugn
-          (dig0dug0 ins))).
+    (pair_unpair
+       (swapswap
+          (digndugn
+             (dig0dug0 ins)))).
 
 (** Optimize the code (currently only cleanup of useless instructions *)
 Definition optimize := cleanup.
