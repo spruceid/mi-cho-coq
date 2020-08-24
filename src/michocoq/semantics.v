@@ -1008,7 +1008,7 @@ Module Semantics(C : ContractContext).
         end
       | PUSH a x, SA, _ => Return (concrete_data_to_data _ x, SA)
       | LAMBDA a b code, SA, _ => Return (existT _ _ code, SA)
-      | @ITER _ _ s _ body, (x, SA), env =>
+      | @ITER _ _ _ s _ body, (x, SA), env =>
         match iter_destruct _ _ (iter_variant_field _ s) x with
         | None => Return SA
         | Some (a, y) =>
@@ -1393,7 +1393,7 @@ Module Semantics(C : ContractContext).
       eval_seq_precond_body (@eval_precond_n) (no_self env) _ _ _ f (fun '(y, tt) => psi (y, SA)) (x, tt)
     | PUSH a x, env, psi, SA => psi (concrete_data_to_data _ x, SA)
     | LAMBDA a b code, env, psi, SA => psi (existT _ _ code, SA)
-    | @ITER _ _ s _ body, env, psi, (x, SA) =>
+    | @ITER _ _ _ s _ body, env, psi, (x, SA) =>
       match iter_destruct _ _ (iter_variant_field _ s) x with
       | None => psi SA
       | Some (a, y) =>
@@ -1666,7 +1666,7 @@ Module Semantics(C : ContractContext).
      In this special case, we show that precond (eval ... ITER) ... psi is
      a List.fold_right whose accumulator is the post condition.
    *)
-  Lemma precond_iter_bounded st env a (l : data (list a)) A (body : instruction_seq st _ (a ::: A) A)
+  Lemma precond_iter_bounded st tff env a (l : data (list a)) A (body : instruction_seq st tff (a ::: A) A)
         fuel_bound body_spec
     (Hbody_correct :
        forall fuel (x : data a) (input_stack : stack A) (psi : stack A -> Prop),

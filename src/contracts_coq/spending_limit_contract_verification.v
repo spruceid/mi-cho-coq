@@ -280,8 +280,8 @@ Proof.
     + simpl in Hfuel.
       do 3 (more_fuel; cbn).
       destruct q2; [reflexivity|].
-      match goal with |- context[eval_precond fuel env (@ITER ?st ?c ?i ?A ?code) ?psi] =>
-                      remember (eval_precond fuel env (@ITER st c i A code) psi) as eval_itercode
+      match goal with |- context[eval_precond fuel env (@ITER ?tff ?st ?c ?i ?A ?code) ?psi] =>
+                      remember (eval_precond fuel env (@ITER tff st c i A code) psi) as eval_itercode
       end.
       more_fuel.
       cbn.

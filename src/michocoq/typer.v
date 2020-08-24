@@ -212,7 +212,7 @@ Qed.
              (i : untyped_syntax.instruction_seq) A
     : M (typer_result (self_type := self_type) (t ::: A)) :=
     let! (existT _ B1 (existT _ B2 f)) := type_loop_family f t in
-    let! r := type_check_instruction_seq_no_tail_fail type_instruction_seq i (B1 ++ A) (t ::: A) in
+    let! (existT _ _ r) := type_check_instruction_seq type_instruction_seq i (B1 ++ A) (t ::: A) in
     Return (Inferred_type _ _ (syntax.LOOP_ f r)).
 
   Definition take_one (S : syntax.stack_type) : M (type * syntax.stack_type) :=
@@ -776,13 +776,13 @@ Qed.
         type_check_instruction_seq (type_instruction_seq tm) i (a :: nil) (b :: nil) in
       Return (Inferred_type _ _ (syntax.LAMBDA a b i))
     | ITER i, list a :: A =>
-      let! i := type_check_instruction_seq_no_tail_fail (type_instruction_seq tm) i (a :: A) A in
+      let! (existT _ _ i) := type_check_instruction_seq (type_instruction_seq tm) i (a :: A) A in
       Return (Inferred_type _ _ (syntax.ITER (i := syntax.iter_list _) i))
     | ITER i, set a :: A =>
-      let! i := type_check_instruction_seq_no_tail_fail (type_instruction_seq tm) i (a ::: A) A in
+      let! (existT _ _ i) := type_check_instruction_seq (type_instruction_seq tm) i (a ::: A) A in
       Return (Inferred_type _ _ (syntax.ITER (i := syntax.iter_set _)i))
     | ITER i, map kty vty :: A =>
-      let! i := type_check_instruction_seq_no_tail_fail (type_instruction_seq tm) i (pair kty vty :: A) A in
+      let! (existT _ _ i) := type_check_instruction_seq (type_instruction_seq tm) i (pair kty vty :: A) A in
       Return (Inferred_type _ _ (syntax.ITER (i := syntax.iter_map _ _) i))
     | MAP i, list a :: A =>
       let! r := type_instruction_seq_no_tail_fail (type_instruction_seq tm) i (a :: A) in

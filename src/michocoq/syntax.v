@@ -478,15 +478,16 @@ Inductive instruction :
 | IF_ {self_type A B tffa tffb C1 C2 t} (i : if_family C1 C2 t) :
     instruction_seq self_type tffa (C1 ++ A) B -> instruction_seq self_type tffb (C2 ++ A) B ->
     instruction self_type (tffa && tffb) (t ::: A) B
-| LOOP_ {self_type C1 C2 t A} (i : loop_family C1 C2 t) :
-    instruction_seq self_type Datatypes.false (C1 ++ A) (t :: A) ->
+| LOOP_ {self_type tff C1 C2 t A} (i : loop_family C1 C2 t) :
+    instruction_seq self_type tff (C1 ++ A) (t :: A) ->
     instruction self_type Datatypes.false (t :: A) (C2 ++ A)
 | PUSH (a : type) (x : concrete_data a) {self_type A} : instruction self_type Datatypes.false A (a :: A)
 | LAMBDA (a b : type) {self_type A tff} :
     instruction_seq None tff (a :: nil) (b :: nil) ->
     instruction self_type Datatypes.false A (lambda a b :: A)
-| ITER {self_type collection} {i : iter_struct collection} {A} :
-    instruction_seq self_type Datatypes.false (iter_elt_type _ i ::: A) A -> instruction self_type Datatypes.false (collection :: A) A
+| ITER {self_type tff collection} {i : iter_struct collection} {A} :
+    instruction_seq self_type tff (iter_elt_type _ i ::: A) A ->
+    instruction self_type Datatypes.false (collection :: A) A
 | MAP {self_type collection b} {i : map_struct collection b} {A} :
     instruction_seq self_type Datatypes.false (map_in_type _ _ i :: A) (b :: A) ->
     instruction self_type Datatypes.false (collection :: A) (map_out_collection_type _ _ i :: A)

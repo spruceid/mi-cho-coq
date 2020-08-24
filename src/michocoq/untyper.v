@@ -590,7 +590,7 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
         * destruct i; reflexivity.
         * rewrite Hi.
           simpl.
-          rewrite untype_type_check_instruction_seq_no_tail_fail.
+          rewrite untype_type_check_instruction_seq.
           -- reflexivity.
           -- apply untype_type_instruction_seq.
       + unfold untype_type_spec.
@@ -602,11 +602,11 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
         rewrite untype_type_check_instruction_seq; auto.
       + destruct i as [c v]; destruct v.
         * unfold untype_type_spec; simpl.
-          rewrite untype_type_check_instruction_seq_no_tail_fail; auto.
+          rewrite untype_type_check_instruction_seq; auto.
         * unfold untype_type_spec; simpl.
-          rewrite untype_type_check_instruction_seq_no_tail_fail; auto.
+          rewrite untype_type_check_instruction_seq; auto.
         * unfold untype_type_spec; simpl.
-          rewrite untype_type_check_instruction_seq_no_tail_fail; auto.
+          rewrite untype_type_check_instruction_seq; auto.
       + destruct i as [a c v]; destruct v.
         * unfold untype_type_spec; simpl.
           rewrite untype_type_instruction_seq_no_tail_fail.
