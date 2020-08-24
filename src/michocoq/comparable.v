@@ -28,8 +28,23 @@ Require String.
 Require Import ListSet.
 Require tez.
 Require Relations_1.
-Require Import syntax.
 Require Import syntax_type.
+Require map.
+
+Definition str := String.string.
+Inductive timestamp_constant : Set := Mk_timestamp : str -> timestamp_constant.
+Inductive signature_constant : Set := Mk_sig : str -> signature_constant.
+Inductive key_constant : Set := Mk_key : str -> key_constant.
+Inductive key_hash_constant : Set := Mk_key_hash : str -> key_hash_constant.
+Inductive tez_constant : Set := Mk_tez : str -> tez_constant.
+Inductive smart_contract_address_constant : Set :=
+| Mk_smart_contract_address : str -> smart_contract_address_constant.
+Inductive address_constant : Set :=
+| Implicit : key_hash_constant -> address_constant
+| Originated : smart_contract_address_constant -> address_constant.
+Inductive operation_constant : Set := Mk_operation : str -> operation_constant.
+Inductive mutez_constant : Set := Mk_mutez : tez.mutez -> mutez_constant.
+Inductive chain_id_constant : Set := Mk_chain_id : str -> chain_id_constant.
 
 Definition simple_comparable_data (a : simple_comparable_type) : Set :=
   match a with

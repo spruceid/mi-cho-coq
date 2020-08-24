@@ -2,7 +2,7 @@ Require Import ZArith List Nat Ascii String.
 Require Import ListString.All.
 Require Import Moment.All.
 Require syntax semantics.
-Require Import syntax_type.
+Require Import syntax_type comparable.
 Require Import untyped_syntax error.
 Import error.Notations.
 
@@ -553,7 +553,7 @@ Qed.
           else Failed _ (Typing _ ("Negative value cannot be typed in nat"%string, d))
         | Comparable_type mutez =>
           let! m := tez.of_Z z in
-          Return (syntax.Mutez_constant (syntax.Mk_mutez m))
+          Return (syntax.Mutez_constant (comparable.Mk_mutez m))
         | Comparable_type timestamp =>
           match tm with
           | Optimized | Any => Return (syntax.Timestamp_constant z)
@@ -582,7 +582,7 @@ Qed.
             if ascii_dec c1 "t" then
               if ascii_dec c2 "z" then
                 Return (syntax.Address_constant
-                          (syntax.Implicit (syntax.Mk_key_hash s)))
+                          (comparable.Implicit (comparable.Mk_key_hash s)))
               else fail
             else
               match s with
@@ -591,8 +591,8 @@ Qed.
                   if ascii_dec c2 "T" then
                     if ascii_dec c3 "1" then
                       Return (syntax.Address_constant
-                                (syntax.Originated
-                                   (syntax.Mk_smart_contract_address s)))
+                                (comparable.Originated
+                                   (comparable.Mk_smart_contract_address s)))
                     else
                       fail
                   else
@@ -621,7 +621,7 @@ Qed.
       fun ty =>
         match ty with
         | Comparable_type bytes => Return (syntax.Bytes_constant s)
-        | chain_id => Return (syntax.Chain_id_constant (syntax.Mk_chain_id s))
+        | chain_id => Return (syntax.Chain_id_constant (comparable.Mk_chain_id s))
         | _ => Failed _ (Typing _ (d, ty))
         end
     | Unit =>

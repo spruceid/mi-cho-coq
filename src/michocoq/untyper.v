@@ -1,3 +1,6 @@
+(* Not really needed but eases reading of proof states. *)
+Require Import String.
+
 Require Import ZArith List.
 Require Import syntax.
 Require Import typer.
@@ -100,7 +103,7 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
     | syntax.Int_constant z => Int_constant z
     | syntax.Nat_constant n => Int_constant (Z.of_N n)
     | syntax.String_constant s => String_constant s
-    | syntax.Mutez_constant (Mk_mutez m) => Int_constant (tez.to_Z m)
+    | syntax.Mutez_constant (comparable.Mk_mutez m) => Int_constant (tez.to_Z m)
     | syntax.Bytes_constant s => Bytes_constant s
     | syntax.Timestamp_constant t =>
       match um with
@@ -117,9 +120,9 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
     | syntax.Key_hash_constant s => String_constant s
     | syntax.Address_constant c =>
       match c with
-      | syntax.Implicit (syntax.Mk_key_hash s) =>
+      | comparable.Implicit (comparable.Mk_key_hash s) =>
         String_constant (String "t" (String "z" s))
-      | syntax.Originated (syntax.Mk_smart_contract_address s) =>
+      | comparable.Originated (comparable.Mk_smart_contract_address s) =>
         String_constant (String "K" (String "T" (String "1" s)))
       end
     | syntax.Unit => Unit
@@ -141,7 +144,7 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
                       (fun '(syntax.Elt _ _ x y) => Elt (untype_data um x) (untype_data um y))
                       l)
     | syntax.Instruction _ i => Instruction (untype_instruction_seq um i)
-    | syntax.Chain_id_constant (Mk_chain_id c) => Bytes_constant c
+    | syntax.Chain_id_constant (comparable.Mk_chain_id c) => Bytes_constant c
     end
   with
   untype_instruction {self_type tff0 A B} (um : untype_mode) (i : syntax.instruction self_type tff0 A B) : instruction :=
@@ -627,7 +630,7 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
            reflexivity.
         -- auto.
       + unfold untype_type_spec; simpl.
-        assert (isSome_maybe (Typing string "No such self entrypoint"%string)
+        assert (isSome_maybe (Typing _ "No such self entrypoint"%string)
                              (get_entrypoint_opt annot_opt self_type self_annot) = Return H).
         * destruct (get_entrypoint_opt annot_opt self_type self_annot) as [x|].
           -- simpl.
@@ -1028,7 +1031,7 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
         destruct (concrete_address_inversion x') as (x, Hx).
         subst x'.
         simpl.
-        destruct s as [|c1 [|c2 s]]; try discriminate.
+        destruct s as [|c1 [|c2 s]]; [discriminate|discriminate|].
         destruct (ascii_dec c1 "t").
         + destruct (ascii_dec c2 "z"); try discriminate.
           injection H; intros; subst x.
