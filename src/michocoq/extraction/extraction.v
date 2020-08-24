@@ -32,7 +32,7 @@ Michocoq.micheline2michelson Michocoq.semantics Michocoq.main.
 (* Recursive Extraction Library micheline_lexer. *)
 (* Recursive Extraction Library micheline_parser. *)
 
-Extract Inlined Constant ascii_compare => "(fun c1 c2 -> if (c1 < c2) then cl else if (c1 > c2) then Gt else Eq)".
+Extract Inlined Constant ascii_compare => "(fun c1 c2 -> if (c1 < c2) then Lt else if (c1 > c2) then Gt else Eq)".
 
 Require Import ZArith NArith.
 
