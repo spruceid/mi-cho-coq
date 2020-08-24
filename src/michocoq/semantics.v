@@ -451,20 +451,7 @@ Module Semantics(C : ContractContext).
     | Some_ a => Some (concrete_data_to_data _ a)
     | None_ => None
     | Concrete_list l => List.map (concrete_data_to_data _) l
-    | @Concrete_set a l =>
-      (fix concrete_data_set_to_data (l : Datatypes.list (concrete_data a)) :=
-         match l with
-         | nil => set.empty _ _
-         | cons x l =>
-           set.insert
-             (comparable_data a)
-             (comparable.compare a)
-             (comparable.compare_eq_iff a)
-             (comparable.lt_trans a)
-             (comparable.gt_trans a)
-             (data_to_comparable_data _ (concrete_data_to_data a x))
-             (concrete_data_set_to_data l)
-         end) l
+    | Concrete_set s => s
     | @Concrete_map a b l =>
       (fix concrete_data_map_to_data
            (l : Datatypes.list (elt_pair (concrete_data a) (concrete_data b))) :=
@@ -521,8 +508,7 @@ Module Semantics(C : ContractContext).
     | option a, H, Some y => Some_ (data_to_concrete_data a H y)
     | list a, H, l =>
       Concrete_list (List.map (data_to_concrete_data a H) l)
-    | set a, H, exist _ l _ =>
-      Concrete_set (List.map (comparable_data_to_concrete_data a) l)
+    | set a, H, s => Concrete_set s
     | map a b, H, exist _ l _ =>
       Concrete_map (List.map (fun '(k, v) =>
                                 Elt _

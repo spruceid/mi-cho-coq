@@ -641,6 +641,16 @@ Qed.
     | d => fun ty => Failed _ (Typing _ (d, ty))
     end.
 
+  Fixpoint type_data_set tm
+           (l : List.list concrete_data) (a : comparable_type) {struct l} :=
+    match l with
+    | nil => Return nil
+    | cons x l =>
+      let! x := type_comparable_data tm x a in
+      let! l := type_data_set tm l a in
+      Return (cons x l)
+    end.
+
   Fixpoint type_data (tm : type_mode) (d : concrete_data) {struct d}
     : forall ty, M (syntax.concrete_data ty) :=
     match d with
@@ -744,17 +754,11 @@ Qed.
             ) l in
           Return (syntax.Concrete_list l)
         | set a =>
-          let! l :=
-            (fix type_data_list l :=
-              match l with
-              | nil => Return nil
-              | cons x l =>
-                let! x := type_data tm x a in
-                let! l := type_data_list l in
-                Return (cons x l)
-              end
-            ) l in
-          Return (syntax.Concrete_set l)
+          let! l := type_data_set tm l a in
+          match set.sorted_dec _ _ (compare_eq_iff a) (lt_trans a) l with
+          | left H => Return (syntax.Concrete_set (exist (fun l => Sorted.StronglySorted _ l) l H))
+          | right _ => Failed _ (Typing _ ("set literals have to be sorted"%string))
+          end
         | map a b =>
           let! l :=
             (fix type_data_list l :=

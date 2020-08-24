@@ -407,6 +407,36 @@ Section definition.
       decide equality.
   Qed.
 
+  Lemma sorted_dec (l : list A) :
+    {Sorted.StronglySorted lt l} + {~ Sorted.StronglySorted lt l}.
+  Proof.
+    induction l as [|a l].
+    - left; constructor.
+    - destruct IHl as [IHl|IHl].
+      + destruct l as [|b l].
+        * left.
+          repeat constructor.
+        * case_eq (compare a b); intro H.
+          -- right; intro Hsorted.
+             apply not_in_sorted in Hsorted.
+             apply Hsorted.
+             left.
+             apply compare_eq_iff in H.
+             congruence.
+          -- left.
+             apply Sorted.Sorted_StronglySorted; [assumption|].
+             apply Sorted.StronglySorted_Sorted in IHl.
+             constructor; [assumption|].
+             constructor.
+             exact H.
+          -- right; intro Hsorted.
+             destruct (sorted_inv _ _ _ Hsorted) as (_, (H2, _)).
+             destruct (Forall_inv _ _ _ H2) as (Hlt, _).
+             unfold lt in Hlt.
+             congruence.
+      + right; intro Hsorted; apply IHl; inversion Hsorted; assumption.
+  Defined.
+
   Lemma extensionality (s1 s2 : set) : (forall x, mem x s1 <-> mem x s2) -> s1 = s2.
   Proof.
     intro H.

@@ -143,7 +143,8 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
     | syntax.Some_ x => Some_ (untype_data um x)
     | syntax.None_ => None_
     | syntax.Concrete_list l => Concrete_seq (List.map (untype_data um) l)
-    | syntax.Concrete_set l => Concrete_seq (List.map (untype_data um) l)
+    | syntax.Concrete_set (exist _ l _) =>
+      Concrete_seq (List.map (untype_comparable_data um) l)
     | syntax.Concrete_map l =>
       Concrete_seq (List.map
                       (fun '(syntax.Elt _ _ x y) => Elt (untype_data um x) (untype_data um y))
@@ -546,25 +547,23 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
         * simpl.
           rewrite H.
           reflexivity.
-      + pose (fix type_data_set (l : Datatypes.list concrete_data) :=
-                match l with
-                | nil => Return nil
-                | cons x l =>
-                  let! x := typer.type_data typer.Optimized x a in
-                  let! l := type_data_set l in
-                  Return (cons x l)
-                end) as type_data_set.
-        assert (forall l, type_data_set (List.map (untype_data untype_Optimized) l) = Return l).
-        * clear l.
-          intro l; induction l.
+      + destruct s as (l, H).
+        simpl.
+        assert (forall l, type_data_set Optimized (List.map (untype_comparable_data untype_Optimized) l) a = Return l) as H1.
+        * clear l H; induction l.
           -- reflexivity.
           -- simpl.
-             rewrite untype_type_data.
+             rewrite untype_type_comparable_data.
+             simpl.
              rewrite IHl.
              reflexivity.
-        * simpl.
-          rewrite H.
-          reflexivity.
+        * rewrite H1.
+          simpl.
+          case (set.sorted_dec _ _ (comparable.compare_eq_iff a) (comparable.lt_trans a) l).
+          -- intro s.
+             repeat f_equal.
+             apply set.sorted_irrel.
+          -- intro; contradiction.
       + pose (fix type_data_list L :=
                    match L with
                    | nil => Return nil
@@ -1129,17 +1128,21 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
             f_equal.
             apply IHl.
             assumption.
-        + simpl.
+        + destruct (set.sorted_dec _ _ (comparable.compare_eq_iff a)
+                                   (comparable.lt_trans a) x); [|discriminate].
+          do 2 mytac type_untype type_untype_seq type_untype_data.
+          simpl.
           f_equal.
+          clear s.
           generalize dependent x.
-          generalize dependent l.
           induction l.
-          * repeat mytac type_untype type_untype_seq type_untype_data.
-          * repeat mytac type_untype type_untype_seq type_untype_data.
+          * simpl.
+            repeat mytac type_untype type_untype_seq type_untype_data.
+          * simpl.
+            repeat mytac type_untype type_untype_seq type_untype_data.
             simpl.
-            f_equal.
-            apply IHl.
-            assumption.
+            erewrite type_untype_comparable_data; [|eassumption].
+            rewrite IHl; [reflexivity|assumption].
         + simpl.
           f_equal.
           match goal with | H : ?F l = Return x |- _ => pose F as type_data_list end.

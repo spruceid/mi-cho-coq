@@ -509,7 +509,8 @@ with concrete_data : type -> Set :=
 | None_ {a : type} : concrete_data (option a)
 | Concrete_list {a} : Datatypes.list (concrete_data a) -> concrete_data (list a)
 | Concrete_set {a : comparable_type} :
-    Datatypes.list (concrete_data a) -> concrete_data (set a)
+    set.set (comparable_data a) (compare a) ->
+    concrete_data (set a)
 | Concrete_map {a : comparable_type} {b} :
     Datatypes.list (elt_pair (concrete_data a) (concrete_data b)) ->
     concrete_data (map a b)
