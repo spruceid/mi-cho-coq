@@ -124,7 +124,7 @@ Definition slc_ep_master :
                  DIP1 { DIP1 { UNPAIR;
                                DUP ;
                                DIP1 {
-                                   PUSH nat (Nat_constant 2) ;
+                                   PUSH nat (comparable_constant nat 2%N) ;
                                    (* increment salt *)
                                    ADD (s := add_nat_nat) (* @salt_inc *) ;
                                    PAIR };
@@ -206,9 +206,9 @@ Definition slc_ep_transfer_loop_body :
                           SWAP ;
                           DIP1 { SWAP ;
                                  DIP1 { ADD (s := add_tez_tez)}} ;
-                          PUSH bool True_ }
+                          PUSH bool True }
                         { CONS ;
-                          PUSH bool False_}}
+                          PUSH bool False}}
               { IF_CONS { NIL (pair timestamp mutez) ;
                           SWAP ;
                           CONS ;
@@ -216,10 +216,10 @@ Definition slc_ep_transfer_loop_body :
                           ITER (i := iter_list _) { CONS } ;
                           NIL (pair timestamp mutez) ;
                           SWAP ;
-                          PUSH bool True_}
+                          PUSH bool True}
                         { NIL (pair timestamp mutez) ;
                           DUP ;
-                          PUSH bool False_}
+                          PUSH bool False}
      })%michelson.
 
 Definition slc_ep_transfer_loop : instruction _ _ _ _ :=
@@ -258,7 +258,7 @@ Definition slc_ep_transfer1_check_signature :
                     UNPAIR ;
                     DIP1 { UNPAIR;
                            DIP1 { DUP ;
-                                  PUSH nat (Nat_constant 2) ;
+                                  PUSH nat (Comparable_constant nat 2%N) ;
                                   ADD (s:= add_nat_nat) } ;
                            PAIR };
                     PAIR ;
@@ -280,7 +280,7 @@ Definition slc_ep_transfer1_check_signature :
                      SWAP ;
                      DIP1 { SWAP ;
                             UNPAIR ;
-                            PUSH bool True_ ;
+                            PUSH bool True ;
                             (* recherche de fonds à liberer *)
                             slc_ep_transfer_loop ;
                             DIP1 {SWAP} ;

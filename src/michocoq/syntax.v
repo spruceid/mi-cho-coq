@@ -498,19 +498,10 @@ with instruction_seq :
 (* The instruction self_type SEQ I C is written "{ I ; C }" in Michelson *)
 | SEQ {self_type A B C tff} : instruction self_type Datatypes.false A B -> instruction_seq self_type tff B C -> instruction_seq self_type tff A C
 with concrete_data : type -> Set :=
-| Int_constant : Z -> concrete_data int
-| Nat_constant : N -> concrete_data nat
-| String_constant : String.string -> concrete_data string
-| Bytes_constant : String.string -> concrete_data bytes
-| Timestamp_constant : Z -> concrete_data timestamp
+| Comparable_constant a : simple_comparable_data a -> concrete_data a
 | Signature_constant : String.string -> concrete_data signature
 | Key_constant : String.string -> concrete_data key
-| Key_hash_constant : String.string -> concrete_data key_hash
-| Mutez_constant : mutez_constant -> concrete_data mutez
-| Address_constant : address_constant -> concrete_data address
 | Unit : concrete_data unit
-| True_ : concrete_data bool
-| False_ : concrete_data bool
 | Pair {a b : type} : concrete_data a -> concrete_data b -> concrete_data (pair a b)
 | Left {a b : type} (x : concrete_data a) an bn : concrete_data (or a an b bn)
 | Right {a b : type} (x : concrete_data b) an bn : concrete_data (or a an b bn)
@@ -659,9 +650,7 @@ Definition seq_aux {self_type A B C tffa tffb} :
     fun i _ => Tail_fail (tail_fail_change_range A B C i)
   else SEQ.
 
-Coercion int_constant := Int_constant.
-Coercion nat_constant := Nat_constant.
-Coercion string_constant := String_constant.
+Coercion comparable_constant a := Comparable_constant a.
 
 Definition full_contract tff param annot storage :=
   instruction_seq (Some (param, annot)) tff
@@ -731,12 +720,16 @@ Notation "{ A ; .. ; B }" := (seq_aux A .. (seq_aux B NOOP) ..) : michelson_scop
 
 Notation "n ~Mutez" := (exist _ (int64bv.of_Z_safe n eq_refl) I) (at level 100).
 
-Notation "n ~mutez" := (Mutez_constant (Mk_mutez (n ~Mutez))) (at level 100).
+Notation "n ~mutez" := (Comparable_constant mutez (n ~Mutez)) (at level 100).
+
+Definition False := Comparable_constant bool false.
+
+Definition True := Comparable_constant bool true.
 
 (* Dig stuff *)
 
-Lemma nltz : forall n: Datatypes.nat, (n ?= 0) = Lt -> False.
-Proof. intros. rewrite Nat.compare_lt_iff in H. omega. Qed.
+Lemma nltz : forall n: Datatypes.nat, (n ?= 0) <> Lt.
+Proof. intros n H. rewrite Nat.compare_lt_iff in H. omega. Qed.
 
 Lemma lt_S_n : forall n m, (S n ?= S m) = Lt -> (n ?= m) = Lt.
 Proof. intros. rewrite Nat.compare_lt_iff in *. omega. Qed.
@@ -797,7 +790,7 @@ Qed.
 (* Dug stuff *)
 
 Lemma Snltz {A} : forall n',
-    S n' ?= S (@Datatypes.length A nil) = Lt -> False.
+    S n' ?= S (@Datatypes.length A nil) <> Lt.
 Proof.
   intros n' Hlen; simpl in *. rewrite Nat.compare_lt_iff in *. omega.
 Qed.

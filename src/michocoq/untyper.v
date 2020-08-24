@@ -1,5 +1,6 @@
 (* Not really needed but eases reading of proof states. *)
 Require Import String.
+Require Import Ascii.
 
 Require Import ZArith List.
 Require Import syntax.
@@ -8,10 +9,6 @@ Require Import untyped_syntax error.
 Require Eqdep_dec.
 Import error.Notations.
 Require Import Lia.
-
-(* Not really needed but eases reading of proof states. *)
-Require Import String.
-Require Import Ascii.
 
 Inductive untype_mode := untype_Readable | untype_Optimized.
 
@@ -98,14 +95,14 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
     | syntax.LOOP_or _ _ _ _ => LOOP_or
     end.
 
-  Fixpoint untype_data {a} (um : untype_mode) (d : syntax.concrete_data a) : concrete_data :=
-    match d with
-    | syntax.Int_constant z => Int_constant z
-    | syntax.Nat_constant n => Int_constant (Z.of_N n)
-    | syntax.String_constant s => String_constant s
-    | syntax.Mutez_constant (comparable.Mk_mutez m) => Int_constant (tez.to_Z m)
-    | syntax.Bytes_constant s => Bytes_constant s
-    | syntax.Timestamp_constant t =>
+  Definition untype_simple_comparable_data {a : simple_comparable_type} (um : untype_mode) : comparable.comparable_data a -> concrete_data :=
+    match a as a return comparable.comparable_data a -> concrete_data with
+    | int => Int_constant
+    | nat => fun n => Int_constant (Z.of_N n)
+    | string => String_constant
+    | mutez => fun m => Int_constant (tez.to_Z m)
+    | bytes => Bytes_constant
+    | timestamp => fun t =>
       match um with
       | untype_Readable =>
         String_constant
@@ -115,19 +112,31 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
       | untype_Optimized =>
         Int_constant t
       end
-    | syntax.Signature_constant s => String_constant s
-    | syntax.Key_constant s => String_constant s
-    | syntax.Key_hash_constant s => String_constant s
-    | syntax.Address_constant c =>
+    | key_hash => fun '(comparable.Mk_key_hash s) => String_constant s
+    | address => fun c =>
       match c with
       | comparable.Implicit (comparable.Mk_key_hash s) =>
         String_constant (String "t" (String "z" s))
       | comparable.Originated (comparable.Mk_smart_contract_address s) =>
         String_constant (String "K" (String "T" (String "1" s)))
       end
+    | bool => fun b => if b then True_ else False_
+    end.
+
+  Fixpoint untype_comparable_data {a : comparable_type} (um : untype_mode) (d : comparable.comparable_data a) {struct a} :
+    concrete_data :=
+    match a return comparable.comparable_data a -> concrete_data with
+    | Comparable_type_simple s => untype_simple_comparable_data um
+    | Cpair a b => fun '(x, y) =>
+      Pair (untype_simple_comparable_data um x) (untype_comparable_data um y)
+    end d.
+
+  Fixpoint untype_data {a} (um : untype_mode) (d : syntax.concrete_data a) : concrete_data :=
+    match d with
+    | syntax.Comparable_constant a x => untype_simple_comparable_data um x
+    | syntax.Signature_constant s => String_constant s
+    | syntax.Key_constant s => String_constant s
     | syntax.Unit => Unit
-    | syntax.True_ => True_
-    | syntax.False_ => False_
     | syntax.Pair x y => Pair (untype_data um x) (untype_data um y)
     | syntax.Left x _ _ => Left (untype_data um x)
     | syntax.Right y _ _ => Right (untype_data um y)
@@ -455,6 +464,56 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
       reflexivity.
   Qed.
 
+  Lemma untype_type_simple_comparable_data a (d : comparable.simple_comparable_data a) :
+    typer.type_comparable_data typer.Optimized (untype_simple_comparable_data untype_Optimized d) a = Return d.
+  Proof.
+    destruct a; try reflexivity.
+    - simpl.
+      assert (0 <= Z.of_N d)%Z as H by apply N2Z.is_nonneg.
+      rewrite <- Z.geb_le in H.
+      rewrite H.
+      rewrite N2Z.id.
+      reflexivity.
+    - destruct d; reflexivity.
+    - simpl.
+      rewrite tez.of_Z_to_Z.
+      reflexivity.
+    - destruct d as [c|c]; destruct c; simpl; reflexivity.
+    - destruct d; reflexivity.
+  Qed.
+
+  Lemma untype_type_comparable_data a (d : comparable.comparable_data a) :
+    typer.type_comparable_data typer.Optimized (untype_comparable_data untype_Optimized d) a = Return d.
+  Proof.
+    induction a.
+    - apply untype_type_simple_comparable_data.
+    - destruct d.
+      simpl.
+      rewrite untype_type_simple_comparable_data.
+      simpl.
+      rewrite IHa.
+      reflexivity.
+  Qed.
+
+  Lemma untype_type_data_simple_comparable a s :
+    type_data Optimized (untype_simple_comparable_data untype_Optimized s)
+              (Comparable_type a) = Return (Comparable_constant a s).
+  Proof.
+    destruct a; try reflexivity.
+    - simpl.
+      assert (0 <= Z.of_N s)%Z as H by apply N2Z.is_nonneg.
+      rewrite <- Z.geb_le in H.
+      rewrite H.
+      rewrite N2Z.id.
+      reflexivity.
+    - destruct s; reflexivity.
+    - simpl.
+      rewrite tez.of_Z_to_Z.
+      reflexivity.
+    - destruct s as [c|c]; destruct c; simpl; reflexivity.
+    - destruct s; reflexivity.
+  Qed.
+
   Fixpoint untype_type_data a (d : syntax.concrete_data a) :
     typer.type_data typer.Optimized (untype_data untype_Optimized d) a = Return d
   with
@@ -466,18 +525,7 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
   Proof.
     - destruct d; try reflexivity; try (simpl; repeat rewrite untype_type_data; reflexivity).
       + simpl.
-        assert (0 <= Z.of_N n)%Z as H by apply N2Z.is_nonneg.
-        rewrite <- Z.geb_le in H.
-        rewrite H.
-        rewrite N2Z.id.
-        reflexivity.
-      + simpl.
-        destruct m.
-        unfold type_data.
-        rewrite tez.of_Z_to_Z.
-        reflexivity.
-      + simpl.
-        destruct a as [c|c]; destruct c; simpl; reflexivity.
+        apply untype_type_data_simple_comparable.
       + simpl.
         pose (fix type_data_list (l : Datatypes.list concrete_data) :=
                 match l with
@@ -668,6 +716,68 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
         rewrite untype_type_instruction_seq.
         simpl.
         destruct tff; reflexivity.
+  Qed.
+
+  Lemma type_untype_simple_comparable_data a x (x' : comparable.simple_comparable_data a) :
+    typer.type_comparable_data typer.Optimized x a = error.Return x' ->
+    untype_simple_comparable_data untype_Optimized x' = x.
+  Proof.
+    destruct a; destruct x; simpl; try congruence.
+    - intro H.
+      case_eq (z >=? 0)%Z; intro He; rewrite He in H; try discriminate.
+      rewrite Z.geb_le in He.
+      f_equal.
+      apply unreturn in H.
+      subst x'.
+      apply Z2N.id.
+      assumption.
+    - intro H; apply unreturn in H; subst.
+      reflexivity.
+    - intro H; apply unreturn in H; subst.
+      reflexivity.
+    - intro H.
+      f_equal.
+      apply tez.of_Z_to_Z_eqv.
+      assumption.
+    - intro H.
+      destruct s as [|c1 [|c2 s]]; [discriminate|discriminate|].
+      destruct (ascii_dec c1 "t").
+      + destruct (ascii_dec c2 "z"); try discriminate.
+        injection H; intros; subst.
+        reflexivity.
+      + destruct s as [|c3 s]; try discriminate.
+        destruct (ascii_dec c1 "K"); try discriminate.
+        destruct (ascii_dec c2 "T"); try discriminate.
+        destruct (ascii_dec c3 "1"); try discriminate.
+        injection H; intros; subst.
+        reflexivity.
+    - intro H; apply unreturn in H; subst.
+      reflexivity.
+  Qed.
+
+  Lemma type_untype_comparable_data a x (x' : comparable.comparable_data a) :
+    typer.type_comparable_data typer.Optimized x a = error.Return x' ->
+    untype_comparable_data untype_Optimized x' = x.
+  Proof.
+    generalize dependent x'.
+    generalize dependent x.
+    induction a as [s|a b].
+    - simpl.
+      apply type_untype_simple_comparable_data.
+    - simpl.
+      destruct x; try discriminate.
+      destruct x' as (x1', x2').
+      simpl.
+      intro H.
+      apply bind_eq_return in H.
+      destruct H as (d, (Hd, H)).
+      apply type_untype_simple_comparable_data in Hd.
+      subst x1.
+      apply bind_eq_return in H.
+      destruct H as (d', (Hd', H)).
+      apply IHb in Hd'.
+      subst x2.
+      congruence.
   Qed.
 
   Lemma type_untype_cast_seq um self_type A B C D tff i i' :
@@ -928,48 +1038,6 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
     - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
   Qed.
 
-  Definition un_address ty (addr : syntax.concrete_data ty) :
-    Datatypes.option (comparable.comparable_data address) :=
-    match addr return Datatypes.option (comparable.comparable_data address) with
-    | Address_constant x => Some x
-    | _ => None
-    end.
-
-  Lemma un_address_some ty (addr : syntax.concrete_data ty) (H : ty = address) :
-    exists x, un_address ty addr = Some x.
-  Proof.
-    destruct addr; try discriminate.
-    simpl; eexists; reflexivity.
-  Qed.
-
-  Lemma un_address_some_rev ty (addr : syntax.concrete_data ty) x :
-    un_address ty addr = Some x ->
-    exists He, eq_rect ty syntax.concrete_data addr address He = Address_constant x.
-  Proof.
-    destruct addr; try discriminate.
-    simpl.
-    intro Hs; injection Hs; intro; subst x.
-    exists eq_refl.
-    reflexivity.
-  Qed.
-
-  Lemma concrete_address_inversion (addr : syntax.concrete_data (Comparable_type address)) :
-    exists x : comparable.comparable_data address,
-      addr = Address_constant x.
-  Proof.
-    case_eq (un_address address addr).
-    - intros c Hc.
-      apply un_address_some_rev in Hc.
-      destruct Hc as (Haddr, H).
-      assert (Haddr = eq_refl) by (apply Eqdep_dec.UIP_dec; apply type_dec).
-      subst Haddr.
-      simpl in H.
-      eexists; eassumption.
-    - intro H.
-      destruct (un_address_some address addr eq_refl) as (c, Hc).
-      congruence.
-  Qed.
-
   Fixpoint type_untype self_type A i t {struct i} :
     typer.type_instruction typer.Optimized (self_type := self_type) i A = error.Return t ->
     match t with
@@ -1028,20 +1096,17 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
           apply tez.of_Z_to_Z_eqv.
           assumption.
       - repeat mytac type_untype type_untype_seq type_untype_data.
-        destruct (concrete_address_inversion x') as (x, Hx).
-        subst x'.
-        simpl.
         destruct s as [|c1 [|c2 s]]; [discriminate|discriminate|].
         destruct (ascii_dec c1 "t").
         + destruct (ascii_dec c2 "z"); try discriminate.
-          injection H; intros; subst x.
-          congruence.
+          injection H; intros; subst.
+          reflexivity.
         + destruct s as [|c3 s]; try discriminate.
           destruct (ascii_dec c1 "K"); try discriminate.
           destruct (ascii_dec c2 "T"); try discriminate.
           destruct (ascii_dec c3 "1"); try discriminate.
-          injection H; intros; subst x.
-          congruence.
+          injection H; intros; subst.
+          reflexivity.
       - repeat mytac type_untype type_untype_seq type_untype_data.
       - repeat mytac type_untype type_untype_seq type_untype_data.
       - repeat mytac type_untype type_untype_seq type_untype_data.

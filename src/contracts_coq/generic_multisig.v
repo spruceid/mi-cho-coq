@@ -77,7 +77,7 @@ Definition multisig : full_contract _ parameter_ty None storage_ty :=
         DIP1 { SWAP }; UNPAIR;
         DIP1
           {
-            PUSH nat (nat_constant 0); SWAP;
+            PUSH nat (comparable_constant nat 0%N); SWAP;
             ITER
               {
                 DIP1 { SWAP }; SWAP;
@@ -90,7 +90,7 @@ Definition multisig : full_contract _ parameter_ty None storage_ty :=
                             SWAP; DIIP { DUUP };
                             DUUUP; DIP1 { CHECK_SIGNATURE };
                             SWAP; IF_TRUE { DROP1 } { FAILWITH };
-                            PUSH nat (nat_constant 1); ADD_nat }}
+                            PUSH nat (comparable_constant nat 1%N); ADD_nat }}
                       { SWAP; DROP1 }
                   }
                   {
@@ -103,7 +103,7 @@ Definition multisig : full_contract _ parameter_ty None storage_ty :=
         IF_CONS { FAIL } {};
         DROP1;
 
-        DIP1 { UNPAIR; PUSH nat (nat_constant 1); ADD; PAIR };
+        DIP1 { UNPAIR; PUSH nat (comparable_constant nat 1%N); ADD; PAIR };
 
         IF_LEFT
           { UNIT; EXEC }
@@ -281,7 +281,7 @@ Definition multisig_iter_body :
                     SWAP; DIIP { DUUP };
                     DUUUP; DIP1 { CHECK_SIGNATURE };
                     SWAP; IF_TRUE { DROP1 } { FAILWITH };
-                    PUSH nat (nat_constant 1); ADD_nat }}
+                    PUSH nat (comparable_constant nat 1%N); ADD_nat }}
               { SWAP; DROP1 }
           }
           {
@@ -412,7 +412,7 @@ Definition multisig_tail :
     IF_CONS { FAIL } {};
     DROP1;
 
-    DIP1 { UNPAIR; PUSH nat (nat_constant 1); ADD; PAIR };
+    DIP1 { UNPAIR; PUSH nat (comparable_constant nat 1%N); ADD; PAIR };
 
     IF_LEFT
       { UNIT; EXEC }
@@ -429,7 +429,7 @@ Lemma multisig_split :
     IF_LEFT
       { DROP1; NIL operation; PAIR }
       ( multisig_head ;;;
-        DIP1 { PUSH nat (nat_constant 0%N); SWAP; multisig_iter };;
+        DIP1 { PUSH nat (comparable_constant nat 0%N); SWAP; multisig_iter };;
         multisig_tail)
   }%michelson.
 Proof.

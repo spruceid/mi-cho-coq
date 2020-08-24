@@ -541,22 +541,20 @@ Qed.
     | _, _ => Failed _ (Typing _ (instruction_opcode o, A))
     end.
 
-  Fixpoint type_data (tm : type_mode) (d : concrete_data) {struct d}
-    : forall ty, M (syntax.concrete_data ty) :=
+  Fixpoint type_comparable_data (tm : type_mode) (d : concrete_data) {struct d} : forall a,
+      M (comparable_data a) :=
     match d with
     | Int_constant z =>
       fun ty =>
         match ty with
-        | Comparable_type int => Return (syntax.Int_constant z)
-        | Comparable_type nat =>
-          if (z >=? 0)%Z then Return (syntax.Nat_constant (Z.to_N z))
+        | int => Return z
+        | nat =>
+          if (z >=? 0)%Z then Return (Z.to_N z)
           else Failed _ (Typing _ ("Negative value cannot be typed in nat"%string, d))
-        | Comparable_type mutez =>
-          let! m := tez.of_Z z in
-          Return (syntax.Mutez_constant (comparable.Mk_mutez m))
-        | Comparable_type timestamp =>
+        | mutez => tez.of_Z z
+        | timestamp =>
           match tm with
-          | Optimized | Any => Return (syntax.Timestamp_constant z)
+          | Optimized | Any => Return z
           | Readable => Failed _ (Typing _ ("Not readable"%string, (d, ty)))
           end
         | _ => Failed _ (Typing _ (d, ty))
@@ -564,11 +562,9 @@ Qed.
     | String_constant s =>
       fun ty =>
         match ty with
-        | Comparable_type string => Return (syntax.String_constant s)
-        | signature => Return (syntax.Signature_constant s)
-        | key => Return (syntax.Key_constant s)
-        | Comparable_type key_hash => Return (syntax.Key_hash_constant s)
-        | Comparable_type address =>
+        | string => Return s
+        | key_hash => Return (Mk_key_hash s)
+        | address =>
           let fail :=
               Failed
                 _
@@ -581,8 +577,7 @@ Qed.
           | String c1 (String c2 s) =>
             if ascii_dec c1 "t" then
               if ascii_dec c2 "z" then
-                Return (syntax.Address_constant
-                          (comparable.Implicit (comparable.Mk_key_hash s)))
+                Return (comparable.Implicit (comparable.Mk_key_hash s))
               else fail
             else
               match s with
@@ -590,9 +585,8 @@ Qed.
                 if ascii_dec c1 "K" then
                   if ascii_dec c2 "T" then
                     if ascii_dec c3 "1" then
-                      Return (syntax.Address_constant
-                                (comparable.Originated
-                                   (comparable.Mk_smart_contract_address s)))
+                      Return (comparable.Originated
+                                (comparable.Mk_smart_contract_address s))
                     else
                       fail
                   else
@@ -602,7 +596,7 @@ Qed.
               end
           | _ => fail
           end
-        | Comparable_type timestamp =>
+        | timestamp =>
           match tm with
           | Optimized => Failed _ (Typing _ ("Not optimized"%string, (d, ty)))
           | Readable
@@ -610,7 +604,7 @@ Qed.
             match Moment.Parse.rfc3339_non_strict (LString.s s) with
             | Some (moment, nil) =>
               let z := Moment.to_epoch moment in
-              Return (syntax.Timestamp_constant z)
+              Return z
             | _ =>
               Failed _ (Typing _ ("Cannot parse timestamp according to rfc3339"%string, s))
             end
@@ -620,8 +614,61 @@ Qed.
     | Bytes_constant s =>
       fun ty =>
         match ty with
-        | Comparable_type bytes => Return (syntax.Bytes_constant s)
+        | bytes => Return s
+        | _ => Failed _ (Typing _ (d, ty))
+        end
+    | True_ =>
+      fun ty =>
+        match ty with
+        | bool => Return true
+        | _ => Failed _ (Typing _ (d, ty))
+        end
+    | False_ =>
+      fun ty =>
+        match ty with
+        | bool => Return false
+        | _ => Failed _ (Typing _ (d, ty))
+        end
+    | Pair x y =>
+      fun ty =>
+        match ty with
+        | Cpair a b =>
+          let! x := type_comparable_data tm x a in
+          let! y := type_comparable_data tm y b in
+          Return (x, y)
+        | _ => Failed _ (Typing _ (d, ty))
+        end
+    | d => fun ty => Failed _ (Typing _ (d, ty))
+    end.
+
+  Fixpoint type_data (tm : type_mode) (d : concrete_data) {struct d}
+    : forall ty, M (syntax.concrete_data ty) :=
+    match d with
+    | Int_constant _ =>
+      fun ty =>
+        match ty with
+        | Comparable_type a =>
+          let! r := type_comparable_data tm d a in
+          Return (syntax.Comparable_constant a r)
+        | _ => Failed _ (Typing _ (d, ty))
+        end
+    | Bytes_constant s =>
+      fun ty =>
+        match ty with
+        | Comparable_type a =>
+          let! r := type_comparable_data tm d a in
+          Return (syntax.Comparable_constant a r)
         | chain_id => Return (syntax.Chain_id_constant (comparable.Mk_chain_id s))
+        | _ => Failed _ (Typing _ (d, ty))
+        end
+    | String_constant s =>
+      fun ty =>
+        match ty with
+        | signature => Return (syntax.Signature_constant s)
+        | key => Return (syntax.Key_constant s)
+        | Comparable_type a =>
+          let! r := type_comparable_data tm d a in
+          Return (syntax.Comparable_constant a r)
         | _ => Failed _ (Typing _ (d, ty))
         end
     | Unit =>
@@ -633,13 +680,13 @@ Qed.
     | True_ =>
       fun ty =>
         match ty with
-        | Comparable_type bool => Return syntax.True_
+        | Comparable_type bool => Return (syntax.Comparable_constant bool true)
         | _ => Failed _ (Typing _ (d, ty))
         end
     | False_ =>
       fun ty =>
         match ty with
-        | Comparable_type bool => Return syntax.False_
+        | Comparable_type bool => Return (syntax.Comparable_constant bool false)
         | _ => Failed _ (Typing _ (d, ty))
         end
     | Pair x y =>

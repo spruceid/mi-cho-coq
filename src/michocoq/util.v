@@ -25,6 +25,8 @@ Import syntax.
 Import comparable.
 Require Import semantics.
 
+Definition False := Logic.False.
+
 Lemma forall_ex {A : Set} {phi psi : A -> Prop} :
   (forall x, phi x <-> psi x) -> ((exists x, phi x) <-> (exists x, psi x)).
 Proof.

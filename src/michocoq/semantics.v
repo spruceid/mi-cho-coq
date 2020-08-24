@@ -441,19 +441,10 @@ Module Semantics(C : ContractContext).
 
   Fixpoint concrete_data_to_data (a : type) (d : concrete_data a) : data a :=
     match d with
-    | Int_constant x => x
-    | Nat_constant x => x
-    | String_constant x => x
-    | Bytes_constant x => x
-    | Timestamp_constant x => x
+    | Comparable_constant _ x => x
     | Signature_constant x => Mk_sig x
     | Key_constant x => Mk_key x
-    | Key_hash_constant x => Mk_key_hash x
-    | Mutez_constant (Mk_mutez x) => x
-    | Address_constant x => x
     | Unit => tt
-    | True_ => true
-    | False_ => false
     | Pair a b => (concrete_data_to_data _ a, concrete_data_to_data _ b)
     | Left a _ _ => inl (concrete_data_to_data _ a)
     | Right b _ _ => inr (concrete_data_to_data _ b)
@@ -512,31 +503,17 @@ Module Semantics(C : ContractContext).
     | Chain_id_constant x => x
     end.
 
-
-  Definition simple_comparable_data_to_concrete_data (a : simple_comparable_type) (x : comparable_data a) : concrete_data a :=
-    match a, x with
-    | int, x => Int_constant x
-    | nat, x => Nat_constant x
-    | string, x => String_constant x
-    | timestamp, x => Timestamp_constant x
-    | key_hash, Mk_key_hash y => Key_hash_constant y
-    | mutez, x => Mutez_constant (Mk_mutez x)
-    | bytes, x => Bytes_constant x
-    | address, x => Address_constant x
-    | bool, true => True_
-    | bool, false => False_
-    end.
-
-  Fixpoint comparable_data_to_concrete_data (a : comparable_type) (x : comparable_data a) : concrete_data a :=
-    match a, x with
-    | Cpair a b, (x, y) => Pair (simple_comparable_data_to_concrete_data a x) (comparable_data_to_concrete_data b y)
-    | Comparable_type_simple a, x => simple_comparable_data_to_concrete_data a x
+  Fixpoint comparable_data_to_concrete_data (a : comparable_type) {struct a} :
+    comparable_data a -> concrete_data a :=
+    match a with
+    | Comparable_type_simple _ => fun x => Comparable_constant _ x
+    | Cpair _ _ => fun '(x, y) => Pair x (comparable_data_to_concrete_data _ y)
     end.
 
   Fixpoint data_to_concrete_data (a : type) (H : Is_true (is_packable a)) (x : data a) :
     concrete_data a :=
     match a, H, x with
-    | Comparable_type b, _, x => comparable_data_to_concrete_data b x
+    | Comparable_type b, _, x => Comparable_constant b x
     | unit, _, tt => Unit
     | signature, _ , Mk_sig y => Signature_constant y
     | key, _, Mk_key y => Key_constant y

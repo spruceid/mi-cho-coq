@@ -41,7 +41,7 @@ Definition vote : full_contract _ parameter_ty None storage_ty :=
     DUP; DIP1 { CDR; DUP }; CAR; DUP;
     DIP1 {
       (GET (i := get_map string int)); ASSERT_SOME;
-      PUSH int (Int_constant 1%Z); (ADD (s := add_int_int)); SOME
+      PUSH int (comparable_constant int 1%Z); (ADD (s := add_int_int)); SOME
     };
     (UPDATE (i := Mk_update string (option int) (map string int) (Update_variant_map string int)));
     (NIL operation); PAIR }.

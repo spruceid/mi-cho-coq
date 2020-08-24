@@ -76,7 +76,7 @@ Definition multisig : full_contract false parameter_ty None storage_ty :=
     DIP1 { SWAP }; UNPAIR;
     DIP1
       {
-        PUSH nat (nat_constant 0%N);
+        PUSH nat (Comparable_constant nat 0%N);
         SWAP;
         ITER
           {
@@ -91,7 +91,7 @@ Definition multisig : full_contract false parameter_ty None storage_ty :=
                         DIIP { DIP1 { DUP };
                                SWAP };
                         CHECK_SIGNATURE; ASSERT;
-                        PUSH nat (nat_constant 1%N); ADD_nat}}
+                        PUSH nat (Comparable_constant nat 1%N); ADD_nat}}
                   { SWAP; DROP1 }
               }
               {
@@ -103,7 +103,7 @@ Definition multisig : full_contract false parameter_ty None storage_ty :=
     ASSERT_CMPLE;
     DROP1; DROP1;
 
-    DIP1 { UNPAIR; PUSH nat (nat_constant 1%N); ADD; PAIR };
+    DIP1 { UNPAIR; PUSH nat (Comparable_constant nat 1%N); ADD; PAIR };
 
     NIL operation; SWAP;
     IF_LEFT
@@ -282,7 +282,7 @@ Definition multisig_iter_body :
                   SWAP;
                   DIIP { DIP1 { DUP }; SWAP };
                   CHECK_SIGNATURE; ASSERT;
-                  PUSH nat (nat_constant 1%N); ADD_nat
+                  PUSH nat (Comparable_constant nat 1%N); ADD_nat
                 }
             }
             { SWAP; DROP1 }
@@ -417,7 +417,7 @@ Definition multisig_tail :
     ASSERT_CMPLE;
     DROP1; DROP1;
 
-    DIP1 { UNPAIR; PUSH nat (nat_constant 1%N); ADD_nat; PAIR };
+    DIP1 { UNPAIR; PUSH nat (Comparable_constant nat 1%N); ADD_nat; PAIR };
 
     NIL operation; SWAP;
     IF_LEFT
@@ -431,7 +431,7 @@ Definition multisig_tail :
 
 Lemma multisig_split : multisig =
                        (multisig_head ;;;
-                        DIP1 { PUSH nat (nat_constant 0%N); SWAP; multisig_iter };;
+                        DIP1 { PUSH nat (Comparable_constant nat 0%N); SWAP; multisig_iter };;
                         multisig_tail).
 Proof.
   reflexivity.
