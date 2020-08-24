@@ -19,38 +19,30 @@
 (* FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER *)
 (* DEALINGS IN THE SOFTWARE. *)
 
-Require main syntax_type syntax.
+Require main syntax.
+Require spending_limit_contract_string spending_limit_contract_definition.
 
-Require Import spending_limit_contract_string String.
+Definition slc_contract_file_m :=
+  main.contract_file_M spending_limit_contract_string.slc_contract 500.
 
-Definition slc_contract_file_m := main.contract_file_M slc_contract 500.
-Definition slc_contract_file_m' := main.print_info slc_contract 500.
-Require untyper.
-Require Import untyped_syntax.
-
-Fact slc_contract_well_parsed :  error.is_true (error.success slc_contract_file_m).
+Fact slc_contract_well_parsed : error.is_true (error.success slc_contract_file_m).
 Proof. exact I. Defined.
 
-Definition dsl_contract_file := Eval cbv in (error.extract slc_contract_file_m slc_contract_well_parsed ).
+Definition dsl_contract_file :=
+  Eval cbv in (error.extract slc_contract_file_m slc_contract_well_parsed).
 
-Require Import spending_limit_contract_definition.
 
-Module SLC_equiv.
+Definition slc_contract_file : syntax.contract_file :=
+  syntax.Mk_contract_file spending_limit_contract_definition.parameter_ty
+                          None
+                          spending_limit_contract_definition.storage_ty
+                          Datatypes.false
+                          spending_limit_contract_definition.dsl.
 
-  Module slc_def := Spending_limit_contract_definition dummy_contract_context.
+Definition dsl_parameter :=
+  Eval cbv in syntax.contract_file_parameter dsl_contract_file.
 
-  Definition slc_contract_file : syntax.contract_file :=
-    syntax.Mk_contract_file parameter_ty
-                            None
-                            storage_ty
-                            Datatypes.false
-                            slc_def.dsl.
-
-  Definition dsl_parameter := Eval cbv in syntax.contract_file_parameter dsl_contract_file.
-
-  Goal slc_def.slc_contract_file = dsl_contract_file.
-  Proof.
-    reflexivity.
-  Qed.
-
-End SLC_equiv.
+Goal spending_limit_contract_definition.slc_contract_file = dsl_contract_file.
+Proof.
+  reflexivity.
+Qed.

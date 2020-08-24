@@ -13,9 +13,6 @@ Require Import spending_limit_contract_definition.
 
 Module Spending_limit_contract_verification (C:ContractContext).
 
-Module slc_def := Spending_limit_contract_definition C.
-Import slc_def.
-
 Module semantics := Semantics C. Import semantics.
 
 

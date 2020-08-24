@@ -1,19 +1,5 @@
-
-Require Import Michocoq.macros.
-Import syntax.
-Import comparable.
-Require Import ZArith.
-Require Import String.
-Require Import semantics.
-Require Import util.
-Import error.
-Require List.
-
-Require Import typer.
-Require tez.
-Require map.
-
-Import List.ListNotations.
+From Michocoq Require Import macros syntax.
+Require Import ZArith String.
 
 Definition payload_ty :=
   or
@@ -103,10 +89,6 @@ Definition storage_auth_ty :=
      (pair nat nat)).
 
 Definition storage_ty := (pair storage_context_ty storage_auth_ty).
-
-Module Spending_limit_contract_definition(C:ContractContext).
-
-Module semantics := Semantics C. Import semantics.
 
 Definition slc_ep_master_lambda :
   instruction_seq (Some (parameter_ty, None))
@@ -371,5 +353,3 @@ Definition dsl :
 
 Definition slc_contract_file : contract_file :=
   Mk_contract_file parameter_ty None storage_ty Datatypes.false dsl.
-
-End Spending_limit_contract_definition.
