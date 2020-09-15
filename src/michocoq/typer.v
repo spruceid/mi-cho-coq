@@ -765,28 +765,34 @@ Qed.
               match l with
               | nil => Return nil
               | cons (Elt x y) l =>
-                let! x := type_data tm x a in
+                let! x := type_comparable_data tm x a in
                 let! y := type_data tm y b in
                 let! l := type_data_list l in
-                Return (cons (syntax.Elt _ _ x y) l)
-              | _ => Failed _ (Typing _ (d, ty))
+                Return (cons (x, y) l)
+              | _ => Failed _ (Typing _ ("map literals are sequences of the form {Elt k1 v1; ...; Elt kn vn}"%string))
               end
             ) l in
-          Return (syntax.Concrete_map l)
+          match map.sorted_dec _ _ _ l with
+          | left H => Return (syntax.Concrete_map (map.of_list _ _ _ l H))
+          | right _ => Failed _ (Typing _ ("map literals have to be sorted by keys"%string))
+          end
         | big_map a b =>
           let! l :=
             (fix type_data_list l :=
               match l with
               | nil => Return nil
               | cons (Elt x y) l =>
-                let! x := type_data tm x a in
+                let! x := type_comparable_data tm x a in
                 let! y := type_data tm y b in
                 let! l := type_data_list l in
-                Return (cons (syntax.Elt _ _ x y) l)
-              | _ => Failed _ (Typing _ (d, ty))
+                Return (cons (x, y) l)
+              | _ => Failed _ (Typing _ ("big map literals are sequences of the form {Elt k1 v1; ...; Elt kn vn}"%string))
               end
             ) l in
-          Return (syntax.Concrete_big_map l)
+          match map.sorted_dec _ _ _ l with
+          | left H => Return (syntax.Concrete_big_map (map.of_list _ _ _ l H))
+          | right _ => Failed _ (Typing _ ("big map literals have to be sorted by keys"%string))
+          end
         | _ => Failed _ (Typing _ (d, ty))
         end
     | Instruction i =>

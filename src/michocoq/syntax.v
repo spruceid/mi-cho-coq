@@ -455,6 +455,7 @@ Inductive loop_family : forall (A B : Datatypes.list type) (a : type), Set :=
 | LOOP_bool : loop_family nil nil bool
 | LOOP_or a an b bn : loop_family (a :: nil) (b :: nil) (or a an b bn).
 
+
 Inductive instruction :
   forall (self_type : self_info) (tail_fail_flag : Datatypes.bool) (A B : Datatypes.list type), Set :=
 | Instruction_seq {self_type tff A B} :
@@ -512,11 +513,9 @@ with concrete_data : type -> Set :=
     set.set (comparable_data a) (compare a) ->
     concrete_data (set a)
 | Concrete_map {a : comparable_type} {b} :
-    Datatypes.list (elt_pair (concrete_data a) (concrete_data b)) ->
-    concrete_data (map a b)
+    map.map (comparable_data a) (concrete_data b) (compare a) -> concrete_data (map a b)
 | Concrete_big_map {a : comparable_type} {b} :
-    Datatypes.list (elt_pair (concrete_data a) (concrete_data b)) ->
-    concrete_data (big_map a b)
+    map.map (comparable_data a) (concrete_data b) (compare a) -> concrete_data (big_map a b)
 | Instruction {a b} tff : instruction_seq None tff (a ::: nil) (b ::: nil) ->
                           concrete_data (lambda a b)
 | Chain_id_constant : chain_id_constant -> concrete_data chain_id.

@@ -131,7 +131,7 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
       Pair (untype_simple_comparable_data um x) (untype_comparable_data um y)
     end d.
 
-  Fixpoint untype_data {a} (um : untype_mode) (d : syntax.concrete_data a) : concrete_data :=
+  Fixpoint untype_data {a} (um : untype_mode) (d : syntax.concrete_data a) {struct d}: concrete_data :=
     match d with
     | syntax.Comparable_constant a x => untype_simple_comparable_data um x
     | syntax.Signature_constant s => String_constant s
@@ -145,14 +145,38 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
     | syntax.Concrete_list l => Concrete_seq (List.map (untype_data um) l)
     | syntax.Concrete_set (exist _ l _) =>
       Concrete_seq (List.map (untype_comparable_data um) l)
-    | syntax.Concrete_map l =>
-      Concrete_seq (List.map
-                      (fun '(syntax.Elt _ _ x y) => Elt (untype_data um x) (untype_data um y))
-                      l)
-    | syntax.Concrete_big_map l =>
-      Concrete_seq (List.map
-                      (fun '(syntax.Elt _ _ x y) => Elt (untype_data um x) (untype_data um y))
-                      l)
+    | syntax.Concrete_map m =>
+      Concrete_seq (
+          match m with
+          | map.sorted_map_nil _ _ _ => nil
+          | map.sorted_map_nonnil _ _ _ k v m =>
+            cons
+              (Elt (untype_comparable_data um k) (untype_data um v))
+              ((fix to_list_above k m :=
+                 match m with
+                 | map.sorted_map_sing _ _ _ _ => nil
+                 | map.sorted_map_cons _ _ _ k1 k2 v2 _ m =>
+                   cons
+                     (Elt (untype_comparable_data um k2) (untype_data um v2))
+                     (to_list_above k2 m)
+                 end) k m)
+          end)
+    | syntax.Concrete_big_map m =>
+      Concrete_seq (
+          match m with
+          | map.sorted_map_nil _ _ _ => nil
+          | map.sorted_map_nonnil _ _ _ k v m =>
+            cons
+              (Elt (untype_comparable_data um k) (untype_data um v))
+              ((fix to_list_above k m :=
+                 match m with
+                 | map.sorted_map_sing _ _ _ _ => nil
+                 | map.sorted_map_cons _ _ _ k1 k2 v2 _ m =>
+                   cons
+                     (Elt (untype_comparable_data um k2) (untype_data um v2))
+                     (to_list_above k2 m)
+                 end) k m)
+          end)
     | syntax.Instruction _ i => Instruction (untype_instruction_seq um i)
     | syntax.Chain_id_constant (comparable.Mk_chain_id c) => Bytes_constant c
     end
@@ -515,6 +539,100 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
     - destruct s; reflexivity.
   Qed.
 
+  Lemma untype_map a b m :
+    untype_data untype_Optimized (@Concrete_map a b m) =
+    Concrete_seq
+      (List.map (fun '(x, y) =>
+                   Elt
+                     (untype_comparable_data untype_Optimized x)
+                     (untype_data untype_Optimized y))
+                (map.to_list _ _ _ m)).
+  Proof.
+    destruct m; simpl.
+    - reflexivity.
+    - repeat f_equal.
+      clear v.
+      induction s; simpl.
+      + reflexivity.
+      + repeat f_equal.
+        exact IHs.
+  Qed.
+
+  Lemma untype_big_map a b m :
+    untype_data untype_Optimized (@Concrete_big_map a b m) =
+    Concrete_seq
+      (List.map (fun '(x, y) =>
+                   Elt
+                     (untype_comparable_data untype_Optimized x)
+                     (untype_data untype_Optimized y))
+                (map.to_list _ _ _ m)).
+  Proof.
+    destruct m; simpl.
+    - reflexivity.
+    - repeat f_equal.
+      clear v.
+      induction s; simpl.
+      + reflexivity.
+      + repeat f_equal.
+        exact IHs.
+  Qed.
+
+  Lemma type_map a b l :
+    type_data typer.Optimized (Concrete_seq l) (map a b) =
+    let! l :=
+       error.list_map
+         (fun xy =>
+            match xy with
+            | Elt x y =>
+            let! x := type_comparable_data typer.Optimized x a in
+            let! y := type_data typer.Optimized y b in
+            Return (x, y)
+            | _ => Failed _ (Typing _ ("map literals are sequences of the form {Elt k1 v1; ...; Elt kn vn}"%string))
+            end
+         ) l in
+    match map.sorted_dec _ _ _ l with
+    | left H => Return (syntax.Concrete_map (map.of_list _ _ _ l H))
+    | right _ => Failed _ (Typing _ ("map literals have to be sorted by keys"%string))
+    end.
+  Proof.
+    simpl.
+    f_equal.
+    induction l; simpl.
+    - reflexivity.
+    - destruct a0; try reflexivity.
+      rewrite IHl.
+      destruct (type_comparable_data Optimized a0_1 a); simpl; try reflexivity.
+      destruct (type_data Optimized a0_2 b); reflexivity.
+  Qed.
+
+  Lemma type_big_map a b l :
+    type_data typer.Optimized (Concrete_seq l) (big_map a b) =
+    let! l :=
+       error.list_map
+         (fun xy =>
+            match xy with
+            | Elt x y =>
+            let! x := type_comparable_data typer.Optimized x a in
+            let! y := type_data typer.Optimized y b in
+            Return (x, y)
+            | _ => Failed _ (Typing _ ("big map literals are sequences of the form {Elt k1 v1; ...; Elt kn vn}"%string))
+            end
+         ) l in
+    match map.sorted_dec _ _ _ l with
+    | left H => Return (syntax.Concrete_big_map (map.of_list _ _ _ l H))
+    | right _ => Failed _ (Typing _ ("big map literals have to be sorted by keys"%string))
+    end.
+  Proof.
+    simpl.
+    f_equal.
+    induction l; simpl.
+    - reflexivity.
+    - destruct a0; try reflexivity.
+      rewrite IHl.
+      destruct (type_comparable_data Optimized a0_1 a); simpl; try reflexivity.
+      destruct (type_data Optimized a0_2 b); reflexivity.
+  Qed.
+
   Fixpoint untype_type_data a (d : syntax.concrete_data a) :
     typer.type_data typer.Optimized (untype_data untype_Optimized d) a = Return d
   with
@@ -564,53 +682,70 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
              repeat f_equal.
              apply set.sorted_irrel.
           -- intro; contradiction.
-      + pose (fix type_data_list L :=
-                   match L with
-                   | nil => Return nil
-                   | cons (Elt x y) l =>
-                    let! x := type_data typer.Optimized x a in
-                    let! y := type_data typer.Optimized y b in
-                    let! l := type_data_list l in
-                    Return (cons (syntax.Elt _ _ x y) l)
-                   | _ => Failed _ (Typing _ (untype_data untype_Optimized (syntax.Concrete_map l), (map a b)))
-                   end) as type_data_map.
-        assert (forall l, type_data_map (List.map (fun '(syntax.Elt _ _ x y) => Elt (untype_data untype_Optimized x) (untype_data untype_Optimized y)) l) = Return l).
-        * intro L; induction L.
-          -- reflexivity.
-          -- simpl.
-             destruct a0.
-             rewrite untype_type_data.
-             rewrite untype_type_data.
-             rewrite IHL.
-             reflexivity.
+      + rewrite untype_map.
+        rewrite type_map.
+        rewrite list_map_map.
+        match goal with
+          |- (let! l := list_map ?f ?L in _) = _ =>
+          replace (list_map f L) with (Return L)
+        end.
         * simpl.
-          rewrite H.
-          reflexivity.
-      + pose (fix type_data_list L :=
-                   match L with
-                   | nil => Return nil
-                   | cons (Elt x y) l =>
-                    let! x := type_data Optimized x a in
-                    let! y := type_data Optimized y b in
-                    let! l := type_data_list l in
-                    Return (cons (syntax.Elt _ _ x y) l)
-                   | _ => Failed _ (Typing _ (untype_data untype_Optimized (syntax.Concrete_big_map l), (big_map a b)))
-                   end) as type_data_map.
-        assert (forall l, type_data_map (List.map (fun '(syntax.Elt _ _ x y) => Elt (untype_data untype_Optimized x) (untype_data untype_Optimized y)) l) = Return l).
-        * intro L; induction L.
-          -- reflexivity.
-          -- simpl.
-             destruct a0.
-             rewrite untype_type_data.
-             rewrite untype_type_data.
-             rewrite IHL.
+          destruct (map.sorted_dec _ _ _ (map.to_list _ _ _ m)) as [Hs|Hn].
+          -- assert (Hs = map.to_list_is_locally_sorted _ _ _ m) as HHs by (apply map.sorted_irrel).
+             subst Hs.
+             rewrite map.to_of_list.
              reflexivity.
-        * trans_refl (
-            let! l := type_data_map (List.map (fun '(syntax.Elt _ _ x y) => Elt (untype_data untype_Optimized x) (untype_data untype_Optimized y)) l) in
-            Return (@syntax.Concrete_big_map a b l)
-          ).
-          rewrite H.
-          reflexivity.
+          -- exfalso.
+             apply Hn.
+             apply map.to_list_is_locally_sorted.
+        * (* We cannot use error.list_map_id because we need to apply untype_type_data on syntactic subterms *)
+          destruct m; simpl.
+          -- reflexivity.
+          -- rewrite untype_type_comparable_data; simpl.
+             rewrite untype_type_data; simpl.
+             match goal with
+               |- (_ = let! l := list_map ?f ?L in _) =>
+               replace (list_map f L) with (Return L)
+             end.
+             ++ reflexivity.
+             ++ induction s; simpl.
+                ** reflexivity.
+                ** rewrite untype_type_comparable_data; simpl.
+                   rewrite untype_type_data; simpl.
+                   rewrite <- IHs.
+                   reflexivity.
+      + rewrite untype_big_map.
+        rewrite type_big_map.
+        rewrite list_map_map.
+        match goal with
+          |- (let! l := list_map ?f ?L in _) = _ =>
+          replace (list_map f L) with (Return L)
+        end.
+        * simpl.
+          destruct (map.sorted_dec _ _ _ (map.to_list _ _ _ m)) as [Hs|Hn].
+          -- assert (Hs = map.to_list_is_locally_sorted _ _ _ m) as HHs by (apply map.sorted_irrel).
+             subst Hs.
+             rewrite map.to_of_list.
+             reflexivity.
+          -- exfalso.
+             apply Hn.
+             apply map.to_list_is_locally_sorted.
+        * (* We cannot use error.list_map_id because we need to apply untype_type_data on syntactic subterms *)
+          destruct m; simpl.
+          -- reflexivity.
+          -- rewrite untype_type_comparable_data; simpl.
+             rewrite untype_type_data; simpl.
+             match goal with
+               |- (_ = let! l := list_map ?f ?L in _) =>
+               replace (list_map f L) with (Return L)
+             end.
+             ++ reflexivity.
+             ++ induction s; simpl.
+                ** reflexivity.
+                ** rewrite untype_type_comparable_data; simpl.
+                   rewrite untype_type_data; simpl.
+                   rewrite <- IHs.
+                   reflexivity.
       + simpl.
         rewrite untype_type_check_instruction_seq; auto.
       + simpl.
@@ -1143,46 +1278,42 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
             simpl.
             erewrite type_untype_comparable_data; [|eassumption].
             rewrite IHl; [reflexivity|assumption].
-        + simpl.
+        + destruct (map.sorted_dec _ _ _ x); try discriminate.
+          apply unreturn in H0.
+          subst x'.
+          rewrite untype_map.
           f_equal.
-          match goal with | H : ?F l = Return x |- _ => pose F as type_data_list end.
-          change (type_data_list l = Return x) in H.
-          assert (exists l', l' = l) as Hl' by (exists l; reflexivity).
-          rename l into linit.
-          destruct Hl' as (l, Hl).
-          rewrite <- Hl in H.
-          rewrite <- Hl.
-          clear Hl.
-          generalize dependent x.
-          induction l; simpl in *.
+          rewrite map.of_to_list.
+          generalize dependent x; induction l; intro x.
           * repeat mytac type_untype type_untype_seq type_untype_data.
           * repeat mytac type_untype type_untype_seq type_untype_data.
             destruct a0; try discriminate.
             repeat mytac type_untype type_untype_seq type_untype_data.
             simpl.
+            apply type_untype_comparable_data in H.
+            repeat mytac type_untype type_untype_seq type_untype_data.
             f_equal.
             apply IHl.
-            assumption.
-        + simpl.
+            -- assumption.
+            -- apply map.sorted_tail in l0; assumption.
+        + destruct (map.sorted_dec _ _ _ x); try discriminate.
+          apply unreturn in H0.
+          subst x'.
+          rewrite untype_big_map.
           f_equal.
-          match goal with | H : ?F l = Return x |- _ => pose F as type_data_list end.
-          change (type_data_list l = Return x) in H.
-          assert (exists l', l' = l) as Hl' by (exists l; reflexivity).
-          rename l into linit.
-          destruct Hl' as (l, Hl).
-          rewrite <- Hl in H.
-          rewrite <- Hl.
-          clear Hl.
-          generalize dependent x.
-          induction l; simpl in *.
+          rewrite map.of_to_list.
+          generalize dependent x; induction l; intro x.
           * repeat mytac type_untype type_untype_seq type_untype_data.
           * repeat mytac type_untype type_untype_seq type_untype_data.
             destruct a0; try discriminate.
             repeat mytac type_untype type_untype_seq type_untype_data.
             simpl.
+            apply type_untype_comparable_data in H.
+            repeat mytac type_untype type_untype_seq type_untype_data.
             f_equal.
             apply IHl.
-            assumption.
+            -- assumption.
+            -- apply map.sorted_tail in l0; assumption.
       - repeat mytac type_untype type_untype_seq type_untype_data.
     }
   Qed.

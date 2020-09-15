@@ -85,6 +85,30 @@ Fixpoint list_map {A B : Set} (f : A -> M B) (l : Datatypes.list A) : M (Datatyp
     Return (cons b l)
   end.
 
+Lemma list_map_map {A B C : Set} (f : A -> B) (g : B -> M C) (l : Datatypes.list A) :
+  list_map g (List.map f l) =
+  list_map (fun x => g (f x)) l.
+Proof.
+  induction l; simpl.
+  - reflexivity.
+  - rewrite IHl.
+    reflexivity.
+Qed.
+
+Lemma list_map_id {A : Set} (f : A -> M A) (l : Datatypes.list A) :
+  (forall x : A, f x = Return x) ->
+  list_map f l = Return l.
+Proof.
+  intro Hf.
+  induction l; simpl.
+  - reflexivity.
+  - rewrite Hf.
+    simpl.
+    rewrite IHl.
+    simpl.
+    reflexivity.
+Qed.
+
 Definition try {A} (m1 m2 : M A) : M A :=
   match m1 with
   | Failed _ _ => m2

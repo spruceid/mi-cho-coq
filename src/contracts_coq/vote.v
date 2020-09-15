@@ -104,22 +104,31 @@ Proof.
       repeat split.
       * apply map.map_getmem with tally; assumption.
       * intro Hstor.
-        apply map.map_updatemem.
+        apply map.map_updatemem with (lt_trans:=comparable.lt_trans string).
         assumption.
       * intro Hnstor.
         destruct (string_compare s param) eqn:strcomp.
         rewrite string_compare_Eq_correct in strcomp; subst.
         apply map.map_getmem with tally. assumption.
-        eapply map.map_updatemem_rev with (k':= param).
+        eapply map.map_updatemem_rev with
+            (k':= param)
+            (compare_eq_iff:=comparable.compare_eq_iff string)
+            (lt_trans:=comparable.lt_trans string)
+            (gt_trans:=comparable.gt_trans string).
         rewrite <- (compare_diff string). left. eassumption. eassumption.
-        eapply map.map_updatemem_rev with (k':= param).
+        eapply map.map_updatemem_rev with
+            (k':= param)
+            (compare_eq_iff:=comparable.compare_eq_iff string)
+            (lt_trans:=comparable.lt_trans string)
+            (gt_trans:=comparable.gt_trans string).
         rewrite <- (compare_diff string). right. eassumption. eassumption.
       * exists tally.
-        rewrite map.map_updateeq.
+        rewrite map.get_insert.
         rewrite Z.add_comm.
         split; reflexivity.
       * intros s Hs.
-        rewrite map.map_updateneq; intuition.
+        rewrite map.get_insert_other; intuition.
+        exact (comparable.lt_trans string).
     + (* <- *)
       intros (Hmemp, (Hmems, (Hops, ((tally, (Hp, Hpn)), Hs)))).
       exists tally.
@@ -127,7 +136,7 @@ Proof.
       subst.
       repeat f_equal.
       symmetry.
-      rewrite map.map_updateSome_spec.
+      specialize map.map_updateSome_spec; simpl; intro s; rewrite s; [|exact (comparable.lt_trans string)]; clear s.
       rewrite Z.add_comm.
       split; [assumption|].
       intuition.

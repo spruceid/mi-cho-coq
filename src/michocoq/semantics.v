@@ -439,8 +439,8 @@ Module Semantics(C : ContractContext).
     | Comparable_type_simple _, x => x
     end.
 
-  Fixpoint concrete_data_to_data (a : type) (d : concrete_data a) : data a :=
-    match d with
+  Fixpoint concrete_data_to_data (a : type) (d : concrete_data a) {struct d} : data a :=
+    match d in concrete_data a return data a with
     | Comparable_constant _ x => x
     | Signature_constant x => Mk_sig x
     | Key_constant x => Mk_key x
@@ -452,40 +452,44 @@ Module Semantics(C : ContractContext).
     | None_ => None
     | Concrete_list l => List.map (concrete_data_to_data _) l
     | Concrete_set s => s
-    | @Concrete_map a b l =>
-      (fix concrete_data_map_to_data
-           (l : Datatypes.list (elt_pair (concrete_data a) (concrete_data b))) :=
-         match l with
-         | nil => map.empty _ _ _
-         | cons (Elt _ _ x y) l =>
-           map.update
-             (comparable_data a)
-             (data b)
-             (comparable.compare a)
-             (comparable.compare_eq_iff a)
-             (comparable.lt_trans a)
-             (comparable.gt_trans a)
-             (data_to_comparable_data _ (concrete_data_to_data _ x))
-             (Some (concrete_data_to_data _ y))
-             (concrete_data_map_to_data l)
-         end) l
-    | @Concrete_big_map a b l =>
-      (fix concrete_data_map_to_data
-           (l : Datatypes.list (elt_pair (concrete_data a) (concrete_data b))) :=
-         match l with
-         | nil => map.empty _ _ _
-         | cons (Elt _ _ x y) l =>
-           map.update
-             (comparable_data a)
-             (data b)
-             (comparable.compare a)
-             (comparable.compare_eq_iff a)
-             (comparable.lt_trans a)
-             (comparable.gt_trans a)
-             (data_to_comparable_data _ (concrete_data_to_data _ x))
-             (Some (concrete_data_to_data _ y))
-             (concrete_data_map_to_data l)
-         end) l
+    | @Concrete_map a b m =>
+      (* Unfortunately, Coq is not smart enough to unfold map.map_fun_pure here *)
+      match m with
+      | map.sorted_map_nil _ _ _ =>
+        map.sorted_map_nil _ _ _
+      | map.sorted_map_nonnil _ _ _ k v m =>
+        let v' := concrete_data_to_data b v in
+        let m' :=
+            (fix map_fun_above_pure k (m : map.sorted_map_above _ _ _ k) :=
+               match m with
+               | map.sorted_map_sing _ _ _ k =>
+                 map.sorted_map_sing _ _ _ k
+               | map.sorted_map_cons _ _ _ k1 k2 v2 H m =>
+                 let v2' := concrete_data_to_data b v2 in
+                 let m' := map_fun_above_pure k2 m in
+                 map.sorted_map_cons _ _ _ k1 k2 v2' H m'
+               end) k m in
+        map.sorted_map_nonnil _ _ _ k v' m'
+      end
+    | @Concrete_big_map a b m =>
+      (* Unfortunately, Coq is not smart enough to unfold map.map_fun_pure here *)
+      match m with
+      | map.sorted_map_nil _ _ _ =>
+        map.sorted_map_nil _ _ _
+      | map.sorted_map_nonnil _ _ _ k v m =>
+        let v' := concrete_data_to_data b v in
+        let m' :=
+            (fix map_fun_above_pure k (m : map.sorted_map_above _ _ _ k) :=
+               match m with
+               | map.sorted_map_sing _ _ _ k =>
+                 map.sorted_map_sing _ _ _ k
+               | map.sorted_map_cons _ _ _ k1 k2 v2 H m =>
+                 let v2' := concrete_data_to_data b v2 in
+                 let m' := map_fun_above_pure k2 m in
+                 map.sorted_map_cons _ _ _ k1 k2 v2' H m'
+               end) k m in
+        map.sorted_map_nonnil _ _ _ k v' m'
+      end
     | Instruction tff i => existT _ _ i
     | Chain_id_constant x => x
     end.
@@ -509,13 +513,25 @@ Module Semantics(C : ContractContext).
     | list a, H, l =>
       Concrete_list (List.map (data_to_concrete_data a H) l)
     | set a, H, s => Concrete_set s
-    | map a b, H, exist _ l _ =>
-      Concrete_map (List.map (fun '(k, v) =>
-                                Elt _
-                                    _
-                                    (comparable_data_to_concrete_data _ k)
-                                    (data_to_concrete_data b H v))
-                             l)
+    | map a b, H, m =>
+      Concrete_map (
+        match m with
+      | map.sorted_map_nil _ _ _ =>
+        map.sorted_map_nil _ _ _
+      | map.sorted_map_nonnil _ _ _ k v m =>
+        let v' := data_to_concrete_data b H v in
+        let m' :=
+            (fix map_fun_above_pure k (m : map.sorted_map_above _ _ _ k) :=
+               match m with
+               | map.sorted_map_sing _ _ _ k =>
+                 map.sorted_map_sing _ _ _ k
+               | map.sorted_map_cons _ _ _ k1 k2 v2 Hlt m =>
+                 let v2' := data_to_concrete_data b H v2 in
+                 let m' := map_fun_above_pure k2 m in
+                 map.sorted_map_cons _ _ _ k1 k2 v2' Hlt m'
+               end) k m in
+        map.sorted_map_nonnil _ _ _ k v' m'
+      end)
     | contract _, H, _ => match H with end
     | operation, H, _ => match H with end
     | big_map _ _, H, _ => match H with end
@@ -710,8 +726,8 @@ Module Semantics(C : ContractContext).
 
   Definition iter_destruct a b (v : iter_variant a b)
     : data b -> data (option (pair a b)) :=
-    match v with
-    | Iter_variant_set _ =>
+    match v in iter_variant a b return data b -> data (option (pair a b)) with
+    | Iter_variant_set a =>
       fun x =>
         match set.destruct _ _ x with
         | None => None
@@ -720,16 +736,17 @@ Module Semantics(C : ContractContext).
         end
     | Iter_variant_map _ _ =>
       fun x =>
-        match set.destruct _ _ x with
+        match map.destruct _ _ _ x with
         | None => None
         | Some ((k, v), rst) =>
           Some ((comparable_data_to_data _ k, v), rst)
         end
     | Iter_variant_list _ =>
-      fun l => match l with
-               | nil => None
-               | cons a l => Some (a, l)
-               end
+      fun l =>
+        match l with
+        | nil => None
+        | cons a l => Some (a, l)
+        end
     end.
 
   Definition get k val c (v : get_variant k val c)
@@ -744,7 +761,7 @@ Module Semantics(C : ContractContext).
     match v with
     | Map_variant_map _ _ _ =>
       fun x =>
-        match set.destruct _ _ x with
+        match map.destruct _ _ _ x with
         | None => None
         | Some ((k, v), rst) =>
           Some ((comparable_data_to_data _ k, v), rst)
