@@ -1753,4 +1753,7 @@ Module Semantics(C : ContractContext).
     apply precond_eqv. assumption.
   Qed.
 
+  Ltac fold_eval_precond :=
+    change (@eval_precond_body (@eval_precond ?fuel)) with (@eval_precond (S fuel)).
+
 End Semantics.

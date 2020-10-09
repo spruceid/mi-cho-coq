@@ -230,9 +230,6 @@ Definition multisig_head_spec
                (chain_id_ env, address_ unit (self (self_ty := Some (parameter_ty, None)) env None I), (counter, action)),
           (action, (storage, tt)))))).
 
-Ltac fold_eval_precond :=
-  change (@eval_precond_body (@eval_precond ?fuel)) with (@eval_precond (S fuel)).
-
 Lemma multisig_head_correct
       (env : @proto_env (Some (parameter_ty, None)))
       (counter : N)
