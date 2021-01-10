@@ -101,6 +101,20 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma of_Z_of_N_success (n : N) (H : (n < 2 ^ 63)%N) :
+  Bool.Is_true (error.success (of_Z (Z.of_N n))).
+Proof.
+  unfold of_Z.
+  rewrite int64bv.of_Z_of_N by assumption.
+  simpl error.bind.
+  unfold of_int64.
+  refine (error.success_bind_rev _ _ _).
+  exists (int64bv.sign_of_Z_of_N n H).
+  split.
+  - exact (@error.dif_is_false _ _ _ _ _).
+  - exact I.
+Qed.
+
 Definition compare (t1 t2 : mutez) : comparison :=
   int64bv.int64_compare (to_int64 t1) (to_int64 t2).
 

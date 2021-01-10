@@ -216,6 +216,13 @@ Proof.
   destruct (z1 ?= z2)%Z; simpl; tauto.
 Qed.
 
+Lemma N_comparison_to_int_leb :
+  forall n1 n2, (comparison_to_int (n1 ?= n2)%N <=? 0)%Z = (n1 <=? n2)%N.
+Proof.
+  intros n1 n2.
+  repeat rewrite N.leb_compare.
+  destruct (n1 ?= n2)%N; simpl; tauto.
+Qed.
 
 Lemma if_false_is_and (b : Datatypes.bool) A : (if b then A else False) <-> (b = true /\ A).
 Proof.
@@ -280,6 +287,17 @@ Proof.
   split.
   - intros [x' [Hx Hp]]. congruence.
   - intros Hp. exists x. intuition.
+Qed.
+
+Lemma ex_eq_some_simpl {A : Type} (x : A) (P : A -> Prop) :
+  (exists y : A, Some x = Some y /\ P y) <-> P x.
+Proof.
+  split; intro H.
+  - destruct H as (y & Heq & Hp).
+    inversion Heq.
+    assumption.
+  - exists x.
+    intuition.
 Qed.
 
 Lemma iff_comm :

@@ -172,6 +172,138 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma of_Z_of_N
+      (n : N)
+      (H : (n < 2 ^ 63)%N) :
+      of_Z (Z.of_N n) = error.Return (of_Z_unsafe (Z.of_N n)).
+Proof.
+  unfold of_Z.
+  pose (lower_bound := (Z.of_N n >=? - two_power_nat 63)%Z).
+  assert (lower_bound_eq : (Z.of_N n >=? - two_power_nat 63)%Z = lower_bound) by reflexivity.
+  rewrite lower_bound_eq.
+  pose (upper_bound := (Z.of_N n <? two_power_nat 63)%Z).
+  assert (upper_bound_eq : (Z.of_N n <? two_power_nat 63)%Z = upper_bound) by reflexivity.
+  rewrite upper_bound_eq.
+  rewrite two_power_nat_equiv in *.
+  destruct lower_bound, upper_bound;
+  (reflexivity || idtac).
+  - apply (proj1 (Z.ltb_nlt _ _)) in upper_bound_eq.
+    refine (False_ind _ (upper_bound_eq _)).
+    apply (proj1 (N2Z.inj_lt _ _)) in H.
+    assert (Z_pow_eq : Z.of_N (2 ^ 63) = (2 ^ Z.of_nat 63)%Z).
+    + rewrite N2Z.inj_pow.
+      f_equal.
+    + rewrite Z_pow_eq in H.
+      exact H.
+  Ltac lower_bound_false lower_bound_eq :=
+  (
+    rewrite Z.geb_leb in lower_bound_eq;
+    apply (proj1 (Z.leb_nle _ _)) in lower_bound_eq;
+    refine (False_ind _ (lower_bound_eq _));
+    refine (Z.le_trans _ _ _
+      (proj2 (Z.opp_nonpos_nonneg _) (Z.pow_nonneg _ _ _))
+      (N2Z.is_nonneg _)
+    );
+    intuition
+  ).
+  - lower_bound_false lower_bound_eq.
+  - lower_bound_false lower_bound_eq.
+Qed.
+
+Definition iter_Zdigits_Zmod2 (n : Datatypes.nat) (x : Z) :=
+  nat_rec _
+    (fun y => y)
+    (fun _ f y => f (Zdigits.Zmod2 y))
+    n x.
+
+Fixpoint iter_Zdigits_Zmod2_correct (n : Datatypes.nat) (x : Z) :
+  Bvector.Bsign _ (Zdigits.Z_to_two_compl n x) = Z.odd (iter_Zdigits_Zmod2 n x).
+Proof.
+  destruct n.
+  - reflexivity.
+  - simpl.
+    rewrite (iter_Zdigits_Zmod2_correct n _).
+    reflexivity.
+Qed.
+
+Fixpoint iter_Zdigits_Zmod2_upper_bound (n m : Datatypes.nat) (z : Z)
+  (H : (z < two_power_nat (n + m))%Z) :
+  (iter_Zdigits_Zmod2 n z < two_power_nat m)%Z.
+Proof.
+  destruct n.
+  - assumption.
+  - exact (iter_Zdigits_Zmod2_upper_bound n m
+      (Zdigits.Zmod2 z)
+      (Zdigits.Zlt_two_power_nat_S _ _ H)
+    ).
+Qed.
+
+Lemma Zdigits_bit_value_bounds (b : Datatypes.bool) :
+  (0 <= Zdigits.bit_value b <= 1)%Z.
+Proof.
+  destruct b; simpl; split; lia.
+Qed.
+
+Lemma Zmod2_nonneg (z : Z) :
+  (0 <= z)%Z <-> (0 <= Zdigits.Zmod2 z)%Z.
+  pose (Zdigits_bit_value_bounds (Z.odd z)).
+Proof.
+  split; intro H.
+  - rewrite (Zdigits.Zmod2_twice z) in H; lia.
+  - rewrite (Zdigits.Zmod2_twice z); lia.
+Qed.
+
+Fixpoint iter_Zdigits_Zmod2_nonneg (n : Datatypes.nat) (z : Z) :
+  forall (H : (0 <= z)%Z),
+  (0 <= iter_Zdigits_Zmod2 n z)%Z.
+Proof.
+  intro H.
+  destruct n.
+  - assumption.
+  - simpl in H |- *.
+    exact (iter_Zdigits_Zmod2_nonneg n
+      (Zdigits.Zmod2 z)
+      (proj1 (Zmod2_nonneg _) H)
+    ).
+Qed.
+
+Lemma odd_iter_Zdigits_Zmod2
+      (n : Datatypes.nat) (z : Z)
+      (lb : (0 <= z)%Z)
+      (ub : (z < two_power_nat n)%Z) :
+  Z.odd (iter_Zdigits_Zmod2 n z) = false.
+Proof.
+  pose (H_nonneg := iter_Zdigits_Zmod2_nonneg n _ lb).
+  rewrite <- (Nat.add_0_r n) in ub.
+  pose (H_nonpos := iter_Zdigits_Zmod2_upper_bound n 0%nat z ub).
+  pose (z' := iter_Zdigits_Zmod2 n z).
+  assert (z_eq' : z' = iter_Zdigits_Zmod2 n z) by reflexivity.
+  rewrite <- z_eq' in *.
+  destruct z'.
+  - auto.
+  - destruct (Zlt_not_le _ _ (Pos2Z.pos_is_pos _) (Zlt_succ_le _ 0%Z H_nonpos)).
+  - destruct (Zlt_not_le _ _ (Pos2Z.neg_is_neg _) H_nonneg).
+Qed.
+
+Lemma sign_of_Z_of_N (n : N) (H : (n < 2 ^ 63)%N) :
+  Bool.Is_true (negb (sign (of_Z_unsafe (Z.of_N n)))).
+Proof.
+  unfold sign.
+  unfold of_Z_unsafe.
+  rewrite iter_Zdigits_Zmod2_correct.
+  refine (error.IT_eq_rev _ _).
+  refine (proj2 (Bool.negb_true_iff _) _).
+  refine (odd_iter_Zdigits_Zmod2 _ (Z.of_N n) _ _).
+  - exact (N2Z.is_nonneg _).
+  - assert (H_pow_2_63 : two_power_nat 63 = Z.of_N (2 ^ 63)%N).
+    + rewrite two_power_nat_equiv.
+      rewrite N2Z.inj_pow.
+      f_equal.
+    + rewrite H_pow_2_63.
+      refine (proj1 (N2Z.inj_lt _ _) _).
+      assumption.
+Qed.
+
 Definition compare (a b : int64) : comparison :=
   Z.compare (to_Z a) (to_Z b).
 

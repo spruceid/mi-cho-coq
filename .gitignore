@@ -18,6 +18,7 @@ Makefile
 # OCaml
 *.cmi
 *.cmo
+_opam/
 
 # LaTeX
 *.tex

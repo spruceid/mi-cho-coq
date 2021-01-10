@@ -43,7 +43,7 @@ Inductive M (A : Type) : Type :=
 
 Arguments Return {_} _.
 
-Lemma unreturn {A} (a b : A) : error.Return a = error.Return b -> a = b.
+Lemma unreturn {A} (a b : A) : Return a = Return b -> a = b.
 Proof.
   congruence.
 Qed.
@@ -145,6 +145,13 @@ Proof.
   intro H; subst b; exact I.
 Qed.
 
+Lemma IT_eq_iff (b : Datatypes.bool) : b <-> b = true.
+Proof.
+  split.
+  - apply IT_eq.
+  - apply IT_eq_rev.
+Qed.
+
 Lemma Is_true_and_left b1 b2 : (b1 && b2)%bool -> b1.
 Proof.
   destruct b1; simpl.
@@ -179,6 +186,17 @@ Proof.
   - intro H.
     exists a.
     auto.
+Qed.
+
+Lemma success_bind_rev {A B : Set} (f : A -> M B) m :
+  (exists x, m = Return x /\ success (f x)) ->
+  success (let! x := m in f x).
+Proof.
+  destruct m;
+  intro H;
+  inversion H as (x & H_eq & H_success);
+  inversion H_eq;
+  auto.
 Qed.
 
 Lemma success_eq_return A (x : A) m :
@@ -288,6 +306,20 @@ Proof.
   - intros H _; apply H.
   - intros _ H; apply H.
 Defined.
+
+Lemma dif_is_true {A : Datatypes.bool -> Type} (b : Datatypes.bool)
+  (t : b -> A b) (e : negb b -> A b)
+  (H : is_true b) : dif b t e = t H.
+Proof.
+  destruct b, H; reflexivity.
+Qed.
+
+Lemma dif_is_false {A : Datatypes.bool -> Type} (b : Datatypes.bool)
+  (t : b -> A b) (e : negb b -> A b)
+  (H : is_true (negb b)) : dif b t e = e H.
+Proof.
+  destruct b, H; reflexivity.
+Qed.
 
 (* Lemmas about sigT *)
 
