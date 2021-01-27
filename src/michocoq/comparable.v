@@ -510,3 +510,21 @@ Proof.
   apply map.compare_diff.
   apply compare_eq_iff.
 Qed.
+
+Definition case_compare_Eq ty (s1 s2 : comparable_data ty) :
+  sumbool
+    ( compare ty s1 s2 = Eq /\ s1 = s2 )
+    ( compare ty s1 s2 <> Eq /\ s1 <> s2 ).
+Proof.
+  pose proof (compare_diff ty s1 s2).
+  destruct (compare ty s1 s2) eqn:Hcmp; intuition (try apply compare_eq_iff; congruence).
+Qed.
+
+Definition case_string_compare_Eq (s1 s2 : str) :
+  sumbool
+    ( string_compare s1 s2 = Eq /\ s1 = s2 )
+    ( string_compare s1 s2 <> Eq /\ s1 <> s2 ).
+Proof.
+  replace string_compare with (compare string) by reflexivity.
+  apply case_compare_Eq.
+Qed.

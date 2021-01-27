@@ -145,6 +145,52 @@ Definition vesting_tez_spec_helper
       (transfer_tokens env unit tt tez_to_flush target_contract :: nil)%list
   end.
 
+Lemma shim_simplify_flush_vested_ineqs (vested : data nat)
+                                       (to_flush : data nat)
+                                       (z : Z) :
+  (to_flush <= Z.to_N (z - Z.of_N vested))%N /\ (0 <= z - Z.of_N vested)%Z <->
+  (Z.of_N (to_flush + vested) <= z)%Z.
+Proof.
+  split; intro H.
+  - destruct H as (Hsum & Hpos).
+    refine (proj2 (Z2N.inj_le _ _ _ _) _).
+    + rewrite <- (N2Z.id to_flush) in Hsum.
+      apply (proj2 (Z2N.inj_le _ _ (N2Z.is_nonneg _) Hpos)) in Hsum.
+      refine (Z.le_trans _ _ _ (N2Z.is_nonneg _) _).
+      refine (proj2 (Z2N.inj_le _ _ (N2Z.is_nonneg _) (N2Z.is_nonneg _)) _).
+      do 2 rewrite N2Z.id.
+      exact (N.le_add_r _ _).
+    + apply Zle_0_minus_le in Hpos.
+      exact (Z.le_trans _ _ _ (N2Z.is_nonneg _) Hpos).
+    + rewrite N2Z.id.
+      rewrite Z2N.inj_sub in Hsum by exact (N2Z.is_nonneg _).
+      rewrite N2Z.id in Hsum.
+      apply (N.add_le_mono_r _ _ vested) in Hsum.
+      rewrite N.sub_add in Hsum.
+      * assumption.
+      * apply Zle_0_minus_le in Hpos.
+        apply (proj1 (Z2N.inj_le _ _
+         (N2Z.is_nonneg _)
+         (Z.le_trans _ _ _ (N2Z.is_nonneg _) Hpos)
+        )) in Hpos.
+        rewrite N2Z.id in Hpos.
+        rewrite N.sub_add in Hsum; assumption.
+  - pose (z_nonneg := Z.le_trans _ _ _ (N2Z.is_nonneg _) H).
+    split.
+    + pose (H' := H).
+      apply (proj1 (Z2N.inj_le _ _ (N2Z.is_nonneg _) z_nonneg)) in H'.
+      rewrite N2Z.id in H'.
+      rewrite (Z2N.inj_sub _ _ (N2Z.is_nonneg _)).
+      rewrite N2Z.id.
+      exact (N.le_add_le_sub_r _ _ _ H').
+    + refine (Zle_minus_le_0 _ _ _).
+      pose (H' := H).
+      rewrite N2Z.inj_add in H'.
+      rewrite <- (Z.add_0_r z) in H'.
+      rewrite <- Z.add_comm in H'.
+      refine (Z.le_le_add_le _ _ _ _ (N2Z.is_nonneg _) H').
+Qed.
+
 (* In coq 8.11+, the proof of the 'assert' below is just 'lia'. *)
 Lemma vesting_tez_spec_helper_flush_helper
       (now_env : data timestamp)
@@ -164,51 +210,7 @@ Proof.
     exact (N.leb_le _ _).
   - refine (iff_trans (IT_eq_iff _) _);
     exact (Z.geb_le _ _).
-  - assert (H :
-      (forall z : Z,
-      (to_flush <= Z.to_N (z - Z.of_N vested))%N /\ (0 <= z - Z.of_N vested)%Z <->
-      (Z.of_N (to_flush + vested) <= z)%Z)
-    ).
-    + intro z.
-      split; intro H.
-      * destruct H as (Hsum & Hpos).
-        refine (proj2 (Z2N.inj_le _ _ _ _) _).
-        --  rewrite <- (N2Z.id to_flush) in Hsum.
-            apply (proj2 (Z2N.inj_le _ _ (N2Z.is_nonneg _) Hpos)) in Hsum.
-            refine (Z.le_trans _ _ _ (N2Z.is_nonneg _) _).
-            refine (proj2 (Z2N.inj_le _ _ (N2Z.is_nonneg _) (N2Z.is_nonneg _)) _).
-            do 2 rewrite N2Z.id.
-            exact (N.le_add_r _ _).
-        --  apply Zle_0_minus_le in Hpos.
-            exact (Z.le_trans _ _ _ (N2Z.is_nonneg _) Hpos).
-        --  rewrite N2Z.id.
-            rewrite Z2N.inj_sub in Hsum by exact (N2Z.is_nonneg _).
-            rewrite N2Z.id in Hsum.
-            apply (N.add_le_mono_r _ _ vested) in Hsum.
-            rewrite N.sub_add in Hsum.
-            ++  assumption.
-            ++  apply Zle_0_minus_le in Hpos.
-                apply (proj1 (Z2N.inj_le _ _
-                 (N2Z.is_nonneg _)
-                 (Z.le_trans _ _ _ (N2Z.is_nonneg _) Hpos)
-                )) in Hpos.
-                rewrite N2Z.id in Hpos.
-                rewrite N.sub_add in Hsum; assumption.
-      * pose (z_nonneg := Z.le_trans _ _ _ (N2Z.is_nonneg _) H).
-        split.
-        --  pose (H' := H).
-            apply (proj1 (Z2N.inj_le _ _ (N2Z.is_nonneg _) z_nonneg)) in H'.
-            rewrite N2Z.id in H'.
-            rewrite (Z2N.inj_sub _ _ (N2Z.is_nonneg _)).
-            rewrite N2Z.id.
-            exact (N.le_add_le_sub_r _ _ _ H').
-        --  refine (Zle_minus_le_0 _ _ _).
-            pose (H' := H).
-            rewrite N2Z.inj_add in H'.
-            rewrite <- (Z.add_0_r z) in H'.
-            rewrite <- Z.add_comm in H'.
-            refine (Z.le_le_add_le _ _ _ _ (N2Z.is_nonneg _) H').
-    + apply H.
+  - apply shim_simplify_flush_vested_ineqs.
 Qed.
 
 Lemma vesting_tez_spec_helper_correct
@@ -294,34 +296,6 @@ Proof.
       assumption.
   - exists (tez.of_Z_of_N_success _ pf).
     assumption.
-Qed.
-
-Definition case_string_compare_Eq (s1 s2 : str) :
-  sumbool
-    ( string_compare s1 s2 = Eq /\ s1 = s2 )
-    ( string_compare s1 s2 <> Eq /\ s1 <> s2 ).
-Proof.
-pose (cmp := string_compare s1 s2).
-assert (H : string_compare s1 s2 = cmp) by reflexivity.
-rewrite H.
-destruct cmp; rewrite <- H.
-- refine (left _).
-  split.
-  + reflexivity.
-  + rewrite string_compare_Eq_correct in H; assumption.
-Ltac right_case H :=
-(
-  refine (right _);
-  split;
-  (rewrite H; discriminate) ||
-  (let eq_s12 := fresh "eq_s12" in intro eq_s12;
-    rewrite <- string_compare_Eq_correct in eq_s12;
-    rewrite eq_s12 in H;
-    discriminate
-  )
-).
-- right_case H.
-- right_case H.
 Qed.
 
 Lemma vesting_tez_helper_correct

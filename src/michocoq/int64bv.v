@@ -185,16 +185,6 @@ Proof.
   assert (upper_bound_eq : (Z.of_N n <? two_power_nat 63)%Z = upper_bound) by reflexivity.
   rewrite upper_bound_eq.
   rewrite two_power_nat_equiv in *.
-  destruct lower_bound, upper_bound;
-  (reflexivity || idtac).
-  - apply (proj1 (Z.ltb_nlt _ _)) in upper_bound_eq.
-    refine (False_ind _ (upper_bound_eq _)).
-    apply (proj1 (N2Z.inj_lt _ _)) in H.
-    assert (Z_pow_eq : Z.of_N (2 ^ 63) = (2 ^ Z.of_nat 63)%Z).
-    + rewrite N2Z.inj_pow.
-      f_equal.
-    + rewrite Z_pow_eq in H.
-      exact H.
   Ltac lower_bound_false lower_bound_eq :=
   (
     rewrite Z.geb_leb in lower_bound_eq;
@@ -206,16 +196,28 @@ Proof.
     );
     intuition
   ).
-  - lower_bound_false lower_bound_eq.
-  - lower_bound_false lower_bound_eq.
+  destruct lower_bound, upper_bound;
+  (reflexivity || lower_bound_false lower_bound_eq || idtac).
+  apply (proj1 (Z.ltb_nlt _ _)) in upper_bound_eq.
+  refine (False_ind _ (upper_bound_eq _)).
+  apply (proj1 (N2Z.inj_lt _ _)) in H.
+  assert (Z_pow_eq : Z.of_N (2 ^ 63) = (2 ^ Z.of_nat 63)%Z).
+  + rewrite N2Z.inj_pow.
+    f_equal.
+  + rewrite Z_pow_eq in H.
+    exact H.
 Qed.
 
+(* Returns x / (2 ^ n) where / is integer division:
+   see iter_Zdigits_Zmod2_div_pow2. *)
 Definition iter_Zdigits_Zmod2 (n : Datatypes.nat) (x : Z) :=
   nat_rec _
     (fun y => y)
     (fun _ f y => f (Zdigits.Zmod2 y))
     n x.
 
+(* The sign bit of the two's complement representation of x in n+1 bits
+   (i.e. the (n+1)th or final bit) is set iff (x / (2 ^ n)) is odd *)
 Fixpoint iter_Zdigits_Zmod2_correct (n : Datatypes.nat) (x : Z) :
   Bvector.Bsign _ (Zdigits.Z_to_two_compl n x) = Z.odd (iter_Zdigits_Zmod2 n x).
 Proof.
@@ -246,8 +248,8 @@ Qed.
 
 Lemma Zmod2_nonneg (z : Z) :
   (0 <= z)%Z <-> (0 <= Zdigits.Zmod2 z)%Z.
-  pose (Zdigits_bit_value_bounds (Z.odd z)).
 Proof.
+  pose (Zdigits_bit_value_bounds (Z.odd z)).
   split; intro H.
   - rewrite (Zdigits.Zmod2_twice z) in H; lia.
   - rewrite (Zdigits.Zmod2_twice z); lia.
