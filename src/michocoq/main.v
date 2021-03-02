@@ -43,11 +43,11 @@ Definition storage_type_M :=
   error.Return a.(micheline2michelson.storage).
 
 Definition contract_file_M : error.M syntax.contract_file :=
-  let! self_type := self_type_M in
-  let! root_annot := root_annot_M in
-  let! storage_type := storage_type_M in
+  let! a := michelson_M in
+  let self_type := a.(micheline2michelson.parameter) in
+  let root_annot := a.(micheline2michelson.root_annotation) in
+  let storage_type := a.(micheline2michelson.storage) in
   let! existT _ tff code :=
-    let! a := michelson_M in
     let i := a.(micheline2michelson.code) in
     typer.type_check_instruction_seq (typer.type_instruction_seq typer.Any) i _ _ in
   error.Return
