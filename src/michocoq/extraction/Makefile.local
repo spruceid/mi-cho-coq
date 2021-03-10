@@ -33,7 +33,7 @@ zarith.mli:
 %.mli: %.mli.hand-written
 	cp $< $@
 
-post-all:: michocoq.ml extraction.vo zarith.ml zarith.mli uint63.ml uint63.mli
+post-all:: michocoq.ml extraction.vo zarith.ml zarith.mli uint63.ml uint63.mli stdlibInt.mli
 	ocamlbuild -package zarith michocoq.native
 
 clean-extracted:

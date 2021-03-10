@@ -190,10 +190,10 @@ let equal (x : int) (y : int) = x = y
 let compare (x:int) (y:int) =
   let x = x lxor 0x4000000000000000 in
   let y = y lxor 0x4000000000000000 in
-  Stdlib.Int.compare x y
+  Stdlib.compare x y
 
 let compares (x : int) (y : int) =
-  Stdlib.Int.compare x y
+  Stdlib.compare x y
 
     (* head tail *)
 

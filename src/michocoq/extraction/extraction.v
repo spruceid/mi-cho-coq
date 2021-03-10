@@ -24,7 +24,7 @@ Require ExtrOcamlString.
 Require ExtrOCamlInt63.
 
 (* Replace int by Stdlib.Int.t to avoid a conflict with Decimal.int *)
-Extract Inductive comparison => "Stdlib.Int.t" [ "0" "(-1)" "1" ].
+Extract Inductive comparison => "StdlibInt.t" [ "0" "(-1)" "1" ].
 
 Extract Constant Ascii.ascii_of_pos => "(fun x -> Char.chr (Zarith.to_int x))".
 
