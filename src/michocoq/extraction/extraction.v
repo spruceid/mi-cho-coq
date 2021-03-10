@@ -21,18 +21,22 @@
 Require Extraction.
 Require ExtrOcamlBasic.
 Require ExtrOcamlString.
+Require ExtrOCamlInt63.
+
+(* Replace int by Stdlib.Int.t to avoid a conflict with Decimal.int *)
+Extract Inductive comparison => "Stdlib.Int.t" [ "0" "(-1)" "1" ].
 
 Extract Constant Ascii.ascii_of_pos => "(fun x -> Char.chr (Zarith.to_int x))".
 
 
 (* Require Import Michocoq.semantics. *)
 (* Recursive Extraction Library semantics. *)
-Require Import Michocoq.comparable Michocoq.int64bv Michocoq.typer Michocoq.micheline_lexer Michocoq.micheline_parser
+Require Import Michocoq.comparable Michocoq.typer Michocoq.micheline_lexer Michocoq.micheline_parser
 Michocoq.micheline2michelson Michocoq.semantics Michocoq.main.
 (* Recursive Extraction Library micheline_lexer. *)
 (* Recursive Extraction Library micheline_parser. *)
 
-Extract Inlined Constant ascii_compare => "(fun c1 c2 -> if (c1 < c2) then Lt else if (c1 > c2) then Gt else Eq)".
+Extract Inlined Constant ascii_compare => "(fun c1 c2 -> Stdlib.compare c1 c2)".
 
 Require Import ZArith NArith.
 
@@ -58,9 +62,9 @@ Extract Constant Pos.mul => "Zarith.mul".
 Extract Constant Pos.min => "Zarith.min".
 Extract Constant Pos.max => "Zarith.max".
 Extract Constant Pos.compare =>
- "fun x y -> Zarith.(if x < y then Lt else if x > y then Gt else Eq)".
+ "(fun x y -> Zarith.compare x y)".
 Extract Constant Pos.compare_cont =>
- "fun c x y -> Zarith.(if x < y then Lt else if x > y then Gt else c)".
+ "(fun c x y -> if Zarith.(x < y) then -1 else if Zarith.(x > y) then 1 else c)".
 
 Extract Constant N.add => "Zarith.add".
 Extract Constant N.succ => "Zarith.succ".
@@ -74,7 +78,7 @@ Extract Constant N.div =>
 Extract Constant N.modulo =>
  "fun a b -> Zarith.(if b = zero then zero else Zarith.rem a b)".
 Extract Constant N.compare =>
- "fun x y -> Zarith.(if x < y then Lt else if x > y then Gt else Eq)".
+ "(fun x y -> Zarith.compare x y)".
 
 Extract Constant Z.add => "Zarith.add".
 Extract Constant Z.succ => "Zarith.succ".
@@ -96,17 +100,10 @@ Extract Constant Z.div =>
  "fun a b -> Zarith.(if b = zero then zero else Zarith.div a b)".
 Extract Constant Z.modulo =>
  "fun a b -> Zarith.(if b = zero then zero else Zarith.rem a b)".
-Extract Constant Z.compare => "fun x y -> Zarith.(if x < y then Lt else if x > y then Gt else Eq)".
+Extract Constant Z.compare => "(fun x y -> Zarith.compare x y)".
 
 Extract Constant Z.of_N => "fun p -> p".
 Extract Constant Z.abs_N => "Zarith.abs".
-
-Extract Constant Zdigits.Zmod2 => "fun x -> Zarith.ediv x (Zarith.add Zarith.one Zarith.one)".
-
-Extract Inlined Constant int64 => "int64".
-Extract Inlined Constant sign => "(fun x -> Int64.compare x 0L < 0)".
-Extract Inlined Constant to_Z => "Zarith.of_int64".
-Extract Inlined Constant of_Z_unsafe => "Zarith.to_int64".
 
 (* Avoid a name collision for the module [Char] from the [coq-list-string]
    library. *)

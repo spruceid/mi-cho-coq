@@ -94,11 +94,11 @@ Definition vesting_tez_spec
       ((to_flush + vested)%N, (epoch, (secondsPerTick, tokensPerTick)))) /\
     exists target_contract, contract_ None unit target = Some target_contract /\
     let tokens_to_flush := (to_flush * tokensPerTick)%N in
-    exists pf : (tokens_to_flush < 2 ^ 63)%N,
+    exists pf,
     let tez_to_flush :=
-      extract
-        (tez.of_Z (Z.of_N tokens_to_flush))
-        (tez.of_Z_of_N_success tokens_to_flush pf) in
+      tez.of_Z_safe
+        (Z.of_N tokens_to_flush)
+        pf in
     returned_operations =
       (transfer_tokens env unit tt tez_to_flush target_contract :: nil)%list
   end.
@@ -213,6 +213,27 @@ Proof.
   - apply shim_simplify_flush_vested_ineqs.
 Qed.
 
+Lemma of_Z_success z : success (tez.of_Z z) <-> Bool.Is_true (tez.in_bound z).
+Proof.
+  unfold tez.of_Z.
+  destruct (tez.in_bound z); simpl; intuition.
+Qed.
+
+Lemma return_extract {A} (m : M A) H : Return (extract m H) = m.
+Proof.
+  destruct m.
+  - contradiction.
+  - destruct H.
+    reflexivity.
+Qed.
+
+Lemma return_extract_2 {A} (m : M A) a H : m = Return a -> extract m H = a.
+Proof.
+  intro; subst; simpl.
+  destruct H.
+  reflexivity.
+Qed.
+
 Lemma vesting_tez_spec_helper_correct
       (env : @proto_env (Some (parameter_ty, None)))
       (target : data address)
@@ -265,37 +286,19 @@ Proof.
   refine (iff_trans (iff_sym ex_and_comm) _).
   refine (and_both _).
   split; intros (pf & Hpf).
-  - destruct (N.lt_decidable (d * tokensPerTick) (2 ^ 63)) as [Hlt | Hge].
-    + exists Hlt.
-      rewrite Hpf.
-      do 3 f_equal.
-      exact (Is_true_UIP _ _ _).
-    + refine (False_ind _ (Hge _)).
-      unfold tez.of_Z in pf.
-      pose (pf' := success_bind_arg _ _ pf).
-      unfold int64bv.of_Z in pf'.
-      assert (success_if_then_Return_else_Failed : forall
-        (A : Type)
-        (b : Datatypes.bool)
-        (x : A)
-        (err : exception),
-        success (if b then Return x else Failed _ err) = b
-      ) by (destruct b; reflexivity).
-      rewrite success_if_then_Return_else_Failed in pf'.
-      apply Is_true_and_right in pf'.
-      apply IT_eq in pf'.
-      apply Z.ltb_lt in pf'.
-      refine (proj2 (N2Z.inj_lt _ _) _).
-      assert (H_pow_2_63 : two_power_nat 63 = Z.of_N (2 ^ 63)%N).
-      {
-        rewrite two_power_nat_equiv.
-        rewrite N2Z.inj_pow.
-        f_equal.
-      }
-      rewrite <- H_pow_2_63.
-      assumption.
-  - exists (tez.of_Z_of_N_success _ pf).
-    assumption.
+  - exists (proj1 (of_Z_success _) pf).
+    rewrite Hpf.
+    do 3 f_equal.
+    apply unreturn.
+    rewrite <- tez.of_Z_is_safe.
+    apply return_extract.
+  - exists (proj2 (of_Z_success _) pf).
+    rewrite Hpf.
+    do 3 f_equal.
+    apply unreturn.
+    rewrite <- tez.of_Z_is_safe.
+    symmetry.
+    apply return_extract.
 Qed.
 
 Lemma vesting_tez_helper_correct
@@ -326,7 +329,7 @@ Lemma vesting_tez_helper_correct
     new_storage
     returned_operations.
 Proof.
-  intro Hfuel.
+  intro storage.
   remember (100 + fuel) as fuel2.
   assert (100 <= fuel2) by lia.
   rewrite return_precond.
@@ -336,146 +339,86 @@ Proof.
   destruct param as [kh | to_flush].
   {
     do 17 (more_fuel; simpl).
-    destruct env; simpl.
-    destruct sender0 as [sender_addr | sender_addr];
-    destruct delegateAdmin as [delegateAdmin_addr | delegateAdmin_addr];
-    simpl;
-    ((
-      destruct sender_addr as [sender_addr];
-      destruct delegateAdmin_addr as [delegateAdmin_addr];
-      destruct (case_string_compare_Eq sender_addr delegateAdmin_addr) as
-        [(str_cmp_eq & str_eq) | (str_cmp_neq & str_neq)];
-      ((
-        rewrite str_cmp_eq;
-        rewrite str_eq;
-        simpl;
-        split;
-        intros (_ & Heq);
-        ((inversion Heq; intuition) ||
-        ( destruct Heq as (Hstorage & Hops);
-          rewrite Hstorage;
-          rewrite Hops;
-          split; auto; reflexivity))
-      ) ||
-      (
-        pose (cmp := string_compare sender_addr delegateAdmin_addr);
-        assert (Hcmp : string_compare sender_addr delegateAdmin_addr = cmp) by reflexivity;
-        rewrite Hcmp in str_cmp_neq |- *;
-        destruct cmp; (congruence ||
-        simpl; split; intro Heq; destruct Heq; congruence)
-      ))
-    ) ||
-    (
-      destruct sender_addr as [sender_addr];
-      destruct delegateAdmin_addr as [delegateAdmin_addr];
-      simpl; split; intro Heq; destruct Heq; congruence
-    ));
-    rewrite H0; rewrite H1; reflexivity.
+    rewrite Z.eqb_eq.
+    rewrite comparison_to_int_Eq.
+    rewrite (compare_eq_iff address).
+    apply and_both.
+    unfold storage.
+    rewrite and_pair_eq.
+    rewrite and_comm.
+    apply and_left; [reflexivity|].
+    rewrite and_pair_eq.
+    intuition.
   }
   {
     do 5 (more_fuel; simpl).
-    destruct secondsPerTick as [ | secondsPerTick].
-    {
-      split; intro Heq; destruct Heq.
-      - destruct H0 as (H0 & _); inversion H0.
-      - inversion H0 as (H1 & H2 & H3); congruence.
-    }
-    {
-      simpl.
-      unfold ediv_Z at 1.
-      simpl.
-      refine (iff_trans (ex_eq_some_simpl _ _) _).
-      match goal with
-      | |- (let (_, _) := if ?x then _ else _ in _) <-> _ =>
-        pose (is_vesting := x);
-        assert (is_vesting_eq : is_vesting = x) by reflexivity
-      end.
-      rewrite <- is_vesting_eq.
-      destruct is_vesting.
-      {
-        refine (iff_trans (ex_eq_some_simpl _ _) _).
-        match goal with
-        | |- ?x = true /\ _ <-> _ =>
-            pose (any_to_flush := x);
-            assert (any_to_flush_eq : any_to_flush = x) by reflexivity
-        end.
-        rewrite <- any_to_flush_eq.
-        destruct any_to_flush.
-        {
-          assert (cancel_true_refl : forall T, true = true /\ T <-> T) by tauto.
-          refine (iff_trans (cancel_true_refl _) _).
-          refine (forall_ex _).
-          intros ((target_address & target_o) & target_type_eq).
-          refine (and_both _).
-          assert (H_id :
-            match Z.of_N (to_flush * tokensPerTick) with
-            | 0%Z => 0%Z
-            | Z.pos y' => Z.pos y'
-            | Z.neg y' => Z.neg y'
-            end = Z.of_N (to_flush * tokensPerTick)
-          ).
-          {
-            destruct (Z.of_N (to_flush * tokensPerTick));
-            reflexivity.
-          }
-          {
-            rewrite H_id.
-            pose (m_tez_to_flush := tez.of_Z (Z.of_N (to_flush * tokensPerTick))).
-            assert (m_tez_to_flush_eq : m_tez_to_flush =
-              tez.of_Z (Z.of_N (to_flush * tokensPerTick))) by reflexivity.
-            rewrite <- m_tez_to_flush_eq.
-            destruct m_tez_to_flush.
-            {
-              split; simpl;
-              (tauto || intros (_ & _ & _ & Hfalse & _));
-              assumption.
-            }
-            {
-              split; simpl; intro Heq; inversion Heq as [Hops].
-              {
-                split.
-                - intro neq; inversion neq.
-                - split.
-                  + refine (IT_eq_rev _ _).
-                    rewrite any_to_flush_eq.
-                    reflexivity.
-                  + split.
-                    * refine (IT_eq_rev _ _);
-                      rewrite is_vesting_eq;
-                      reflexivity.
-                    * refine (@ex_intro _ _ I _); tauto.
-              }
-              {
-                destruct H0 as (_ & _ & x & H_storage & H_operations).
-                rewrite H_storage.
-                rewrite H_operations.
-                destruct x.
-                reflexivity.
-              }
-            }
-          }
-        }
-        {
-          split.
-          - intuition.
-          - intros (target_contract & _ & _ & Hfalse & _).
-            apply IT_eq in Hfalse.
-            destruct env.
-            simpl in any_to_flush_eq, Hfalse.
-            rewrite <- any_to_flush_eq in Hfalse.
-            inversion Hfalse.
-        }
-      }
-      {
-        pattern (((now env - epoch) / Z.pos secondsPerTick - Z.of_N vested >=? 0)%Z).
-        rewrite <- is_vesting_eq.
-        split; intro HH. destruct HH as (x & HH).
-        - destruct HH as (Hfalse & _).
-          inversion Hfalse.
-        - destruct HH as (_ & _ & _ & _ & Hfalse & _).
-          inversion Hfalse.
-      }
-    }
+    split.
+    - intros ((q, r), (H1, H2)).
+      destruct (q - Z.of_N vested >=? 0)%Z eqn:Hdiff.
+      + destruct H2 as (y, (Hy, (Hflush, (c, (Hc, Hm))))).
+        assert (y = Z.to_N (q - Z.of_N vested)) by congruence.
+        subst y.
+        clear Hy.
+        rewrite precond_exists in Hm.
+        destruct Hm as (z, (Hz, H2)).
+        rewrite and_pair_eq in H2.
+        rewrite and_pair_eq in H2.
+        destruct H2 as ((H2, H3), _).
+        subst.
+        change (tez.of_Z (1%Z * Z.of_N (to_flush * tokensPerTick)) = Return z) in Hz.
+        rewrite Z.mul_1_l in Hz.
+        rewrite Hz.
+        simpl.
+        exists c.
+        split; [assumption|].
+        split; [apply ediv_Z_correct in H1; lia|].
+        assert (q = ((now env - epoch) / Z.of_N secondsPerTick)%Z).
+        * rewrite ediv_Z_correct in H1.
+          destruct H1 as (H1, H2).
+          apply (Zdiv_unique _ _ _ (Z.of_N r)); [nia|symmetry; assumption].
+        * split; [|split].
+          -- subst.
+             apply Bool.Is_true_eq_left.
+             apply Hflush.
+          -- apply Bool.Is_true_eq_left.
+             congruence.
+          -- exists I; split; reflexivity.
+      + destruct H2 as (y, (Habsurd, _)).
+        discriminate.
+    - intros (target_contract, (Ht, (Hspt, (Hflush, (Hdiff, (Hsuccess, He)))))).
+      exists (((now env - epoch) / Z.of_N secondsPerTick), Z.to_N ((now env - epoch) mod Z.of_N secondsPerTick))%Z.
+      split.
+      + assert (Z.of_N secondsPerTick > 0)%Z as Hpos by lia.
+        assert (0 <= ((now env - epoch) mod Z.of_N secondsPerTick))%Z as Hneg
+            by (apply Z_mod_lt; assumption).
+        assert (Z.of_N (Z.to_N ((now env - epoch) mod Z.of_N secondsPerTick)) = ((now env - epoch) mod Z.of_N secondsPerTick))%Z
+          as Hid by (apply Z2N.id; assumption).
+        rewrite ediv_Z_correct.
+        split.
+        * symmetry.
+          etransitivity; [apply (Z_div_mod_eq _ _ Hpos)|].
+          rewrite Hid.
+          reflexivity.
+        * rewrite Hid.
+          replace (Z.abs (Z.of_N secondsPerTick)) with (Z.of_N secondsPerTick).
+          -- apply Z_mod_lt. assumption.
+          -- lia.
+      + apply Bool.Is_true_eq_true in Hdiff.
+        rewrite Hdiff.
+        eexists.
+        split; [reflexivity|].
+        apply Bool.Is_true_eq_true in Hflush.
+        split; [assumption|].
+        eexists.
+        split; [eassumption|].
+        destruct (success_eq_return_rev _ _ Hsuccess) as (m, Hm).
+        change (tez.to_Z _) with 1%Z.
+        rewrite Z.mul_1_l.
+        rewrite Hm.
+        apply (return_extract_2 _ _ Hsuccess) in Hm.
+        simpl.
+        destruct He; subst.
+        reflexivity.
   }
 Qed.
 

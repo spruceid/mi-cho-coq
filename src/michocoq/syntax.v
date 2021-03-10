@@ -718,7 +718,7 @@ Notation "{ }" := NOOP : michelson_scope.
 
 Notation "{ A ; .. ; B }" := (seq_aux A .. (seq_aux B NOOP) ..) : michelson_scope.
 
-Notation "n ~Mutez" := (exist _ (int64bv.of_Z_safe n eq_refl) I) (at level 100).
+Notation "n ~Mutez" := (error.extract (tez.of_Z n) I) (at level 100).
 
 Notation "n ~mutez" := (Comparable_constant mutez (n ~Mutez)) (at level 100).
 

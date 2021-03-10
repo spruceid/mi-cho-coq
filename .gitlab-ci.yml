@@ -41,14 +41,6 @@ lint:
     - echo -e "section_end:`date +%s`:project_build\r\e[0K"
     - which michocoq
 
-michocoq:8.8:
-  image: coqorg/coq:8.8
-  extends: .build
-
-michocoq:8.9:
-  image: coqorg/coq:8.9
-  extends: .build
-
 michocoq:8.10:
   image: coqorg/coq:8.10
   extends: .build

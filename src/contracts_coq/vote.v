@@ -73,6 +73,7 @@ Proof.
 Defined.
 
 Opaque Z.add.
+Opaque tez.of_Z.
 
 Theorem vote_correct
       (env : @proto_env (Some (parameter_ty, None)))

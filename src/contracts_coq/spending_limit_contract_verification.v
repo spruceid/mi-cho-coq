@@ -831,7 +831,7 @@ Definition slc_ep_transfer1_check_signature_spec
                      (q2', ((master_key_hash, (master_salt, (slave_salt + 2)%N)), tt)))))))))).
 Transparent add.
 Opaque N.add.
-Opaque int64bv.of_Z_safe.
+Opaque tez.of_Z.
 
 Lemma slc_ep_transfer1_check_signature_correct
         (env : @proto_env (Some (parameter_ty, None)))

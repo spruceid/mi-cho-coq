@@ -22,77 +22,71 @@
 
 (* Tez amounts implemented by positive signed 64-bits integers *)
 
-Require Import ZArith.
-Require int64bv.
-Require Eqdep_dec.
+Require Int63.
 Require error.
 Import error.Notations.
 
-Definition mutez : Set := {t : int64bv.int64 | Bool.Is_true (negb (int64bv.sign t)) }.
+Require Import ZArith.
 
-Definition to_int64 (t : mutez) : int64bv.int64 :=
-  let (t, _) := t in t.
+Definition mutez : Set := Int63.int.
 
-Definition to_int64_inj (t1 t2 : mutez) :
-  to_int64 t1 = to_int64 t2 -> t1 = t2.
+Definition to_Z (t : mutez) : Z := Int63.to_Z t.
+
+Definition in_bound (z : Z) : bool :=
+  ((0 <=? z) && (z <? Int63.wB))%Z%bool.
+
+Definition of_Z (z : Z) : error.M mutez :=
+  if (in_bound z) then error.Return (Int63.of_Z z)
+  else error.Failed _ error.Overflow.
+
+Definition of_Z_safe (z : Z) (H : Bool.Is_true (in_bound z)) : mutez :=
+  Int63.of_Z z.
+
+Lemma of_Z_is_safe z H :
+  of_Z z = error.Return (of_Z_safe z H).
 Proof.
-  intro H.
-  destruct t1 as (t1, H1).
-  destruct t2 as (t2, H2).
-  simpl in H.
-  destruct H.
-  f_equal.
-  apply error.Is_true_UIP.
+  unfold of_Z.
+  rewrite (Bool.Is_true_eq_true _ H).
+  reflexivity.
 Qed.
 
-Definition to_Z (t : mutez) : Z := int64bv.to_Z (to_int64 t).
-
-Definition of_int64 (t : int64bv.int64) : error.M mutez :=
-  let! H :=
-     error.dif
-       (A := fun b => error.M (Bool.Is_true (negb b)))
-       (int64bv.sign t)
-       (fun _ => error.Failed _ error.Overflow)
-       (fun H => error.Return H)
-  in
-  @error.Return mutez (exist _ t H).
-
-Lemma of_int64_to_int64_eqv (t : int64bv.int64) (m : mutez) :
-  to_int64 m = t <-> of_int64 t = error.Return m.
+Lemma to_Z_in_bound (t : mutez) : Bool.Is_true (in_bound (to_Z t)).
 Proof.
-  unfold of_int64, to_int64.
-  destruct m as (t', H).
-  rewrite error.bind_eq_return.
-  split.
-  - intro; subst.
-    exists H.
-    split; [| reflexivity].
-    apply (@error.dif_case (fun b => error.M (Bool.Is_true (negb b)))).
-    + intro Hn; destruct (int64bv.sign t); contradiction.
-    + intro H'; f_equal; apply error.Is_true_UIP.
-  - intros (H', (Hd, HR)).
-    congruence.
+  generalize (Int63.to_Z_bounded t).
+  intros (H1, H2).
+  unfold in_bound.
+  apply Zle_imp_le_bool in H1.
+  rewrite <- Z.ltb_lt in H2.
+  apply Bool.Is_true_eq_left in H1.
+  apply Bool.Is_true_eq_left in H2.
+  apply Bool.andb_prop_intro.
+  split; assumption.
 Qed.
-
-Definition of_Z (t : Z) : error.M mutez :=
-  let! b := int64bv.of_Z t in
-  of_int64 b.
 
 Lemma of_Z_to_Z_eqv (z : Z) (t : mutez) : to_Z t = z <-> of_Z z = error.Return t.
 Proof.
-  unfold of_Z, to_Z.
+  unfold of_Z.
   split.
   - intro; subst z.
-    rewrite int64bv.of_Z_to_Z.
-    simpl.
-    apply of_int64_to_int64_eqv.
+    rewrite (Bool.Is_true_eq_true _ (to_Z_in_bound t)).
+    unfold to_Z.
+    rewrite Int63.of_to_Z.
     reflexivity.
-  - intro H.
-    apply (error.bind_eq_return of_int64) in H.
-    destruct H as (b, (Hz, Hb)).
-    apply of_int64_to_int64_eqv in Hb.
-    rewrite <- int64bv.of_Z_to_Z_eqv in Hz.
-    congruence.
+  - case_eq (in_bound z).
+    + intro Hbound.
+      intro Ht.
+      apply error.unreturn in Ht.
+      subst.
+      unfold to_Z.
+      symmetry.
+      apply Int63.is_int.
+      unfold in_bound in Hbound.
+      apply andb_prop in Hbound.
+      destruct Hbound as (H1, H2).
+      apply Zle_bool_imp_le in H1.
+      rewrite Z.ltb_lt in H2.
+      split; assumption.
+    + discriminate.
 Qed.
 
 Lemma of_Z_to_Z (t : mutez) : of_Z (to_Z t) = error.Return t.
@@ -101,28 +95,22 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma of_Z_of_N_success (n : N) (H : (n < 2 ^ 63)%N) :
-  Bool.Is_true (error.success (of_Z (Z.of_N n))).
+Lemma to_Z_inj (t1 t2 : mutez) : to_Z t1 = to_Z t2 -> t1 = t2.
 Proof.
-  unfold of_Z.
-  rewrite int64bv.of_Z_of_N by assumption.
-  simpl error.bind.
-  unfold of_int64.
-  refine (error.success_bind_rev _ _ _).
-  exists (int64bv.sign_of_Z_of_N n H).
-  split.
-  - exact (@error.dif_is_false _ _ _ _ _).
-  - exact I.
+  intro H.
+  rewrite of_Z_to_Z_eqv in H.
+  rewrite of_Z_to_Z in H.
+  congruence.
 Qed.
 
 Definition compare (t1 t2 : mutez) : comparison :=
-  int64bv.int64_compare (to_int64 t1) (to_int64 t2).
+  Z.compare (to_Z t1) (to_Z t2).
 
 Lemma compare_eq_iff (t1 t2 : mutez) : compare t1 t2 = Eq <-> t1 = t2.
 Proof.
   unfold compare.
-  rewrite int64bv.compare_eq_iff.
+  rewrite Z.compare_eq_iff.
   split.
-  - apply to_int64_inj.
+  - apply to_Z_inj.
   - apply f_equal.
 Qed.
