@@ -308,7 +308,7 @@ Definition opt_merge {A : Set} (m1 m2 : Datatypes.option A) : Datatypes.option A
    returns [None] otherwise *)
 Definition get_entrypoint_root (e : annotation) (a : type) (an : annot_o) :
   Datatypes.option type :=
-  opt_bind an (fun e' => if String.string_dec e e' then Some a else None).
+  opt_bind an (fun e' => if String.eqb e e' then Some a else None).
 
 (* Returns the first entrypoint to match e in the annotated type (a, an).
    The traversal is depth-first *)
@@ -329,7 +329,7 @@ Definition get_entrypoint_opt (e : annot_o) (a : type) (an : annot_o) : Datatype
   match e with
   | None => get_default_entrypoint a an
   | Some e =>
-    if String.string_dec e default_entrypoint.default
+    if String.eqb e default_entrypoint.default
     then get_default_entrypoint a an
     else get_entrypoint e a an
   end.
