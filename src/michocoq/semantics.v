@@ -1317,11 +1317,11 @@ Module Semantics(C : ContractContext).
     | @IF_ _ _ _ tffa tffb _ _ _ (IF_or a an b bn) bt bf, env, psi, (x, SA) =>
       match tffa, tffb with
       | false, true =>
-        exists y,
+        exists y : data _,
         x = inl y /\
         eval_seq_precond_body (@eval_precond_n) env _ _ _ bt psi (y, SA)
       | true, false =>
-        exists y,
+        exists y : data _,
         x = inr y /\ eval_seq_precond_body (@eval_precond_n) env _ _ _ bf psi (y, SA)
       | true, true =>
         false
@@ -1336,7 +1336,7 @@ Module Semantics(C : ContractContext).
       | false, true =>
         x = None /\ eval_seq_precond_body (@eval_precond_n) env _ _ _ bt psi SA
       | true, false =>
-        exists y,
+        exists y : data _,
         x = Some y /\ eval_seq_precond_body (@eval_precond_n) env _ _ _ bf psi (y, SA)
       | true, true =>
         false
