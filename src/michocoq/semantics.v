@@ -1756,4 +1756,328 @@ Module Semantics(C : ContractContext).
   Ltac fold_eval_precond :=
     change (@eval_precond_body (@eval_precond ?fuel)) with (@eval_precond (S fuel)).
 
+  Fixpoint eval0_precond
+             {self_type} (env : @proto_env self_type) {tff A B}
+             (i : instruction self_type tff A B)
+             (psi : stack B -> Prop)
+             (SA : stack A) {struct i} : Prop :=
+    match i, env, psi, SA with
+    | Instruction_seq i, env, psi, SA =>
+      eval0_seq_precond env i psi SA
+    | FAILWITH, _, _, _ => false
+
+    | @IF_ _ _ _ tffa tffb _ _ _ IF_bool bt bf, env, psi, (x, SA) =>
+      match tffa, tffb with
+      | false, true =>
+        x = true /\ eval0_seq_precond env bt psi SA
+      | true, false =>
+        x = false /\ eval0_seq_precond env bf psi SA
+      | true, true =>
+        false
+      | false, false =>
+      if x then eval0_seq_precond env bt psi SA
+      else eval0_seq_precond env bf psi SA
+      end
+    | @IF_ _ _ _ tffa tffb _ _ _ (IF_or a an b bn) bt bf, env, psi, (x, SA) =>
+      match tffa, tffb with
+      | false, true =>
+        exists y : data _,
+        x = inl y /\
+        eval0_seq_precond env bt psi (y, SA)
+      | true, false =>
+        exists y : data _,
+        x = inr y /\ eval0_seq_precond env bf psi (y, SA)
+      | true, true =>
+        false
+      | false, false =>
+        match x with
+        | inl y => eval0_seq_precond env bt psi (y, SA)
+        | inr y => eval0_seq_precond env bf psi (y, SA)
+        end
+      end
+    | @IF_ _ _ _ tffa tffb _ _ _ (IF_option a) bt bf, env, psi, (x, SA) =>
+      match tffa, tffb with
+      | false, true =>
+        x = None /\ eval0_seq_precond env bt psi SA
+      | true, false =>
+        exists y : data _,
+        x = Some y /\ eval0_seq_precond env bf psi (y, SA)
+      | true, true =>
+        false
+      | false, false =>
+        match x with
+        | None => eval0_seq_precond env bt psi SA
+        | Some y => eval0_seq_precond env bf psi (y, SA)
+        end
+      end
+    | @IF_ _ _ _ tffa tffb _ _ _ (IF_list a) bt bf, env, psi, (x, SA) =>
+      match tffa, tffb with
+      | false, true =>
+        exists (hd : data a) (tl : data (list a)),
+        x = cons hd tl /\ eval0_seq_precond env bt psi (hd, (tl, SA))
+      | true, false =>
+        x = nil /\ eval0_seq_precond env bf psi SA
+      | true, true =>
+        false
+      | false, false =>
+        match x with
+        | cons hd tl => eval0_seq_precond env bt psi (hd, (tl, SA))
+        | nil => eval0_seq_precond env bf psi SA
+        end
+      end
+    | LOOP_ _ _, _, _, _ => false
+    | EXEC, _, _, _ => false
+    | PUSH a x, env, psi, SA => psi (concrete_data_to_data _ x, SA)
+    | LAMBDA a b code, env, psi, SA => psi (existT _ _ code, SA)
+    | ITER _, env, psi, (x, SA) => false
+    | MAP _, env, psi, (x, SA) => false
+    | CREATE_CONTRACT g p an f, env, psi, (a, (b, (c, SA))) =>
+      let (oper, addr) := create_contract env g p an _ a b f c in
+      psi (oper, (addr, SA))
+    | SELF ao H, env, psi, SA => psi (self env ao H, SA)
+    | DIP n Hlen i, env, psi, SA =>
+      let (S1, S2) := stack_split SA in
+      eval0_seq_precond env i (fun SB => psi (stack_app S1 SB)) S2
+    | Instruction_opcode o, env, psi, SA =>
+      eval_precond_opcode env _ _ o psi SA
+    end
+  with eval0_seq_precond
+             {self_type} env {tff A B}
+             (i : instruction_seq self_type tff A B)
+             (psi : stack B -> Prop)
+             (SA : stack A) {struct i} : Prop :=
+         if tff then false else
+    match i, env, psi, SA with
+    | NOOP, env, psi, st => psi st
+    | SEQ B C, env, psi, st =>
+      eval0_precond env B (eval0_seq_precond env C psi) st
+    | Tail_fail i, env, psi, st =>
+      eval0_precond env i psi st
+    end.
+
+  Fixpoint loop_free {self_type tff A B}
+           (i : instruction self_type tff A B) : Datatypes.bool :=
+    match i with
+
+    | LOOP_ _ _
+    | EXEC
+    | ITER _
+    | MAP _ => false
+
+    | FAILWITH
+    | PUSH _ _
+    | LAMBDA _ _ _
+    | CREATE_CONTRACT _ _ _ _
+    | SELF _ _
+    | Instruction_opcode _ => true
+
+    | Instruction_seq i
+    | DIP _ _ i => loop_free_seq i
+
+    | IF_ _ bt bf => loop_free_seq bt && loop_free_seq bf
+    end
+  with loop_free_seq {self_type tff A B}
+             (i : instruction_seq self_type tff A B) : Datatypes.bool :=
+    match i with
+    | NOOP => true
+    | SEQ B C => loop_free B && loop_free_seq C
+    | Tail_fail i => loop_free i
+    end.
+
+  Fixpoint fuel_lower_bound {self_type tff A B}
+           (i : instruction self_type tff A B) : Datatypes.option Datatypes.nat :=
+    match i with
+
+    | LOOP_ _ _
+    | EXEC
+    | ITER _
+    | MAP _ => None
+
+    | FAILWITH
+    | PUSH _ _
+    | LAMBDA _ _ _
+    | CREATE_CONTRACT _ _ _ _
+    | SELF _ _
+    | Instruction_opcode _ => Some 1
+
+    | Instruction_seq i
+    | DIP _ _ i => let? fuel := fuel_lower_bound_seq i in Some (S fuel)
+
+    | IF_ _ bt bf =>
+      let? fuelt := fuel_lower_bound_seq bt in
+      let? fuelf := fuel_lower_bound_seq bf in
+      Some (S (max fuelt fuelf))
+    end
+  with fuel_lower_bound_seq {self_type tff A B}
+             (i : instruction_seq self_type tff A B) : Datatypes.option Datatypes.nat :=
+    match i with
+    | NOOP => Some 0
+    | SEQ B C =>
+      let? fuelB := fuel_lower_bound B in
+      let? fuelC := fuel_lower_bound_seq C in
+      Some (max fuelB fuelC)
+    | Tail_fail i => fuel_lower_bound i
+    end.
+
+  Opaque max.
+
+  Fixpoint loop_free_fuel_lower_bound {self_type tff A B}
+           (i : instruction self_type tff A B) :
+    loop_free i = isSome (fuel_lower_bound i)
+  with loop_free_seq_fuel_lower_bound {self_type tff A B}
+           (i : instruction_seq self_type tff A B) :
+         loop_free_seq i = isSome (fuel_lower_bound_seq i).
+  Proof.
+    - destruct i; simpl; try reflexivity.
+      + rewrite loop_free_seq_fuel_lower_bound.
+        destruct (fuel_lower_bound_seq i); reflexivity.
+      + do 2 rewrite loop_free_seq_fuel_lower_bound.
+        (case_eq (fuel_lower_bound_seq i0); [intros fuel0 H0| intros H0]);
+          (case_eq (fuel_lower_bound_seq i1); [intros fuel1 H1| intros H1]);
+          reflexivity.
+      + rewrite loop_free_seq_fuel_lower_bound.
+        destruct (fuel_lower_bound_seq i); reflexivity.
+    - destruct i; simpl; try reflexivity.
+      + apply loop_free_fuel_lower_bound.
+      + rewrite loop_free_fuel_lower_bound.
+        rewrite loop_free_seq_fuel_lower_bound.
+        generalize (fuel_lower_bound i); intro m1.
+        generalize (fuel_lower_bound_seq i0); intro m0.
+        (case_eq m0; [intros fuel0 H0| intros H0]);
+          (case_eq m1; [intros fuel1 H1| intros H1]);
+          reflexivity.
+  Qed.
+
+  Lemma forall_ex {A : Set} {phi psi : A -> Prop} :
+    (forall x, phi x <-> psi x) -> ((exists x, phi x) <-> (exists x, psi x)).
+  Proof.
+    intro Hall.
+    split; intros (x, Hx); exists x; specialize (Hall x); intuition.
+  Qed.
+
+  Fixpoint eval0_precond_correct
+           {self_type} env {tff A B}
+           (i : instruction self_type tff A B)
+           (psi : stack B -> Prop)
+           (SA : stack A) fuel_lower {struct i} :
+    fuel_lower_bound i = Some fuel_lower ->
+    forall fuel,
+      fuel >= fuel_lower ->
+      (eval0_precond env i psi SA <-> eval_precond fuel env i psi SA)
+  with eval0_seq_precond_correct
+         {self_type} env {tff A B}
+         (i : instruction_seq self_type tff A B)
+         (psi : stack B -> Prop)
+         (SA : stack A) fuel_lower {struct i} :
+         fuel_lower_bound_seq i = Some fuel_lower ->
+         forall fuel,
+           fuel >= fuel_lower ->
+           (eval0_seq_precond env i psi SA <-> eval_seq_precond fuel env i psi SA).
+  Proof.
+    - intros Hlf fuel Hfuel.
+      destruct i; simpl in Hlf; try discriminate;
+        try (apply unsome in Hlf; subst fuel_lower; unfold ">=" in Hfuel; more_fuel; reflexivity).
+      + (* Instruction_seq *)
+        apply bind_some in Hlf.
+        destruct Hlf as (bound, (Hlf, He)).
+        apply unsome in He.
+        subst fuel_lower.
+        unfold ">=" in Hfuel.
+        more_fuel.
+        simpl.
+        apply (eval0_seq_precond_correct _ _ _ _ _ i _ _ bound Hlf fuel Hfuel).
+      + (* IF_ *)
+        apply error.bind_some in Hlf.
+        destruct Hlf as (bound0, (Hlf0, Hlf)).
+        apply error.bind_some in Hlf.
+        destruct Hlf as (bound1, (Hlf1, He)).
+        apply unsome in He.
+        subst fuel_lower.
+        unfold ">=" in Hfuel.
+        more_fuel.
+        assert (fuel >= bound0) as Hfuel0 by lia.
+        assert (fuel >= bound1) as Hfuel1 by lia.
+        destruct i.
+        * destruct SA as (x, SA).
+          destruct x; destruct tffa; destruct tffb; simpl;
+            try rewrite (eval0_seq_precond_correct _ env _ _ _ i0 psi SA bound0 Hlf0 fuel Hfuel0);
+            try rewrite (eval0_seq_precond_correct _ env _ _ _ i1 psi SA bound1 Hlf1 fuel Hfuel1);
+            try reflexivity.
+        * destruct SA as (x, SA).
+          destruct x as [x|x]; destruct tffa; destruct tffb; simpl in *;
+            try (apply forall_ex; intro y);
+            try rewrite (eval0_seq_precond_correct _ env _ _ _ i0 psi (y, SA) bound0 Hlf0 fuel Hfuel0);
+            try rewrite (eval0_seq_precond_correct _ env _ _ _ i0 psi (x, SA) bound0 Hlf0 fuel Hfuel0);
+            try rewrite (eval0_seq_precond_correct _ env _ _ _ i1 psi (y, SA) bound1 Hlf1 fuel Hfuel1);
+            try rewrite (eval0_seq_precond_correct _ env _ _ _ i1 psi (x, SA) bound1 Hlf1 fuel Hfuel1);
+            try intuition congruence.
+        * destruct SA as (x, SA).
+          destruct x as [x|]; destruct tffa; destruct tffb; simpl in *;
+            try (apply forall_ex; intro y);
+            try rewrite (eval0_seq_precond_correct _ env _ _ _ i0 psi SA bound0 Hlf0 fuel Hfuel0);
+            try rewrite (eval0_seq_precond_correct _ env _ _ _ i1 psi (y, SA) bound1 Hlf1 fuel Hfuel1);
+            try rewrite (eval0_seq_precond_correct _ env _ _ _ i1 psi (x, SA) bound1 Hlf1 fuel Hfuel1);
+            try intuition congruence.
+        * destruct SA as (x, SA).
+          destruct x as [|x y]; destruct tffa; destruct tffb; simpl in *;
+            try (apply forall_ex; intro hd; apply forall_ex; intro tl);
+            try rewrite (eval0_seq_precond_correct _ env _ _ _ i0 psi (hd, (tl, SA)) bound0 Hlf0 fuel Hfuel0);
+            try rewrite (eval0_seq_precond_correct _ env _ _ _ i0 psi (x, (y, SA)) bound0 Hlf0 fuel Hfuel0);
+            try rewrite (eval0_seq_precond_correct _ env _ _ _ i1 psi SA bound1 Hlf1 fuel Hfuel1);
+            try intuition congruence.
+      + (* DIP *)
+        apply bind_some in Hlf.
+        destruct Hlf as (bound, (Hlf, He)).
+        apply unsome in He.
+        subst fuel_lower.
+        unfold ">=" in Hfuel.
+        more_fuel.
+        simpl.
+        destruct (stack_split SA) as (S1, S2).
+        apply (eval0_seq_precond_correct _ _ _ _ _ i _ _ bound Hlf fuel Hfuel).
+    - intros Hlf fuel Hfuel.
+      destruct i; simpl in Hlf.
+      + (* NOOP *)
+        reflexivity.
+      + (* Tail_fail *)
+        reflexivity.
+      + (* SEQ *)
+        apply error.bind_some in Hlf.
+        destruct Hlf as (bound0, (Hlf0, Hlf)).
+        apply error.bind_some in Hlf.
+        destruct Hlf as (bound1, (Hlf1, He)).
+        apply unsome in He.
+        subst fuel_lower.
+        assert (fuel >= bound0) as Hfuel0 by lia.
+        assert (fuel >= bound1) as Hfuel1 by lia.
+        destruct tff; [reflexivity|].
+        simpl.
+        rewrite fold_eval_seq_precond_aux.
+        rewrite (eval0_precond_correct _ env _ _ _ i _ SA bound0 Hlf0 fuel Hfuel0).
+        apply eval_precond_eqv.
+        intro SB.
+        apply (eval0_seq_precond_correct _ env _ _ _ i0 _ SB bound1 Hlf1 fuel Hfuel1).
+  Qed.
+
+  Definition enough_fuel {self_type tff A B}
+             (i : instruction_seq self_type tff A B) fuel :=
+    match fuel_lower_bound_seq i
+    with None => Logic.False | Some bound => bound <= fuel end.
+
+  Lemma eval0_seq_precond_enough
+        {self_type} env {tff A B}
+        (i : instruction_seq self_type tff A B)
+        (psi : stack B -> Prop)
+        (SA : stack A) fuel :
+    enough_fuel i fuel ->
+    (precond (eval_seq env i fuel SA) psi <-> eval0_seq_precond env i psi SA).
+  Proof.
+    unfold enough_fuel.
+    case_eq (fuel_lower_bound_seq i).
+    - intros fuel_lower Hfl Hfuel.
+      rewrite (eval0_seq_precond_correct env i psi SA fuel_lower Hfl fuel Hfuel).
+      apply eval_seq_precond_correct.
+    - contradiction.
+  Qed.
+
 End Semantics.
