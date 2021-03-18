@@ -48,10 +48,23 @@ Proof.
   congruence.
 Qed.
 
+Lemma unsome {A} (x y : A) : Some x = Some y -> x = y.
+Proof.
+  congruence.
+Qed.
+
 Definition bind {A B : Type} (m : M A) (f : A -> M B) :=
   match m with
   | Failed _ e => Failed B e
   | Return SB => f SB
+  end.
+
+Definition option_bind {A B}
+           (o : Datatypes.option A) (f : A -> Datatypes.option B) :
+  Datatypes.option B :=
+  match o with
+  | None => None
+  | Some a => f a
   end.
 
 Module Notations.
@@ -64,6 +77,12 @@ Module Notations.
   Notation "'let!' x ':=' X 'in' Y" :=
     (bind X (fun x => Y))
     (at level 200, x pattern, X at level 100, Y at level 200).
+
+
+  Notation "'let?' x ':=' X 'in' Y" :=
+    (option_bind X (fun x => Y))
+      (at level 200, x pattern, X at level 100, Y at level 200).
+
 End Notations.
 
 Import Notations.
@@ -121,6 +140,12 @@ Definition success {A} (m : M A) :=
   | Return _ => true
   end.
 
+Definition isSome {A} (m : Datatypes.option A) :=
+  match m with
+  | None => false
+  | Some _ => true
+  end.
+
 Lemma bool_dec (b1 b2 : Datatypes.bool) : { b1 = b2 } + { b1 <> b2 }.
 Proof.
   repeat decide equality.
@@ -166,10 +191,20 @@ Proof.
   - intro H.
     inversion H.
 Qed.
+
 Definition extract {A : Type} (m : M A) : success m -> A :=
   match m with
-  | Return x => fun 'I => x
+  | Return x => fun _ => x
   | Failed _ _ => fun H => match H with end
+  end.
+
+Definition opt_get {A} (o : Datatypes.option A) (default : A) : A :=
+  match o with Some x => x | None => default end.
+
+Definition opt_extract {A} (o : Datatypes.option A) : isSome o -> A :=
+  match o with
+  | Some x => fun _ => x
+  | None => fun H => match H with end
   end.
 
 Definition IT_if {A : Type} (b : Datatypes.bool) (th : b -> A) (els : A) : A :=
@@ -188,6 +223,17 @@ Proof.
     auto.
 Qed.
 
+Lemma isSome_bind {A B : Set} (f : A -> Datatypes.option B) m :
+  isSome (let? x := m in f x) ->
+  exists x, m = Some x /\ isSome (f x).
+Proof.
+  destruct m.
+  - intro H.
+    exists a.
+    auto.
+  - contradiction.
+Qed.
+
 Lemma success_bind_rev {A B : Set} (f : A -> M B) m :
   (exists x, m = Return x /\ success (f x)) ->
   success (let! x := m in f x).
@@ -199,8 +245,27 @@ Proof.
   auto.
 Qed.
 
+Lemma isSome_bind_rev {A B : Set} (f : A -> Datatypes.option B) m :
+  (exists x, m = Some x /\ isSome (f x)) ->
+  isSome (let? x := m in f x).
+Proof.
+  destruct m;
+  intro H;
+  inversion H as (x & H_eq & H_success);
+  inversion H_eq;
+  auto.
+Qed.
+
 Lemma success_eq_return A (x : A) m :
   m = Return x -> success m.
+Proof.
+  intro He.
+  rewrite He.
+  exact I.
+Qed.
+
+Lemma isSome_eq_Some A (x : A) m :
+  m = Some x -> isSome m.
 Proof.
   intro He.
   rewrite He.
@@ -239,6 +304,15 @@ Proof.
       auto.
   - intros (a, (Hm, Hb)).
     subst m; exact Hb.
+Qed.
+
+Lemma bind_some {A B} (y : Datatypes.option A) (w : B) z : (let? x := y in z x) = Some w <-> (exists x, y = Some x /\ z x = Some w).
+Proof.
+  destruct y; simpl; split.
+  - intro H; exists a; split; congruence.
+  - intros (x, (Hx, Hz)); congruence.
+  - discriminate.
+  - intros (x, (Hx, Hz)); discriminate.
 Qed.
 
 

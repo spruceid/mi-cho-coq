@@ -26,7 +26,7 @@ Require Import ZArith.
 Require String.
 Require Import ListSet.
 Require set map.
-Require Import comparable.
+Require Import comparable error.
 Require tez.
 Require Export syntax_type.
 
@@ -334,16 +334,10 @@ Definition get_entrypoint_opt (e : annot_o) (a : type) (an : annot_o) : Datatype
     else get_entrypoint e a an
   end.
 
-Definition isSome {A : Set} (m : Datatypes.option A) : Prop :=
-  match m with
-  | None => False
-  | Some _ => True
-  end.
-
-Definition isSome_maybe {A : Set} error (o : Datatypes.option A) : error.M (isSome o) :=
-  match o return error.M (isSome o) with
-  | Some _ => error.Return I
-  | None => error.Failed _ error
+Definition isSome_maybe {A : Set} error (o : Datatypes.option A) : M (isSome o) :=
+  match o return M (isSome o) with
+  | Some _ => Return I
+  | None => Failed _ error
   end.
 
 Definition get_opt {A : Set} (m : Datatypes.option A) (H : isSome m) : A :=

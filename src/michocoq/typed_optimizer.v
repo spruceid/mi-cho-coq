@@ -45,35 +45,6 @@ Definition hide_ntf_seq {st A B} (i : instruction_seq st false A B) :
 
 (* Manipulations of options *)
 
-Definition option_bind {A B}
-           (o : Datatypes.option A) (f : A -> Datatypes.option B) :
-  Datatypes.option B :=
-  match o with
-  | None => None
-  | Some a => f a
-  end.
-
-Notation "'let?' x ':=' X 'in' Y" :=
-  (option_bind X (fun x => Y))
-    (at level 200, x pattern, X at level 100, Y at level 200).
-
-Definition opt_get {A} (o : Datatypes.option A) (default : A) : A :=
-  match o with Some x => x | None => default end.
-
-Lemma unsome {A} (x y : A) : Some x = Some y -> x = y.
-Proof.
-  congruence.
-Qed.
-
-Lemma bind_some {A B} (y : Datatypes.option A) (w : B) z : (let? x := y in z x) = Some w <-> (exists x, y = Some x /\ z x = Some w).
-Proof.
-  destruct y; simpl; split.
-  - intro H; exists a; split; congruence.
-  - intros (x, (Hx, Hz)); congruence.
-  - discriminate.
-  - intros (x, (Hx, Hz)); discriminate.
-Qed.
-
 Fixpoint visit_instruction
          (F : forall st tff A B,
              instruction_seq st tff A B -> instruction_seq st tff A B)
@@ -335,19 +306,19 @@ Ltac mytac :=
       (destructable_list l1 + destructable_list l2);
       assert (a1 = a2 /\ l1 = l2) by (apply uncons; exact H)
     | Some _ = Some _ =>
-      apply unsome in H
+      apply error.unsome in H
     | Some _ = None => discriminate
     | pair _ _ = pair _ _ =>
       apply pair_injection in H
     | cast_instruction_seq_opt _ = _ =>
       rewrite cast_instruction_seq_same in H
-    | option_bind (Some _) _ = _ =>
+    | error.option_bind (Some _) _ = _ =>
       simpl in H
-    | option_bind None _ = _ =>
+    | error.option_bind None _ = _ =>
       simpl in H
-    | option_bind _ _ = Some _ =>
-      apply bind_some in H
-    | option_bind (cast_instruction_seq_opt _) _ = _ =>
+    | error.option_bind _ _ = Some _ =>
+      apply error.bind_some in H
+    | error.option_bind (cast_instruction_seq_opt _) _ = _ =>
       rewrite cast_instruction_seq_same in H
     end
   end.
@@ -405,7 +376,7 @@ Proof.
 Qed.
 
 Definition dig0dug0_aux {st tff A B} (i : instruction_seq st tff A B) : instruction_seq st tff A B :=
-  opt_get (dig0dug0_opt i) i.
+  error.opt_get (dig0dug0_opt i) i.
 
 Definition dig0dug0 {st tff A B} (i : instruction_seq st tff A B) : instruction_seq st tff A B :=
   visit_instruction_seq (@dig0dug0_aux) i.
@@ -533,7 +504,7 @@ Lemma unseq_seq {st tff A B C} (i : instruction_seq st tff A C) i1 i2 :
 Proof.
   split.
   - destruct i; simpl; intro; try discriminate.
-    apply unsome in H.
+    apply error.unsome in H.
     apply error.existT_eq_3 in H.
     destruct H as (He, H).
     subst B0.
@@ -562,7 +533,7 @@ Lemma unopcode_opcode {st tff A B} (i : instruction st tff A B) o (H : false = t
 Proof.
   split.
   - destruct i; simpl; intro; try discriminate.
-    apply unsome in H0.
+    apply error.unsome in H0.
     subst o0.
     assert (H = eq_refl) by apply Eqdep_dec.UIP_refl_bool.
     subst H.
@@ -607,12 +578,12 @@ Proof.
   split.
   - unfold swapswap_opt.
     intro H.
-    apply bind_some in H; destruct H as ((A1, (B1, i1)), (He1, H)).
-    apply bind_some in H; destruct H as ((A23, (B23, i23)), (He23, H)).
+    apply error.bind_some in H; destruct H as ((A1, (B1, i1)), (He1, H)).
+    apply error.bind_some in H; destruct H as ((A23, (B23, i23)), (He23, H)).
     case_eq (hide_ntf i1); intros tff1 i1' Hi1'; rewrite Hi1' in H.
-    apply bind_some in H; destruct H as ((A2, (B2, i2)), (He2, H)).
+    apply error.bind_some in H; destruct H as ((A2, (B2, i2)), (He2, H)).
     case_eq (hide_ntf i2); intros tff2 i2' Hi2'; rewrite Hi2' in H.
-    apply bind_some in H; destruct H as ((A3, (B3, i3)), (He3, H)).
+    apply error.bind_some in H; destruct H as ((A3, (B3, i3)), (He3, H)).
 
     destruct i1'; try discriminate.
     destruct o; try discriminate.
@@ -636,7 +607,7 @@ Qed.
 
 Definition swapswap_aux {st tff A D} (i : instruction_seq st tff A D) :
   instruction_seq st tff A D :=
-  opt_get (swapswap_opt i) i.
+  error.opt_get (swapswap_opt i) i.
 
 Definition swapswap {st tff A B} (i : instruction_seq st tff A B) : instruction_seq st tff A B :=
   visit_instruction_seq (@swapswap_aux) i.
@@ -745,7 +716,7 @@ Proof.
   apply untype_visit_instruction_seq; [| reflexivity].
   intros st tff A D i; simpl.
   unfold swapswap_aux.
-  unfold opt_get.
+  unfold error.opt_get.
   case_eq (swapswap_opt i).
   - intros i' H.
     rewrite swapswap_opt_swapswap in H.
@@ -903,28 +874,28 @@ Proof.
   split.
   - unfold pair_unpair_opt.
     intro H.
-    apply bind_some in H; destruct H as ((A1, (B1, i1)), (He1, H)).
+    apply error.bind_some in H; destruct H as ((A1, (B1, i1)), (He1, H)).
     case_eq (hide_ntf i1); intros tff1 i1' Hi1'; rewrite Hi1' in H.
-    apply bind_some in H; destruct H as ((), (Hei1', H)).
-    apply bind_some in H; destruct H as ((A2, (B2, i2)), (He2, H)).
-    apply bind_some in H; destruct H as ((A3, (B3, i3)), (He3, H)).
+    apply error.bind_some in H; destruct H as ((), (Hei1', H)).
+    apply error.bind_some in H; destruct H as ((A2, (B2, i2)), (He2, H)).
+    apply error.bind_some in H; destruct H as ((A3, (B3, i3)), (He3, H)).
     case_eq (hide_ntf i3); intros tff3 i3' Hi3'; rewrite Hi3' in H.
-    apply bind_some in H; destruct H as ((), (Hei1'', H)).
-    apply bind_some in H; destruct H as ((A4, (B4, i4)), (He4, H)).
-    apply bind_some in H; destruct H as ((A5, (B5, i5)), (He5, H)).
+    apply error.bind_some in H; destruct H as ((), (Hei1'', H)).
+    apply error.bind_some in H; destruct H as ((A4, (B4, i4)), (He4, H)).
+    apply error.bind_some in H; destruct H as ((A5, (B5, i5)), (He5, H)).
     case_eq (hide_ntf i5); intros tff5 i5' Hi5'; rewrite Hi5' in H.
-    apply bind_some in H; destruct H as ((), (Hei5'', H)).
-    apply bind_some in H; destruct H as ((A6, (B6, i6)), (He6, H)).
-    apply bind_some in H; destruct H as ((A7, (B7, i7)), (He7, H)).
+    apply error.bind_some in H; destruct H as ((), (Hei5'', H)).
+    apply error.bind_some in H; destruct H as ((A6, (B6, i6)), (He6, H)).
+    apply error.bind_some in H; destruct H as ((A7, (B7, i7)), (He7, H)).
     case_eq (hide_ntf i7); intros tff7 i7' Hi7'; rewrite Hi7' in H.
-    apply bind_some in H; destruct H as ((n, (tff8, (A8, (B8, i8)))), (He8, H)).
-    apply bind_some in H; destruct H as ((), (Hn, H)).
-    apply bind_some in H; destruct H as ((A10, (B10, i10)), (He10, H)).
-    apply bind_some in H; destruct H as ((A9, (B9, i9)), (He9, H)).
+    apply error.bind_some in H; destruct H as ((n, (tff8, (A8, (B8, i8)))), (He8, H)).
+    apply error.bind_some in H; destruct H as ((), (Hn, H)).
+    apply error.bind_some in H; destruct H as ((A10, (B10, i10)), (He10, H)).
+    apply error.bind_some in H; destruct H as ((A9, (B9, i9)), (He9, H)).
     case_eq (hide_ntf i9); intros tff9 i9' Hi9'; rewrite Hi9' in H.
-    apply bind_some in H; destruct H as ((), (He9', H)).
-    apply bind_some in H; destruct H as ((A11, (B11, i11)), (He11, H)).
-    apply bind_some in H; destruct H as ((), (He11', H)).
+    apply error.bind_some in H; destruct H as ((), (He9', H)).
+    apply error.bind_some in H; destruct H as ((A11, (B11, i11)), (He11, H)).
+    apply error.bind_some in H; destruct H as ((), (He11', H)).
     destruct i1'; try discriminate. destruct o; try discriminate.
     destruct i3'; try discriminate. destruct o; try discriminate.
     destruct i5'; try discriminate. destruct o; try discriminate.
@@ -956,7 +927,7 @@ Qed.
 
 Definition pair_unpair_aux {st tff A D} (i : instruction_seq st tff A D) :
   instruction_seq st tff A D :=
-  opt_get (pair_unpair_opt i) i.
+  error.opt_get (pair_unpair_opt i) i.
 
 Definition pair_unpair {st tff A B} (i : instruction_seq st tff A B) : instruction_seq st tff A B :=
   visit_instruction_seq (@pair_unpair_aux) i.
@@ -1108,7 +1079,7 @@ Proof.
   apply untype_visit_instruction_seq; [| reflexivity].
   intros st tff A D i; simpl.
   unfold pair_unpair_aux.
-  unfold opt_get.
+  unfold error.opt_get.
   case_eq (pair_unpair_opt i).
   - intros i' H.
     rewrite pair_unpair_opt_pair_unpair in H.
@@ -1269,12 +1240,12 @@ Proof.
   split.
   - unfold digndugn_opt.
     intro H.
-    apply bind_some in H; destruct H as ((A1, (B1, i1)), (He1, H)).
-    apply bind_some in H; destruct H as ((A23, (B23, i23)), (He23, H)).
+    apply error.bind_some in H; destruct H as ((A1, (B1, i1)), (He1, H)).
+    apply error.bind_some in H; destruct H as ((A23, (B23, i23)), (He23, H)).
     case_eq (hide_ntf i1); intros tff1 i1' Hi1'; rewrite Hi1' in H.
-    apply bind_some in H; destruct H as ((A2, (B2, i2)), (He2, H)).
+    apply error.bind_some in H; destruct H as ((A2, (B2, i2)), (He2, H)).
     case_eq (hide_ntf i2); intros tff2 i2' Hi2'; rewrite Hi2' in H.
-    apply bind_some in H; destruct H as ((A3, (B3, i3)), (He3, H)).
+    apply error.bind_some in H; destruct H as ((A3, (B3, i3)), (He3, H)).
 
     destruct i1'; try discriminate.
     destruct o; try discriminate.
@@ -1308,7 +1279,7 @@ Qed.
 
 Definition digndugn_aux {st tff A D} (i : instruction_seq st tff A D) :
   instruction_seq st tff A D :=
-  opt_get (digndugn_opt i) i.
+  error.opt_get (digndugn_opt i) i.
 
 Definition digndugn {st tff A B} (i : instruction_seq st tff A B) : instruction_seq st tff A B :=
   visit_instruction_seq (@digndugn_aux) i.
@@ -1319,7 +1290,7 @@ Proof.
   apply untype_visit_instruction_seq; [| reflexivity].
   intros st tff A D i; simpl.
   unfold digndugn_aux.
-  unfold opt_get.
+  unfold error.opt_get.
   case_eq (digndugn_opt i).
   - intros i' H.
     rewrite digndugn_opt_digndugn in H.
@@ -1504,12 +1475,12 @@ Proof.
   split.
   - unfold pushdrop_opt.
     intro H.
-    apply bind_some in H; destruct H as ((A1, (B1, i1)), (He1, H)).
-    apply bind_some in H; destruct H as ((A23, (B23, i23)), (He23, H)).
+    apply error.bind_some in H; destruct H as ((A1, (B1, i1)), (He1, H)).
+    apply error.bind_some in H; destruct H as ((A23, (B23, i23)), (He23, H)).
     case_eq (hide_ntf i1); intros tff1 i1' Hi1'; rewrite Hi1' in H.
-    apply bind_some in H; destruct H as ((A2, (B2, i2)), (He2, H)).
+    apply error.bind_some in H; destruct H as ((A2, (B2, i2)), (He2, H)).
     case_eq (hide_ntf i2); intros tff2 i2' Hi2'; rewrite Hi2' in H.
-    apply bind_some in H; destruct H as ((A3, (B3, i3)), (He3, H)).
+    apply error.bind_some in H; destruct H as ((A3, (B3, i3)), (He3, H)).
 
     destruct i1'; try discriminate.
     simpl in H.
@@ -1548,7 +1519,7 @@ Qed.
 
 Definition pushdrop_aux {st tff A B} (i : instruction_seq st tff A B)
   : instruction_seq st tff A B :=
-  opt_get (pushdrop_opt i) i.
+  error.opt_get (pushdrop_opt i) i.
 
 Definition pushdrop {st tff A B} (i : instruction_seq st tff A B) :=
   visit_instruction_seq (@pushdrop_aux) i.
@@ -1559,7 +1530,7 @@ Proof.
   apply untype_visit_instruction_seq; [| reflexivity].
   intros st tff A D i; simpl.
   unfold pushdrop_aux.
-  unfold opt_get.
+  unfold error.opt_get.
   case_eq (pushdrop_opt i).
   - intros i' H.
     rewrite pushdrop_opt_pushdrop in H.
@@ -1832,7 +1803,7 @@ Module Semantics_Preservation (C : semantics.ContractContext).
         F st tff A B i = Some i' ->
         Bool.Is_true (error.success (eval_seq env i fuel SA)) ->
         eval_seq env i' fuel SA = eval_seq env i fuel SA) ->
-    same_semantics (fun st tff A B (i : instruction_seq st tff A B) => opt_get (F st tff A B i) i).
+    same_semantics (fun st tff A B (i : instruction_seq st tff A B) => error.opt_get (F st tff A B i) i).
   Proof.
     intros HF st tff env A B fuel i SA Hsucc.
     case_eq (F st tff A B i).
