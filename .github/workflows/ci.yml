@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - co
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cache .opam
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.opam
+          key: ${{ runner.os }}-opam
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up OCaml
+        uses: avsm/setup-ocaml@v1
+        with:
+          ocaml-version: 4.09.1
+
+      - name: Set up Coq
+        run: |
+          opam repo add coq-released https://coq.inria.fr/opam/released
+          opam repo add coq-extra-dev https://coq.inria.fr/opam/extra-dev
+          opam pin add coq 8.10.2
+          opam install coq-mi-cho-coq
+          opam install coq-moment
+          opam install coq-list-string
+
+      - name: Set up Mi-Cho-Coq
+        run: |
+          eval $(opam env)
+          ./configure
+          make
