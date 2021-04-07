@@ -3,6 +3,9 @@ stages:
   # the build stage runs out-of-order w.r.t the lint stage as their is
   # no dependence. the separation is purely conceptual
   - build
+  # the contracts stage depends only on michocoq:8.11 in the build
+  # stage
+  - contracts
 
 lint:
   stage: lint
@@ -33,7 +36,8 @@ lint:
     - echo -e "section_end:`date +%s`:setup_deps\r\e[0K"
   script:
     - echo -e "section_start:`date +%s`:project_build\r\e[0K build the project"
-    - opam install -y -j ${NJOBS} --with-test coq-mi-cho-coq
+    # Use inplace build to get reusable build results
+    - opam install -y --inplace-build -j ${NJOBS} --with-test coq-mi-cho-coq
     - echo -e "section_end:`date +%s`:project_build\r\e[0K"
     - which michocoq
 
@@ -52,3 +56,27 @@ michocoq:8.10:
 michocoq:8.11:
   image: coqorg/coq:8.11
   extends: .build
+  # pass built michocoq framework to contracts:8.11 job as artifacts
+  # to speed up its build.
+  artifacts:
+    paths:
+      - src/michocoq/*.vo
+      - src/michocoq/micheline_parser.v
+      - src/michocoq/extraction/_build
+
+contracts:8.11:
+  image: coqorg/coq:8.11
+  extends: .build
+  stage: contracts
+  # only wait for michocoq:8.11
+  needs:
+    - michocoq:8.11
+  script:
+    - echo -e "section_start:`date +%s`:project_build\r\e[0K build the project"
+    - opam install -y -j ${NJOBS} --deps-only coq-mi-cho-coq
+    - echo -e "section_end:`date +%s`:project_build\r\e[0K"
+
+    - echo -e "section_start:`date +%s`:check_contracts_coq\r\e[0K check contracts_coq"
+    - ./configure contracts_coq
+    - make
+    - echo -e "section_end:`date +%s`:check_contracts_coq\r\e[0K"
