@@ -1,8 +1,21 @@
 stages:
+  - lint
   - build
+
+lint:
+  stage: lint
+  image: alpine
+  before_script:
+    - apk --no-cache add emacs-nox
+  script:
+    - export scversion="latest"
+    - wget -qO- "https://github.com/koalaman/shellcheck/releases/download/latest/shellcheck-"${scversion}".linux.x86_64.tar.xz" | tar -xJv
+    - shellcheck-"${scversion}"/shellcheck `find -name 'configure'`
+    - emacs --batch -l scripts/org-lint-README.el --kill
 
 .build:
   stage: build
+  needs: []
   image: coqorg/${CI_JOB_NAME}
   before_script:
     - opam switch $COMPILER_EDGE; eval $(opam env)
@@ -10,11 +23,6 @@ stages:
     - sudo apt-get update -y -q
   script:
     - sudo chown -R coq:coq "$CI_PROJECT_DIR"
-    - DEBIAN_FRONTEND=noninteractive sudo apt-get install -y -q xz-utils wget emacs
-    - export scversion="latest"
-    - wget -qO- "https://github.com/koalaman/shellcheck/releases/download/latest/shellcheck-"${scversion}".linux.x86_64.tar.xz" | tar -xJv
-    - shellcheck-"${scversion}"/shellcheck `find -name 'configure'`
-    - emacs --batch -l scripts/org-lint-README.el --kill
     - opam pin add -k git -y --no-action coq-mi-cho-coq .
     - opam depext -y coq-mi-cho-coq
     - opam install -y -j ${NJOBS} --with-test coq-mi-cho-coq
