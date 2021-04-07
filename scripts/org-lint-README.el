@@ -10,7 +10,7 @@
 
 ;;; Code:
 
-(require 'cl)                           ; This defines the assert macro
+(require 'cl-lib)                           ; This defines the cl-assert macro
 
 ; Configuration of Emacs package manager
 (require 'package)
@@ -21,13 +21,23 @@
 ; Ensure Org-mode is recent enough to provide the org-lint command
 (package-install-file "scripts/org-lint-dummy.el")
 
+; Gives access to org-lint--generate-reports
+(require 'org-lint)
+
 ; Display versions of Emacs and Org-mode
 (princ (format "Emacs version: %s\n" (emacs-version)))
 (princ (format "Org version: %s\n" (org-version)))
 
-; Lint the README file
+;; Lint the README file
 (find-file "README.org")                ; This opens the file in Org-mode
-(assert (not (org-lint)))               ; Call the linter and fail if it complains
+;; Call the linter and fail if it complains
+(cl-assert (not (org-lint--generate-reports (current-buffer) org-lint--checkers))
+           nil
+           ;; Format error message
+           (string-join
+            (mapcar
+             (lambda (el) (format "%s: %s" (aref (cadr el) 0) (aref (cadr el) 2)))
+             (org-lint--generate-reports (current-buffer) org-lint--checkers) "\n")))
 
 (provide 'org-lint-README)
 ;;; org-lint-README ends here
