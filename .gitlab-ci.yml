@@ -1,5 +1,7 @@
 stages:
   - lint
+  # the build stage runs out-of-order w.r.t the lint stage as their is
+  # no dependence. the separation is purely conceptual
   - build
 
 lint:
@@ -7,35 +9,46 @@ lint:
   image: alpine
   before_script:
     - apk --no-cache add emacs-nox
-  script:
     - export scversion="latest"
     - wget -qO- "https://github.com/koalaman/shellcheck/releases/download/latest/shellcheck-"${scversion}".linux.x86_64.tar.xz" | tar -xJv
+  script:
     - shellcheck-"${scversion}"/shellcheck `find -name 'configure'`
     - emacs --batch -l scripts/org-lint-README.el --kill
 
 .build:
   stage: build
+  # do not wait for lint
   needs: []
-  image: coqorg/${CI_JOB_NAME}
   before_script:
+    - echo -e "section_start:`date +%s`:setup_switch\r\e[0K setup opam switch"
     - opam switch $COMPILER_EDGE; eval $(opam env)
+    - echo -e "section_end:`date +%s`:setup_switch\r\e[0K"
+
+    - echo -e "section_start:`date +%s`:setup_deps\r\e[0K setup the package dependencies"
     - opam update -y
     - sudo apt-get update -y -q
-  script:
     - sudo chown -R coq:coq "$CI_PROJECT_DIR"
     - opam pin add -k git -y --no-action coq-mi-cho-coq .
     - opam depext -y coq-mi-cho-coq
+    - echo -e "section_end:`date +%s`:setup_deps\r\e[0K"
+  script:
+    - echo -e "section_start:`date +%s`:project_build\r\e[0K build the project"
     - opam install -y -j ${NJOBS} --with-test coq-mi-cho-coq
+    - echo -e "section_end:`date +%s`:project_build\r\e[0K"
     - which michocoq
 
-coq:8.8:
+michocoq:8.8:
+  image: coqorg/coq:8.8
   extends: .build
 
-coq:8.9:
+michocoq:8.9:
+  image: coqorg/coq:8.9
   extends: .build
 
-coq:8.10:
+michocoq:8.10:
+  image: coqorg/coq:8.10
   extends: .build
 
-coq:8.11:
+michocoq:8.11:
+  image: coqorg/coq:8.11
   extends: .build

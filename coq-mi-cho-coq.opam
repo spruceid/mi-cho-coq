@@ -11,7 +11,7 @@ bug-reports: "https://gitlab.com/nomadic-labs/mi-cho-coq/issues"
 license: "MIT"
 
 build: [
-  ["./configure"]
+  ["./configure" "michocoq" "michocott"]
   [make "-j%{jobs}%"]
 ]
 install: [

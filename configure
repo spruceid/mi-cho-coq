@@ -27,8 +27,57 @@ fail () {
     echo "$1"; exit 1
 }
 
-DIRS="src src/michocoq  src/michocoq/extraction  src/contracts_coq  src/michocott"
+COMPONENTS="michocoq contracts_coq michocott"
+
+if [ "$1" = "--help" ]; then
+    echo "Usage: $0 [$(echo "$COMPONENTS" | tr ' ' '|')]*"
+    echo
+    echo "Configure building Mi-Cho-Coq with the specified list of components."
+    echo "Several components can be given. By default all components are built."
+    exit 1
+fi
+
+if [ $# -eq 0 ]; then
+   set -- "$COMPONENTS"
+fi
+
+DIRS="src"
 echo "Generating the main Makefile"
+
+touch src/_CoqProject
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        "michocoq")
+            REQUIRES_MICHOCOQ=1
+            ;;
+        "contracts_coq")
+            echo 'Build contracts'
+            REQUIRES_MICHOCOQ=1
+            DIRS="$DIRS src/contracts_coq"
+            echo "contracts_coq" >> src/_CoqProject
+            ;;
+        "michocott")
+            echo 'Build mi-cho-cott'
+            DIRS="$DIRS src/michocott"
+            echo "-R michocott/ Michocott" >> src/_CoqProject
+            echo "michocott" >> src/_CoqProject
+            ;;
+        *)
+            echo "Unrecognized component: '$1', expected one of: $COMPONENTS"
+            exit 1
+    esac
+    shift
+done
+
+if [ -n "$REQUIRES_MICHOCOQ"  ]; then
+    echo 'Build mi-cho-coq'
+
+    tmp=$(mktemp);
+    ( echo '-R michocoq/ Michocoq'; echo 'michocoq' ) | cat - src/_CoqProject > "$tmp" && mv "$tmp" src/_CoqProject
+    DIRS="$DIRS src/michocoq src/michocoq/extraction"
+fi
+
 coq_makefile -f _CoqProject -o Makefile || fail "fail while building main makefile"
 
 for i in $DIRS ; do
