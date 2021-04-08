@@ -38,7 +38,9 @@ if [ "$1" = "--help" ]; then
 fi
 
 if [ $# -eq 0 ]; then
-   set -- "$COMPONENTS"
+    # we actually want to split on space here
+    # shellcheck disable=SC2086
+    set -- $COMPONENTS
 fi
 
 DIRS="src"
