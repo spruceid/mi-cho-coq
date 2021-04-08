@@ -46,7 +46,7 @@ fi
 DIRS="src"
 echo "Generating the main Makefile"
 
-touch src/_CoqProject
+echo "" > src/_CoqProject
 
 while [ $# -gt 0 ]; do
     case "$1" in
