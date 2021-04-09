@@ -343,7 +343,9 @@ Fixpoint remove_past (l : data (list (pair timestamp mutez))) (now : data timest
     end
   end.
 
-Definition update_queue l1 l2 now :=
+Definition update_queue
+           (l1 l2 : data (list (pair timestamp mutez)))
+           (now : data timestamp) :=
   if queue_cut_before_now l1 now then
     (remove_past l1 now, l2)
   else
@@ -756,14 +758,14 @@ Proof.
       apply slc_ep_transfer_loop_correct4; try simple_fuel.
 
     (* if q2 is non-empty *)
-    + destruct (update_queue q1 (d :: q2) (now env)) eqn:Heq. simpl in l0.
+    + destruct (update_queue q1 (d :: q2) (now env)) eqn:Heq. simpl in d0.
       ex_under (rewrite allowed_amount_app at 1 by assumption).
       rewrite ex_2. rewrite ex_order. apply forall_ex; intro amount1.
       rewrite underex_and_assoc. rewrite <- ex_and_comm. apply and_both.
 
       unfold update_queue in Heq. rewrite Hqueue in Heq.
       apply and_pair_eq in Heq as [Heq1 Heq2].
-      subst l. subst l0.
+      subst l. subst d0.
 
       destruct (queue_cut_before_now (List.rev (d :: q2)) (now env)) eqn:HnowInQ2; try assumption.
 
@@ -1030,13 +1032,14 @@ Proof.
   apply and_both.
   apply and_both.
 
-  destruct (update_queue queue_left queue_right (now env)) eqn:Hupdate_queue. simpl in l0.
+  destruct (update_queue queue_left queue_right _) eqn:Hupdate_queue. simpl in d.
 
   rewrite ex_order.
   apply forall_ex; intro threshold_gc.
   unfold seq_aux.
   change (eval_seq_precond ?fuel env (SEQ ?i1 ?i2) ?psi ?st) with (eval_precond fuel env i1 (eval_seq_precond fuel env i2 psi) st).
-  rewrite slc_ep_transfer2_transaction_iter_correct; [| my_simple_fuel].
+  unfold slc_ep_transfer2_transaction_iter.
+  rewrite (slc_ep_transfer2_transaction_iter_correct env _ _ _ _ (S (S fuel))); [| my_simple_fuel].
   unfold total_amount_transaction_list.
   rewrite iff_comm.
 

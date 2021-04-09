@@ -654,7 +654,7 @@ Coercion comparable_constant a := Comparable_constant a.
 
 Definition full_contract tff param annot storage :=
   instruction_seq (Some (param, annot)) tff
-    ((pair param storage) ::: nil)
+    ((pair (clear_ty param) storage) ::: nil)
     ((pair (list operation) storage) ::: nil).
 
 Record contract_file : Set :=

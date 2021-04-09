@@ -338,9 +338,7 @@ Definition slc_ep_receive :
        NIL operation }%michelson.
 
 Definition dsl :
-  instruction_seq _ _
-              (pair parameter_ty storage_ty ::: nil)
-              (pair (list operation) storage_ty ::: nil)
+  full_contract _ parameter_ty None storage_ty
   :=
     { UNPAPAIR ;
       IF_RIGHT { (* cas d'un appel par la clef maîtresse *)

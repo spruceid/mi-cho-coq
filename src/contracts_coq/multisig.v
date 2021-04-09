@@ -36,7 +36,11 @@ Module annots.
   Definition change_keys : string := "%change_keys".
 End annots.
 
-Definition action_ty := or (pair mutez (contract unit)) None (or (option key_hash) (Some annots.delegate) (pair nat (list key)) (Some annots.change_keys)) None.
+Definition action_ty :=
+  clear_ty (or
+              (pair mutez (contract unit)) None
+              (or (option key_hash) (Some annots.delegate)
+                  (pair nat (list key)) (Some annots.change_keys)) None).
 
 Definition parameter_ty := (pair
              (pair
@@ -103,7 +107,7 @@ Definition multisig : full_contract false parameter_ty None storage_ty :=
     ASSERT_CMPLE;
     DROP1; DROP1;
 
-    DIP1 { UNPAIR; PUSH nat (Comparable_constant nat 1%N); ADD; PAIR };
+    DIP1 { UNPAIR; PUSH nat (Comparable_constant nat 1%N); ADD_nat; PAIR };
 
     NIL operation; SWAP;
     IF_LEFT

@@ -80,3 +80,30 @@ Defined.
 
 Infix ":::" := (@cons type) (at level 60, right associativity).
 Infix "+++" := (@app type) (at level 60, right associativity).
+
+
+(* Remove all annotations in a type *)
+Fixpoint clear_ty (a : type) : type :=
+  match a with
+  | or a _ b _ => or (clear_ty a) None (clear_ty b) None
+
+  | operation => operation
+  | unit => unit
+  | signature => signature
+  | key => key
+  | chain_id => chain_id
+
+  | Comparable_type a => Comparable_type a
+  | set a => set a
+
+  | contract a => contract (clear_ty a)
+  | option a => option (clear_ty a)
+  | list a => list (clear_ty a)
+
+  | pair a b => pair (clear_ty a) (clear_ty b)
+  | lambda a b => lambda (clear_ty a) (clear_ty b)
+
+  | map a b => map a (clear_ty b)
+  | big_map a b => big_map a (clear_ty b)
+  end.
+

@@ -135,7 +135,7 @@ Fixpoint count_signatures (sigs : Datatypes.list (Datatypes.option (data signatu
   end.
 
 Definition action_ty :=
-  (or
+  clear_ty (or
      (lambda unit (list operation)) (Some annots.operation)
      (pair nat (list key)) (Some annots.change_keys)).
 Definition pack_ty := pair (pair chain_id address) (pair nat action_ty).
@@ -544,7 +544,8 @@ Proof.
       apply N.le_ge in Hcount.
       split; [assumption|].
       destruct action as [(tff, lam)|(nt, nks)].
-      * destruct (eval_seq _ lam fuel (tt, tt)) as [|(ops, [])].
+      * simpl in *.
+        destruct (eval_seq _ lam fuel (tt, tt)) as [|(ops, [])].
         -- inversion Haction.
         -- injection Haction; intros; subst. repeat constructor.
       * injection Haction; intros; subst. repeat constructor.
@@ -565,7 +566,8 @@ Proof.
       split; [assumption|].
       destruct Haction as (Hcounter, Haction).
       destruct action as [(tff, lam)|(nt, nks)].
-      * destruct (eval_seq _ lam fuel (tt, tt)) as [|(ops, [])].
+      * simpl in *.
+        destruct (eval_seq _ lam fuel (tt, tt)) as [|(ops, [])].
         -- inversion Haction.
         -- destruct Haction as (Ht, (Hk, Hops)); subst; reflexivity.
       * destruct Haction as (Ht, (Hk, Hops)); subst; reflexivity.
