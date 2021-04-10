@@ -24,22 +24,13 @@ Goal (char_is_num "_"%char = false). reflexivity. Qed.
 Goal (char_is_num "0"%char = true). reflexivity. Qed.
 Goal (char_is_num "9"%char = true). reflexivity. Qed.
 
-(* Could be replaced by Ascii.eqb if we drop support for Coq 8.8 *)
-Definition eqb_ascii (a b : ascii) : bool :=
- match a, b with
- | Ascii a0 a1 a2 a3 a4 a5 a6 a7,
-   Ascii b0 b1 b2 b3 b4 b5 b6 b7 =>
-    Bool.eqb a0 b0 && Bool.eqb a1 b1 && Bool.eqb a2 b2 && Bool.eqb a3 b3
-    && Bool.eqb a4 b4 && Bool.eqb a5 b5 && Bool.eqb a6 b6 && Bool.eqb a7 b7
- end.
-
 Definition char_is_alpha (c : ascii) :=
   let leb a b := (N.leb (N_of_ascii a) (N_of_ascii b)) in
   orb (andb (leb "a"%char c) (leb c "z"%char))
       (orb (andb (leb "A"%char c) (leb c "Z"%char))
-           (eqb_ascii "_"%char c)).
+           (Ascii.eqb "_"%char c)).
 
-Definition char_is_dot (c : ascii) := eqb_ascii "."%char c.
+Definition char_is_dot (c : ascii) := Ascii.eqb "."%char c.
 
 Definition char_is_hex (c : ascii) :=
   let leb a b := (N.leb (N_of_ascii a) (N_of_ascii b)) in
@@ -254,18 +245,6 @@ Definition lex_micheline_to_parser (input : string)
   tokens_to_parser ts.
 
 (* Some interesting lemmas *)
-
-Lemma eqb_ascii_eq n m : (eqb_ascii n m) = true <-> n = m.
-Proof.
-  split; intros.
-  + unfold eqb_ascii in H. destruct n; destruct m.
-    repeat rewrite Bool.andb_true_iff in H.
-    destruct H as [[[[[[[H H0] H1] H2] H3] H4] H5] H6].
-    f_equal; apply Bool.eqb_prop; assumption.
-  + rewrite H. unfold eqb_ascii. destruct m.
-    destruct b; destruct b0; destruct b1; destruct b2;
-      destruct b3; destruct b4; destruct b5; destruct b6; reflexivity.
-Qed.
 
 Inductive char_not_in_string : ascii -> string -> Prop :=
 | CharNotInEmpty : forall c, char_not_in_string c ""

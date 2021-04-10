@@ -45,7 +45,7 @@ Definition extract_one_field_annot_from_list annots : M annot_o :=
 Definition is_field_annot annot :=
   match annot with
   | Mk_annot (_, _, EmptyString) => false
-  | Mk_annot (_, _, String c _) => micheline_lexer.eqb_ascii c "%"%char
+  | Mk_annot (_, _, String c _) => Ascii.eqb c "%"%char
   end.
 
 Definition extract_one_field_annot (bem : loc_micheline) : M annot_o :=
