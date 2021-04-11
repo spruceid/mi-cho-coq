@@ -178,7 +178,7 @@ Definition multisig_spec
         new_threshold = threshold /\
         new_keys = keys /\
         returned_operations = operations
-      | _ => False
+      | _ => Logic.False
       end
     | inr (nt, nks) =>
       new_threshold = nt /\
@@ -447,7 +447,7 @@ Lemma multisig_tail_correct
      match eval_seq (no_self env) lam fuel (tt, tt) with
      | Return (operations, tt) =>
        psi ((operations, ((1 + counter)%N, (threshold, keys))), tt)
-     | _ => False
+     | _ => Logic.False
      end
    | inr (nt, nks) =>
      psi (nil, ((1 + counter)%N, (nt, nks)), tt)

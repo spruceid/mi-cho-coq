@@ -25,8 +25,6 @@ Import syntax.
 Import comparable.
 Require Import semantics.
 
-Definition False := Logic.False.
-
 Lemma forall_ex {A : Set} {phi psi : A -> Prop} :
   (forall x, phi x <-> psi x) -> ((exists x, phi x) <-> (exists x, psi x)).
 Proof.
@@ -224,7 +222,7 @@ Proof.
   destruct (n1 ?= n2)%N; simpl; tauto.
 Qed.
 
-Lemma if_false_is_and (b : Datatypes.bool) A : (if b then A else False) <-> (b = true /\ A).
+Lemma if_false_is_and (b : Datatypes.bool) A : (if b then A else Logic.False) <-> (b = true /\ A).
 Proof.
   destruct b.
   - apply and_right.
@@ -235,7 +233,7 @@ Proof.
     + intros (H, _); inversion H.
 Qed.
 
-Lemma if_false_not (b : Datatypes.bool) A : (if b then False else A) <-> (b = false /\ A).
+Lemma if_false_not (b : Datatypes.bool) A : (if b then Logic.False else A) <-> (b = false /\ A).
 Proof.
   destruct b.
   - split.
