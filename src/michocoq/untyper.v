@@ -443,24 +443,9 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
       try (destruct i as [v]; destruct v; reflexivity);
       try (destruct i as [v]; destruct v; rewrite opcode_cast_domain_same; reflexivity);
       try (rewrite opcode_cast_domain_same; reflexivity).
-    - pose (A := a :: lambda (pair a b) c :: D).
-      assert (forall (b : Datatypes.bool) i1,
-                 (if b return is_packable a = b -> _
-                  then fun h =>
-                         let! o := opcode_cast_domain self_type A A _ (@syntax.APPLY _ _ _ _ _ (IT_eq_rev _ h)) in
-                         Return (existT _ _ o)
-                  else fun _ => Failed _ (Typing _ "APPLY"%string)) i1
-                 = Return (existT _ _ (@syntax.APPLY _ _ _ _ _ i))).
-      * intros b0 i1.
-          destruct b0.
-          -- rewrite opcode_cast_domain_same.
-             simpl.
-             repeat f_equal.
-             apply Is_true_UIP.
-          -- exfalso.
-             rewrite i1 in i.
-             exact i.
-        * apply H.
+    - erewrite (assume_ok _ _ _); simpl.
+      rewrite opcode_cast_domain_same.
+      reflexivity.
     - destruct s as [c d v]; destruct v; reflexivity.
     - simpl.
       rewrite as_comparable_comparable.
@@ -1089,22 +1074,7 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
     untype_opcode o' = o.
   Proof.
     destruct o; simpl.
-    - destruct A; [discriminate|].
-      destruct A; [discriminate|].
-      destruct t0; try discriminate.
-      destruct t0_1; try discriminate.
-      match goal with
-        | |-
-          ((match ?b0 as b return _ with | true => ?th | false => ?e end) eq_refl = ?rhs -> _) =>
-          intro Ho'; assert (exists b (Hb : is_packable t = b),
-                                (if b return is_packable t = b -> _
-                                 then th else e) Hb = rhs)
-        end.
-      + exists (is_packable t); exists eq_refl; exact Ho'.
-      + clear Ho'.
-        destruct H as ([|], (Hb, H)); try discriminate.
-        unfold typer.opcode_cast_domain in H.
-        repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
+    - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
     - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
     - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).
     - repeat mytac (eq_refl Z) (eq_refl Z) (eq_refl Z).

@@ -285,12 +285,10 @@ Qed.
     | APPLY, a :: lambda (pair a' b) c :: B =>
       let A := a :: lambda (pair a' b) c :: B in
       let A' := a :: lambda (pair a b) c :: B in
-      (if is_packable a as b return is_packable a = b -> _
-       then fun h =>
-        let o := @syntax.APPLY _ _ _ _ _ (IT_eq_rev _ h) in
-        let! o := opcode_cast_domain self_type A' A _ o in
-        Return (existT _ _ o)
-       else fun _ => Failed _ (Typing _ "APPLY"%string)) eq_refl
+      let! Ha := error.assume (is_packable a) (Typing _ "APPLY"%string) in
+      let o := @syntax.APPLY _ _ _ _ _ Ha in
+      let! o := opcode_cast_domain self_type A' A _ o in
+      Return (existT _ _ o)
     | DUP, a :: A =>
       Return (existT _ _ syntax.DUP)
     | SWAP, a :: b :: A =>
