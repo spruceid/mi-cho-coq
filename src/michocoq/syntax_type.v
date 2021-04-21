@@ -58,14 +58,15 @@ Coercion comparable_type_to_type : comparable_type >-> type.
 Coercion Comparable_type_simple : simple_comparable_type >-> comparable_type.
 (* Coercion Comparable_type : simple_comparable_type >-> type. *)
 
-Fixpoint is_packable (a : type) : Datatypes.bool :=
+Fixpoint is_pushable (a : type) : Datatypes.bool :=
   match a with
   | operation | big_map _ _ | contract _ => false
-  | Comparable_type _ | unit | signature | key | lambda _ _ | set _ | chain_id => true
+  | Comparable_type _ | unit | signature | key | lambda _ _ | set _
+  | chain_id => true
   | option ty
   | list ty
-  | map _ ty => is_packable ty
-  | pair a b | or a _ b _ => is_packable a && is_packable b
+  | map _ ty => is_pushable ty
+  | pair a b | or a _ b _ => is_pushable a && is_pushable b
   end.
 
 Lemma type_dec (a b : type) : {a = b} + {a <> b}.

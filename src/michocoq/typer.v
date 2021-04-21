@@ -285,7 +285,7 @@ Qed.
     | APPLY, a :: lambda (pair a' b) c :: B =>
       let A := a :: lambda (pair a' b) c :: B in
       let A' := a :: lambda (pair a b) c :: B in
-      let! Ha := error.assume (is_packable a) (Typing _ "APPLY"%string) in
+      let! Ha := error.assume (is_pushable a) (Typing _ "APPLY"%string) in
       let o := @syntax.APPLY _ _ _ _ _ Ha in
       let! o := opcode_cast_domain self_type A' A _ o in
       Return (existT _ _ o)

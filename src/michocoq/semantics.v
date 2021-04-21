@@ -501,7 +501,7 @@ Module Semantics(C : ContractContext).
     | Cpair _ _ => fun '(x, y) => Pair x (comparable_data_to_concrete_data _ y)
     end.
 
-  Fixpoint data_to_concrete_data (a : type) (H : Is_true (is_packable a)) (x : data a) :
+  Fixpoint data_to_concrete_data (a : type) (H : Is_true (is_pushable a)) (x : data a) :
     concrete_data a :=
     match a, H, x with
     | Comparable_type b, _, x => Comparable_constant b x

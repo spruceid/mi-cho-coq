@@ -353,7 +353,7 @@ Definition self_info := Datatypes.option (type * annot_o)%type.
    an implicit coearcion *)
 
 Inductive opcode {self_type : self_info} : forall (A B : Datatypes.list type), Set :=
-| APPLY {a b c D} {_ : Bool.Is_true (is_packable a)} :
+| APPLY {a b c D} {_ : Bool.Is_true (is_pushable a)} :
     opcode (a ::: lambda (pair a b) c ::: D) (lambda b c ::: D)
 | DUP {a A} : opcode (a ::: A) (a ::: a ::: A)
 | SWAP {a b A} : opcode (a ::: b ::: A) (b ::: a ::: A)
