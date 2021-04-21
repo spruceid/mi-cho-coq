@@ -282,6 +282,10 @@ Module Semantics(C : ContractContext).
     build_lam tff :
       instruction_seq None tff (a ::: nil) (b ::: nil) -> data_lam a b.
 
+  Inductive data_contract a : Set :=
+    build_contract (sao : address_constant * annot_o) :
+      get_address_type sao = Some a -> data_contract a.
+
   Fixpoint data (a : type) {struct a} : Set :=
     match a with
     | Comparable_type b => comparable_data b
@@ -297,7 +301,7 @@ Module Semantics(C : ContractContext).
     | map a b => map.map (comparable_data a) (data b) (compare a)
     | big_map a b => map.map (comparable_data a) (data b) (compare a)
     | lambda a b => data_lam a b
-    | contract a => sig (fun sao : (address_constant * annot_o) => get_address_type sao = Some a )
+    | contract a => data_contract a
     | chain_id => chain_id_constant
     end.
 
@@ -816,7 +820,7 @@ Module Semantics(C : ContractContext).
   Defined.
 
   Definition address_ a (x : data (contract a)) : data address :=
-    match x with exist _ (addr, _) _ => addr end.
+    match x with build_contract _ (addr, _) _ => addr end.
 
   Definition eval_opcode param_ty (env : @proto_env param_ty) {A B : stack_type}
              (o : @opcode param_ty A B) (SA : stack A) : M (stack B) :=
