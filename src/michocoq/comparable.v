@@ -36,7 +36,6 @@ Inductive timestamp_constant : Set := Mk_timestamp : str -> timestamp_constant.
 Inductive signature_constant : Set := Mk_sig : str -> signature_constant.
 Inductive key_constant : Set := Mk_key : str -> key_constant.
 Inductive key_hash_constant : Set := Mk_key_hash : str -> key_hash_constant.
-Inductive tez_constant : Set := Mk_tez : str -> tez_constant.
 Inductive smart_contract_address_constant : Set :=
 | Mk_smart_contract_address : str -> smart_contract_address_constant.
 Inductive address_constant : Set :=
