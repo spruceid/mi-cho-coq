@@ -951,7 +951,7 @@ Definition slc_spec (env : @proto_env (Some (parameter_ty, None))) (fuel : Datat
     | inl (new_storage_context, new_master_key_hash) =>
       (* Install new storage *)
       output = (nil, (new_storage_context, (new_master_key_hash, (master_salt + 2, slave_salt)%N)))
-    | inr (existT _ _ lam, new_master_key_hash) =>
+    | inr (build_lam _ _ _ lam, new_master_key_hash) =>
       (* Run lambda *)
       precond (eval_seq (no_self env) lam fuel (tt, tt))
               (fun '(operations, tt) =>

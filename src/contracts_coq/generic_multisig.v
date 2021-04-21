@@ -172,7 +172,7 @@ Definition multisig_spec
     (count_signatures sigs >= threshold)%N /\
     new_stored_counter = (1 + stored_counter)%N /\
     match action with
-    | inl (existT _ _ lam) =>
+    | inl (build_lam _ _ _ lam) =>
       match (eval_seq (no_self env) lam fuel (tt, tt)) with
       | Return (operations, tt) =>
         new_threshold = threshold /\
@@ -440,7 +440,7 @@ Lemma multisig_tail_correct
   sigs = nil /\
   ((threshold <= n)%N /\
    match action with
-   | inl (existT _ _ lam) =>
+   | inl (build_lam _ _ _ lam) =>
      match eval_seq (no_self env) lam fuel (tt, tt) with
      | Return (operations, tt) =>
        psi ((operations, ((1 + counter)%N, (threshold, keys))), tt)

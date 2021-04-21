@@ -278,6 +278,10 @@ Module Semantics(C : ContractContext).
       (fun ty =>
          get_entrypoint_opt ao ty None).
 
+  Inductive data_lam a b : Set :=
+    build_lam tff :
+      instruction_seq None tff (a ::: nil) (b ::: nil) -> data_lam a b.
+
   Fixpoint data (a : type) {struct a} : Set :=
     match a with
     | Comparable_type b => comparable_data b
@@ -292,9 +296,7 @@ Module Semantics(C : ContractContext).
     | set a => set.set (comparable_data a) (compare a)
     | map a b => map.map (comparable_data a) (data b) (compare a)
     | big_map a b => map.map (comparable_data a) (data b) (compare a)
-    | lambda a b =>
-      sigT (fun tff : Datatypes.bool =>
-             instruction_seq None tff (a ::: nil) (b ::: nil))
+    | lambda a b => data_lam a b
     | contract a => sig (fun sao : (address_constant * annot_o) => get_address_type sao = Some a )
     | chain_id => chain_id_constant
     end.
@@ -490,7 +492,7 @@ Module Semantics(C : ContractContext).
                end) k m in
         map.sorted_map_nonnil _ _ _ k v' m'
       end
-    | Instruction tff i => existT _ _ i
+    | Instruction tff i => build_lam _ _ _ i
     | Chain_id_constant x => x
     end.
 
@@ -542,7 +544,7 @@ Module Semantics(C : ContractContext).
       Left (data_to_concrete_data a (Is_true_and_left _ _ H) x) an bn
     | or a an b bn, H, inr x =>
       Right (data_to_concrete_data b (Is_true_and_right _ _ H) x) an bn
-    | lambda a b, _, existT _ tff f => Instruction tff f
+    | lambda a b, _, build_lam _ _ tff f => Instruction tff f
     | chain_id, _, x => Chain_id_constant x
     end.
 
@@ -819,10 +821,12 @@ Module Semantics(C : ContractContext).
   Definition eval_opcode param_ty (env : @proto_env param_ty) {A B : stack_type}
              (o : @opcode param_ty A B) (SA : stack A) : M (stack B) :=
     match o, SA with
-      | @APPLY _ a b c D i, (x, (existT _ _ f, SA)) =>
-        Return (existT
-                    _ _
-                    (PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f), SA)
+      | @APPLY _ a b c D i, (x, (build_lam _ _ tff f, SA)) =>
+        Return
+          (build_lam
+             b c tff
+             (PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f),
+           SA)
       | DUP, (x, SA) => Return (x, (x, SA))
       | SWAP, (x, (y, SA)) => Return (y, (x, SA))
       | UNIT, SA => Return (tt, SA)
@@ -987,7 +991,7 @@ Module Semantics(C : ContractContext).
         | inr SB => Return (stack_app SB SA)
         end
       | PUSH a x, SA, _ => Return (concrete_data_to_data _ x, SA)
-      | LAMBDA a b code, SA, _ => Return (existT _ _ code, SA)
+      | LAMBDA a b code, SA, _ => Return (build_lam _ _ _ code, SA)
       | @ITER _ _ _ s _ body, (x, SA), env =>
         match iter_destruct _ _ (iter_variant_field _ s) x with
         | None => Return SA
@@ -1008,7 +1012,7 @@ Module Semantics(C : ContractContext).
         let (oper, addr) := create_contract env g p an _ a b f c in
         Return (oper, (addr, SA))
       | SELF ao H, SA, env => Return (self env ao H, SA)
-      | EXEC, (x, (existT _ tff f, SA)), env =>
+      | EXEC, (x, (build_lam _ _ tff f, SA)), env =>
         let! (y, tt) := eval_seq_body (@eval_n) (no_self env) f (x, tt) in
         Return (y, SA)
       | DIP nl Hlen i, SA, env =>
@@ -1176,8 +1180,11 @@ Module Semantics(C : ContractContext).
   Definition eval_precond_opcode {self_type} (env : @proto_env self_type)
              A B (o : @opcode self_type A B) (psi : stack B -> Prop) (SA : stack A) : Prop :=
     match o, env, psi, SA with
-    | @APPLY _ a b c D i, env, psi, (x, (existT _ _ f, SA)) =>
-      psi (existT _ _ (PUSH _ (data_to_concrete_data _ i x) ;; Instruction_opcode PAIR ;; f), SA)
+    | @APPLY _ a b c D i, env, psi, (x, (build_lam _ _ tff f, SA)) =>
+      psi (build_lam
+             b c tff
+             (PUSH _ (data_to_concrete_data _ i x) ;; Instruction_opcode PAIR ;; f),
+           SA)
     | DUP, env, psi, (x, SA) => psi (x, (x, SA))
     | SWAP, env, psi, (x, (y, SA)) => psi (y, (x, SA))
     | UNIT, env, psi, SA => psi (tt, SA)
@@ -1369,10 +1376,10 @@ Module Semantics(C : ContractContext).
                            (stack_app SB SA)
       | inr SB => psi (stack_app SB SA)
       end
-    | EXEC, env, psi, (x, (existT _ _ f, SA)) =>
+    | EXEC, env, psi, (x, (build_lam _ _ _ f, SA)) =>
       eval_seq_precond_body (@eval_precond_n) (no_self env) _ _ _ f (fun '(y, tt) => psi (y, SA)) (x, tt)
     | PUSH a x, env, psi, SA => psi (concrete_data_to_data _ x, SA)
-    | LAMBDA a b code, env, psi, SA => psi (existT _ _ code, SA)
+    | LAMBDA a b code, env, psi, SA => psi (build_lam _ _ _ code, SA)
     | @ITER _ _ _ s _ body, env, psi, (x, SA) =>
       match iter_destruct _ _ (iter_variant_field _ s) x with
       | None => psi SA

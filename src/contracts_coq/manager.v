@@ -77,7 +77,7 @@ Definition manager_spec
     (* %default: anybody can send tokens this does not modify the
     storage and produces no operation. *)
     new_storage = storage /\ returned_operations = nil
-  | inl (existT _ _ lam) =>
+  | inl (build_lam _ _ _ lam) =>
     (* %do is only available to the stored manager and rejects non-null amounts*)
     amount env = (0 ~Mutez) /\
     sender env = address_ unit (implicit_account storage) /\
