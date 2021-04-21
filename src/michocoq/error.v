@@ -368,31 +368,16 @@ Proof.
     apply H.
 Qed.
 
-Definition dif {A : Datatypes.bool -> Type} (b : Datatypes.bool) (t : b -> A b) (e : negb b -> A b) : A b.
-Proof.
-  destruct b; [apply t | apply e]; constructor.
-Defined.
+Definition assume (b : Datatypes.bool) (e : exception): M b :=
+  if b return M b then Return I else Failed _ e.
 
-Lemma dif_case {A : Datatypes.bool -> Type} {b t e} {P : A b -> Prop} : (forall h, P (t h)) -> (forall h, P (e h)) -> P (dif b t e).
+Lemma assume_ok b e Hb : assume b e = Return Hb.
 Proof.
-  unfold dif.
+  unfold assume.
   destruct b.
-  - intros H _; apply H.
-  - intros _ H; apply H.
-Defined.
-
-Lemma dif_is_true {A : Datatypes.bool -> Type} (b : Datatypes.bool)
-  (t : b -> A b) (e : negb b -> A b)
-  (H : is_true b) : dif b t e = t H.
-Proof.
-  destruct b, H; reflexivity.
-Qed.
-
-Lemma dif_is_false {A : Datatypes.bool -> Type} (b : Datatypes.bool)
-  (t : b -> A b) (e : negb b -> A b)
-  (H : is_true (negb b)) : dif b t e = e H.
-Proof.
-  destruct b, H; reflexivity.
+  - destruct Hb.
+    reflexivity.
+  - destruct Hb.
 Qed.
 
 (* Lemmas about sigT *)
