@@ -41,7 +41,6 @@ Inductive smart_contract_address_constant : Set :=
 Inductive address_constant : Set :=
 | Implicit : key_hash_constant -> address_constant
 | Originated : smart_contract_address_constant -> address_constant.
-Inductive operation_constant : Set := Mk_operation : str -> operation_constant.
 Inductive mutez_constant : Set := Mk_mutez : tez.mutez -> mutez_constant.
 Inductive chain_id_constant : Set := Mk_chain_id : str -> chain_id_constant.
 

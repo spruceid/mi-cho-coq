@@ -93,20 +93,20 @@ Definition total_amount_transaction_list
            (result : data mutez) :=
   total_amount_transaction_list1 transaction_list (0 ~Mutez) result.
 
-Definition slc_ep_transfer2_transaction_iter_body_spec {A} env :
+Definition slc_ep_transfer2_transaction_iter_body_spec {A} :
       (stack (list operation ::: mutez ::: A) -> Prop) ->
       (data (pair mutez (contract unit))) ->
       stack (list operation ::: mutez ::: A) -> Prop :=
   fun psi '(transferred_amount, destination) '(oplist, (threshold, st)) =>
     exists new_threshold,
     add _ _ _ Add_variant_tez_tez threshold transferred_amount = Return new_threshold /\
-    psi ((transfer_tokens (self_ty := Some (parameter_ty, None)) env unit I tt transferred_amount destination) :: oplist,
+    psi ((transfer_tokens unit I tt transferred_amount destination) :: oplist,
          (new_threshold, st)).
 
-Lemma slc_ep_transfer2_transaction_iter_body_spec_precond_ex A env psi transferred_amount destination oplist threshold st :
-  slc_ep_transfer2_transaction_iter_body_spec (A := A) env psi (transferred_amount, destination) (oplist, (threshold, st)) =
+Lemma slc_ep_transfer2_transaction_iter_body_spec_precond_ex A psi transferred_amount destination oplist threshold st :
+  slc_ep_transfer2_transaction_iter_body_spec (A := A) psi (transferred_amount, destination) (oplist, (threshold, st)) =
   precond_ex (add _ _ _ Add_variant_tez_tez threshold transferred_amount)
-             (fun new_threshold => psi ((transfer_tokens (self_ty := Some (parameter_ty, None)) env unit I tt transferred_amount destination) :: oplist,
+             (fun new_threshold => psi ((transfer_tokens unit I tt transferred_amount destination) :: oplist,
                                         (new_threshold, st))).
 Proof.
   reflexivity.
@@ -123,7 +123,7 @@ Lemma slc_ep_transfer2_transaction_iter_body_correct {A} env fuel :
   eval_seq_precond fuel env slc_ep_transfer2_transaction_iter_body
                psi
                (element, st) <->
-  slc_ep_transfer2_transaction_iter_body_spec env
+  slc_ep_transfer2_transaction_iter_body_spec
     psi element st.
 Proof.
   intros psi (transferred_amount, destination) (oplist, (threshold, st)) Hfuel.
@@ -160,7 +160,7 @@ Lemma slc_ep_transfer2_transaction_iter_correct
         (List.rev
            (List.map
               (fun '(transfered_amount, destination) =>
-                 transfer_tokens env unit I tt transfered_amount destination) transaction_list) ++
+                 transfer_tokens unit I tt transfered_amount destination) transaction_list) ++
            oplist,
          (final_threshold, st)).
 Proof.
@@ -168,7 +168,7 @@ Proof.
   intros oplist fuel threshold H.
   rewrite <- eval_precond_correct.
   rewrite precond_iter_bounded
-          with (body_spec := slc_ep_transfer2_transaction_iter_body_spec env)
+          with (body_spec := slc_ep_transfer2_transaction_iter_body_spec)
                (fuel_bound := 3).
   - generalize dependent oplist.
     generalize dependent threshold.
@@ -235,8 +235,9 @@ Proof.
       (f' := fun x '(ys, st)  => (cons x ys, st)).
   - apply eq_iff_refl.
     f_equal.
-    fold data.
-    generalize (@List.rev (data A) xs) ys.
+    unfold data.
+    fold data_aux.
+    generalize (@List.rev (data_aux (op (data_aux Empty_set)) A) xs) ys.
     induction l; intro ys'; simpl.
     + reflexivity.
     + now rewrite IHl.
@@ -631,7 +632,7 @@ Proof. simpl. intros.
        induction q. now simpl.
        destruct a.
        simpl in *.
-       destruct (z ?= n)%Z; auto.
+       destruct (d ?= n)%Z; auto.
        inversion H.
 Qed.
 
@@ -644,9 +645,12 @@ Proof.
   simpl. intros q1 q2 ts H. unfold update_queue.
   rewrite H.
   destruct (queue_cut_before_now (List.rev q2) ts) eqn:HqueueCut.
-  reflexivity.
-  simpl.
-  now rewrite remove_past_no_now.
+  - simpl comparable_data in HqueueCut.
+    rewrite HqueueCut.
+    reflexivity.
+  - simpl comparable_data in HqueueCut.
+    rewrite HqueueCut.
+    now rewrite remove_past_no_now.
 Qed.
 
 Lemma Hupdate_queue_no_now self_ty (env : @proto_env self_ty):
@@ -973,7 +977,7 @@ Definition slc_spec (env : @proto_env (Some (parameter_ty, None))) (fuel : Datat
       sub _ _ _ Sub_variant_tez_tez threshold_gc spent_amount = Return new_threshold /\
       let new_operations : data (list operation) :=
           List.rev (List.map
-                      (fun '(transfered_amount, destination) => transfer_tokens env unit I tt transfered_amount destination)
+                      (fun '(transfered_amount, destination) => transfer_tokens unit I tt transfered_amount destination)
                       transactions) in
       let new_queue :=
           (let (l1', l2') := update_queue queue_left queue_right (now env) in
@@ -1088,7 +1092,7 @@ Proof.
 
   destruct payload as [ (foo, slave_key_hash') | ((lam_ff, lam), slave_key_hash') ].
 
-  + simpl. intuition; congruence.
+  + unfold data. simpl. intuition; congruence.
 
   + unfold slc_spec.
 
@@ -1121,7 +1125,9 @@ Proof.
   destruct param as [ [] | [ p2 | p3 ] ]; simpl in Hfuel.
 
   (* Entry point: receive *)
-  - unfold eval_seq_precond. simpl. intuition congruence.
+  - unfold eval_seq_precond, data. simpl.
+    rewrite pair_equal_spec.
+    intuition.
   (* Entry point : master call *)
   - apply slc_ep_master_correct. apply Hfuel.
   (* Entry point : transfer *)

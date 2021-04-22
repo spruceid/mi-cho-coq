@@ -65,7 +65,7 @@ Lemma deposit_correct :
    | inr am => (storage_in = sender env /\
                 exists c : data (contract unit),
                   contract_ None unit I storage_in = Some c /\
-                  ops = cons (transfer_tokens env unit I tt am c) nil)
+                  ops = cons (transfer_tokens unit I tt am c) nil)
    end).
 Proof.
   intros env input storage_in ops storage_out fuel Hfuel.
@@ -75,7 +75,7 @@ Proof.
   unfold eval_seq_precond.
   do 5 (more_fuel ; simpl).
   destruct input as [[]|am].
-  - intuition congruence.
+  - unfold data; simpl. intuition congruence.
   - rewrite (eqb_eq address).
     split.
     + intros (Hsender, (y, (Hy, H))).

@@ -83,7 +83,7 @@ Lemma boomerang_correct :
   (amount env = (0 ~Mutez) /\ ops = nil) \/
   (amount env <> (0 ~Mutez) /\
     exists ctr, contract_ None unit I (source env) = Some ctr /\
-           ops = ((transfer_tokens env unit I tt (amount env) ctr) :: nil)%list).
+           ops = ((transfer_tokens unit I tt (amount env) ctr) :: nil)%list).
 Proof.
   intros env ops fuel Hfuel.
   rewrite return_precond.
@@ -98,12 +98,16 @@ Proof.
   apply or_both; apply and_both_0.
   - rewrite (eqb_eq mutez).
     intuition.
-  - intuition congruence.
+  - unfold data.
+    simpl.
+    intuition congruence.
   - rewrite bool_not_false.
     rewrite (eqb_eq mutez).
     intuition.
   - apply forall_ex.
     intro ctr.
+    unfold data.
+    simpl.
     intuition congruence.
 Qed.
 

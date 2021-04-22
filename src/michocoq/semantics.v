@@ -158,6 +158,29 @@ Proof.
       apply N.mod_unique with (q := d); assumption.
 Qed.
 
+Inductive op (data : type -> Set) : Set :=
+| Origination
+    (param_ty storage_ty : type)
+    (_ : is_passable param_ty)
+    (_ : is_storable storage_ty)
+    (delegate : data (option key_hash))
+    (initial_balance : data mutez)
+    annot tff
+    (script :
+       instruction_seq (Some (param_ty, annot)) tff
+                       (pair param_ty storage_ty ::: nil)
+                       (pair (list operation) storage_ty ::: nil)
+    )
+    (initial_storage : data storage_ty)
+    (addr : data address)
+| Transfer
+    (param_ty : type)
+    (_ : is_passable param_ty)
+    (destination : data (contract param_ty))
+    (amount : data mutez)
+| Delegation
+    (delegate : data (option (key_hash))).
+
 Module Semantics(C : ContractContext).
 
   (* more_fuel replaces
@@ -287,43 +310,93 @@ Module Semantics(C : ContractContext).
       error.Is_true (is_passable a) ->
       get_address_type sao = Some a -> data_contract a.
 
-  Fixpoint data (a : type) {struct a} : Set :=
+  Fixpoint data_aux (op : Set) (a : type) {struct a} : Set :=
     match a with
     | Comparable_type b => comparable_data b
     | signature => signature_constant
-    | operation => operation_constant
+    | operation => op
     | key => key_constant
     | unit => Datatypes.unit
-    | pair a b => data a * data b
-    | or a _ b _ => sum (data a) (data b)
-    | option a => Datatypes.option (data a)
-    | list a => Datatypes.list (data a)
+    | pair a b => data_aux op a * data_aux op b
+    | or a _ b _ => sum (data_aux op a) (data_aux op b)
+    | option a => Datatypes.option (data_aux op a)
+    | list a => Datatypes.list (data_aux op a)
     | set a => set.set (comparable_data a) (compare a)
-    | map a b => map.map (comparable_data a) (data b) (compare a)
-    | big_map a b => map.map (comparable_data a) (data b) (compare a)
+    | map a b => map.map (comparable_data a) (data_aux op b) (compare a)
+    | big_map a b => map.map (comparable_data a) (data_aux op b) (compare a)
     | lambda a b => data_lam a b
     | contract a => data_contract a
     | chain_id => chain_id_constant
     end.
 
+  Definition data (a : type) : Set := data_aux (op (data_aux Empty_set)) a.
+
+  Lemma data_passable op a :
+    is_passable a ->
+    data_aux op a = data a.
+  Proof.
+    intro Hp.
+    induction a; simpl data_aux; try rewrite (IHa Hp); try reflexivity.
+    - (* operation *)
+      contradiction.
+    - (* pair *)
+      simpl in Hp.
+      apply Bool.andb_prop_elim in Hp.
+      destruct Hp as (Hpa1, Hpa2).
+      rewrite (IHa1 Hpa1).
+      rewrite (IHa2 Hpa2).
+      reflexivity.
+    - (* or *)
+      simpl in Hp.
+      apply Bool.andb_prop_elim in Hp.
+      destruct Hp as (Hpa1, Hpa2).
+      rewrite (IHa1 Hpa1).
+      rewrite (IHa2 Hpa2).
+      reflexivity.
+  Qed.
+
+  Lemma storable_is_passable a : is_storable a -> is_passable a.
+  Proof.
+    induction a; simpl; intro Hs;
+      try (apply Bool.andb_prop_elim in Hs; apply Bool.andb_prop_intro);
+      intuition.
+  Qed.
+
+  Lemma data_storable op a :
+    is_storable a ->
+    data_aux op a = data a.
+  Proof.
+    intro; apply data_passable; apply storable_is_passable; assumption.
+  Qed.
+
+  Definition create_contract_at_address g p annot tff
+             (Hp : is_passable p)
+             (Hg : is_storable g)
+             (delegate : Datatypes.option (comparable_data key_hash))
+             (initial_balance : tez.mutez)
+             (script : syntax.instruction_seq (Some (p, annot)) tff
+                             (pair p g ::: nil)
+                             (pair (list operation) g ::: nil))
+             (initial_storage : data g) (addr : data address) : data operation.
+  Proof.
+    refine (Origination (data_aux Empty_set) p g Hp Hg delegate initial_balance annot tff script _ addr).
+    rewrite data_storable; assumption.
+  Defined.
+
+  Definition transfer_tokens (p : type)
+             (Hp : error.Is_true (is_passable p))(param : data p)
+             (amount : data mutez)
+             (dest : data (contract p)) : data operation :=
+    Transfer (data_aux Empty_set) p Hp dest amount.
+
+  Definition set_delegate (delegate : data (option key_hash)) : data operation :=
+    Delegation (data_aux Empty_set) delegate.
+
   Record proto_env {self_ty : self_info} : Type :=
     mk_proto_env
       {
-        create_contract : forall g p annot tff,
-          error.Is_true (is_passable p) ->
-          error.Is_true (is_storable g) ->
-          Datatypes.option (comparable_data key_hash) ->
-          tez.mutez ->
-          syntax.instruction_seq (Some (p, annot)) tff
-                             (pair p g ::: nil)
-                             (pair (list operation) g ::: nil) ->
-          data g -> data (pair operation address);
-        transfer_tokens : forall p,
-            error.Is_true (is_passable p) ->
-            data p -> tez.mutez -> data (contract p) ->
-            data operation;
-        set_delegate : Datatypes.option (comparable_data key_hash) ->
-                       data operation;
+        (* TODO: handle the impurity of address generation for real *)
+        generate_new_address : Datatypes.unit -> data address;
         balance : tez.mutez;
         source : data address;
         sender : data address;
@@ -347,14 +420,26 @@ Module Semantics(C : ContractContext).
         chain_id_ : data chain_id
       }.
 
+
+  Definition create_contract {self_ty : self_info} (env : @proto_env self_ty)
+             g p annot tff
+             (Hp : is_passable p)
+             (Hg : is_storable g)
+             (delegate : Datatypes.option (comparable_data key_hash))
+             (initial_balance : tez.mutez)
+             (script : syntax.instruction_seq (Some (p, annot)) tff
+                             (pair p g ::: nil)
+                             (pair (list operation) g ::: nil))
+             (initial_storage : data g) : data (pair operation address) :=
+    let addr := generate_new_address env tt in
+    (create_contract_at_address g p annot tff Hp Hg delegate initial_balance script initial_storage addr, addr).
+
   Definition no_self
              {self_type}
              (e : proto_env (self_ty := self_type)) :
     proto_env (self_ty := None) :=
     mk_proto_env None
-                 (create_contract e)
-                 (transfer_tokens e)
-                 (set_delegate e)
+                 (generate_new_address e)
                  (balance e)
                  (source e)
                  (sender e)
@@ -909,8 +994,8 @@ Module Semantics(C : ContractContext).
       | CONS, (x, (y, SA)) => Return (cons x y, SA)
       | NIL _, SA => Return (nil, SA)
       | TRANSFER_TOKENS Hp, (a, (b, (c, SA))) =>
-        Return (transfer_tokens env _ Hp a b c, SA)
-      | SET_DELEGATE, (x, SA) => Return (set_delegate env x, SA)
+        Return (transfer_tokens _ Hp a b c, SA)
+      | SET_DELEGATE, (x, SA) => Return (set_delegate x, SA)
       | BALANCE, SA => Return (balance env, SA)
       | ADDRESS, (x, SA) => Return (address_ _ x, SA)
       | CONTRACT ao p H, (x, SA) => Return (contract_ ao p H x, SA)
@@ -1246,9 +1331,9 @@ Module Semantics(C : ContractContext).
     | CONS, env, psi, (x, (y, SA)) => psi (cons x y, SA)
     | NIL _, env, psi, SA => psi (nil, SA)
     | TRANSFER_TOKENS Hp, env, psi, (a, (b, (c, SA))) =>
-      psi (transfer_tokens env _ Hp a b c, SA)
+      psi (transfer_tokens _ Hp a b c, SA)
     | SET_DELEGATE, env, psi, (x, SA) =>
-      psi (set_delegate env x, SA)
+      psi (set_delegate x, SA)
     | BALANCE, env, psi, SA => psi (balance env, SA)
     | ADDRESS, env, psi, (x, SA) => psi (address_ _ x, SA)
     | CONTRACT ao p H, env, psi, (x, SA) => psi (contract_ ao p H x, SA)
@@ -1582,7 +1667,6 @@ Module Semantics(C : ContractContext).
         reflexivity.
       + reflexivity.
     - destruct st as (a, (b, (c, SA))).
-      destruct create_contract.
       reflexivity.
     - reflexivity.
     - destruct st as (x, ((tff, f), st)).

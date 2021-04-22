@@ -82,7 +82,7 @@ Definition vesting_tez_spec
   | inl kh =>
     sender env = delegateAdmin /\
     new_storage = storage /\
-    returned_operations = (set_delegate env kh :: nil)%list
+    returned_operations = (set_delegate kh :: nil)%list
 
   (* %vest: anybody can flush tokens *)
   (* this does not modify the storage and produces a 'transfer_tokens'. *)
@@ -100,7 +100,7 @@ Definition vesting_tez_spec
         (Z.of_N tokens_to_flush)
         pf in
     returned_operations =
-      (transfer_tokens env unit I tt tez_to_flush target_contract :: nil)%list
+      (transfer_tokens unit I tt tez_to_flush target_contract :: nil)%list
   end.
 
 Definition vesting_tez_spec_helper
@@ -123,7 +123,7 @@ Definition vesting_tez_spec_helper
   | inl kh =>
     sender env = delegateAdmin /\
     new_storage = storage /\
-    returned_operations = (set_delegate env kh :: nil)%list
+    returned_operations = (set_delegate kh :: nil)%list
 
   (* %vest: anybody can flush tokens *)
   (* this does not modify the storage and produces a 'transfer_tokens'. *)
@@ -142,7 +142,7 @@ Definition vesting_tez_spec_helper
     let tez_to_flush := extract m_tez_to_flush m_tez_to_flush_ok in
     new_storage = expected_new_storage /\
     returned_operations =
-      (transfer_tokens env unit I tt tez_to_flush target_contract :: nil)%list
+      (transfer_tokens unit I tt tez_to_flush target_contract :: nil)%list
   end.
 
 Lemma shim_simplify_flush_vested_ineqs (vested : data nat)
@@ -347,6 +347,7 @@ Proof.
     rewrite and_pair_eq.
     rewrite and_comm.
     apply and_left; [reflexivity|].
+    unfold data; simpl.
     rewrite and_pair_eq.
     intuition.
   }
@@ -362,6 +363,7 @@ Proof.
         rewrite precond_exists in Hm.
         destruct Hm as (z, (Hz, H2)).
         rewrite and_pair_eq in H2.
+        unfold data in H2; simpl in H2.
         rewrite and_pair_eq in H2.
         destruct H2 as ((H2, H3), _).
         subst.

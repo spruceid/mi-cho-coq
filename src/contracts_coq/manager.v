@@ -168,7 +168,7 @@ Proof.
     ++ intros ([], Hlam).
        exists (returned_operations, tt).
        auto.
-  - intuition congruence.
+  - unfold data. simpl. intuition congruence.
 Qed.
 
 End manager.

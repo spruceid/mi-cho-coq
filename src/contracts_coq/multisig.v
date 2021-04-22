@@ -171,11 +171,11 @@ Definition multisig_spec
     | inl (amout, contr) =>
       new_threshold = threshold /\
       new_keys = keys /\
-      returned_operations = (transfer_tokens env unit I tt amout contr :: nil)%list
+      returned_operations = (transfer_tokens unit I tt amout contr :: nil)%list
     | inr (inl kh) =>
       new_threshold = threshold /\
       new_keys = keys /\
-      returned_operations = (set_delegate env kh :: nil)%list
+      returned_operations = (set_delegate kh :: nil)%list
     | inr (inr (nt, nks)) =>
       new_threshold = nt /\
       new_keys = nks /\
@@ -450,9 +450,9 @@ Lemma multisig_tail_correct
     ((threshold <= n)%N /\
      match action with
      | inl (amout, contr) =>
-       psi (((transfer_tokens env unit I tt amout contr :: nil)%list, ((1 + counter)%N, (threshold, keys))), tt)
+       psi (((transfer_tokens unit I tt amout contr :: nil)%list, ((1 + counter)%N, (threshold, keys))), tt)
     | inr (inl kh) =>
-      psi (((set_delegate env kh :: nil)%list, ((1 + counter)%N, (threshold, keys))), tt)
+      psi (((set_delegate kh :: nil)%list, ((1 + counter)%N, (threshold, keys))), tt)
     | inr (inr (nt, nks)) =>
       psi (nil, ((1 + counter)%N, (nt, nks)), tt)
     end).

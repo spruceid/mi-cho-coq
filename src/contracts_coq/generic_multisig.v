@@ -470,6 +470,7 @@ Proof.
       repeat fold_eval_precond.
       rewrite fold_eval_seq_precond.
       rewrite <- eval_seq_precond_correct.
+      unfold data; simpl.
       case (semantics.eval_seq _ lam (S (S (S fuel))) (tt, tt)).
       * intro; reflexivity.
       * intros (s, []); reflexivity.
