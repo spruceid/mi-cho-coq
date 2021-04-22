@@ -64,9 +64,9 @@ Fixpoint visit_instruction
      would be incorrect because we can use PACK to distinguish
      semantically equivalent lambdas in Michelson *)
   | LAMBDA a b i => LAMBDA a b i
-  | CREATE_CONTRACT a b an i => CREATE_CONTRACT a b an i
+  | CREATE_CONTRACT a b an Hp Hg i => CREATE_CONTRACT a b an Hp Hg i
   | PUSH ty x => PUSH ty x
-  | FAILWITH => FAILWITH
+  | FAILWITH H => FAILWITH H
   | SELF an H => SELF an H
   | EXEC => EXEC
   | Instruction_opcode op => Instruction_opcode op

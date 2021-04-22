@@ -119,7 +119,9 @@ Definition slc_ep_master :
           UNPAIR;
           DIP1 { DUP;
                  (* pack the received payload (new storage or lambda) *)
-                 PACK (* @packedpayload *) ;
+                 PACK (a := or (pair storage_context_ty key_hash)
+                               _ (pair (lambda unit (list operation)) key_hash)
+                               _) I (* @packedpayload *) ;
                  (* pack the header *)
                  DIP1 { DIP1 { UNPAIR;
                                DUP ;
@@ -128,12 +130,12 @@ Definition slc_ep_master :
                                    (* increment salt *)
                                    ADD (s := add_nat_nat) (* @salt_inc *) ;
                                    PAIR };
-                               PACK (* @packed_salt *) ;
+                               PACK (a := nat) I (* @packed_salt *) ;
                                (* packed(salt) *)
                                CHAIN_ID ;
                                SELF (self_type := parameter_ty) (self_annot := None) None I ;
                                PAIR ;
-                               PACK (* @packed_self_chain_id *) ;
+                               PACK (a := pair (contract parameter_ty) chain_id) I (* @packed_self_chain_id *) ;
                                (* packed(self, chain_id) : packed(salt) : ... *)
                                CONCAT (i := stringlike_bytes) (* @packedheader *)
                                       (* (packed(self, chain_id) ++ packed(salt)) : ... *)
@@ -154,7 +156,7 @@ Definition slc_ep_master :
     (* verify that the that the signature is a signature of the payload with from master *)
     CHECK_SIGNATURE ;
     (* if not, fail. *)
-    IF_TRUE {DROP1} {FAILWITH} ;
+    IF_TRUE {DROP1} {FAILWITH (a := bytes) I} ;
 
     IF_LEFT { (* set new storage *)
         UNPAIR (* @new_storage *) (* @new_master_key *) ;
@@ -177,7 +179,7 @@ Definition slc_ep_transfer2_transaction_iter_body {A}:
     DUP ;
     DIP1 {
         UNIT ;
-        TRANSFER_TOKENS ;
+        TRANSFER_TOKENS (p := unit) I ;
         CONS
       } ;
     SWAP ;
@@ -242,7 +244,7 @@ Definition slc_ep_transfer1_check_signature :
       DIP1 { UNPAPAIR } ; (* cas d'un appel simple *)
       UNPAIR ;
       DUP ;
-      PACK ;
+      PACK (a := (pair (list (pair mutez (contract unit))) key_hash)) I ;
       DIP1 {
           UNPAIR (a := list (pair mutez (contract unit)))
                  (b := key_hash) ;
@@ -263,11 +265,11 @@ Definition slc_ep_transfer1_check_signature :
                            PAIR };
                     PAIR ;
                     DUG 6 (S1 := (_ ::: _ ::: _ ::: _ ::: _ ::: _ ::: nil)) (@eq_refl _ 6) ;
-                    PACK ;
+                    PACK (a := nat) I ;
                     CHAIN_ID ;
                     SELF (self_type := parameter_ty) (self_annot := None) None I ;
                     PAIR ;
-                    PACK ;
+                    PACK (a := pair (contract parameter_ty) chain_id) I  ;
                     CONCAT (i := stringlike_bytes)
                 } ;
               CONCAT (i := stringlike_bytes) ;
@@ -275,7 +277,7 @@ Definition slc_ep_transfer1_check_signature :
               DIP1 { SWAP ;
                       DIP1 {DUP}} ;
               CHECK_SIGNATURE ; (* #verification de signature *)
-              IF_TRUE {DROP1} {FAILWITH} ;
+              IF_TRUE {DROP1} {FAILWITH (a := bytes) I} ;
               DIP1 { UNPAIR (b := int) ;
                      SWAP ;
                      DIP1 { SWAP ;
@@ -350,4 +352,4 @@ Definition dsl :
       PAPAIR}%michelson.
 
 Definition slc_contract_file : contract_file :=
-  Mk_contract_file parameter_ty None storage_ty Datatypes.false dsl.
+  Mk_contract_file parameter_ty I None storage_ty I Datatypes.false dsl.

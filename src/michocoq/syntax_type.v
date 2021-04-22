@@ -69,6 +69,54 @@ Fixpoint is_pushable (a : type) : Datatypes.bool :=
   | pair a b | or a _ b _ => is_pushable a && is_pushable b
   end.
 
+Fixpoint is_passable (a : type) : Datatypes.bool :=
+  match a with
+  | operation => false
+  | Comparable_type _ | unit | signature | key | lambda _ _ | set _
+  | chain_id | contract _ => true
+  | option ty
+  | list ty
+  | map _ ty
+  | big_map _ ty => is_passable ty
+  | pair a b | or a _ b _ => is_passable a && is_passable b
+  end.
+
+Fixpoint is_storable (a : type) : Datatypes.bool :=
+  match a with
+  | operation | contract _ => false
+  | Comparable_type _ | unit | signature | key | lambda _ _ | set _
+  | chain_id => true
+  | option ty
+  | list ty
+  | map _ ty
+  | big_map _ ty => is_storable ty
+  | pair a b | or a _ b _ => is_storable a && is_storable b
+  end.
+
+Fixpoint is_packable (a : type) : Datatypes.bool :=
+  match a with
+  | operation | big_map _ _=> false
+  | Comparable_type _ | unit | signature | key | lambda _ _ | set _
+  | contract _
+  | chain_id => true
+  | option ty
+  | list ty
+  | map _ ty => is_packable ty
+  | pair a b | or a _ b _ => is_packable a && is_packable b
+  end.
+
+Fixpoint is_big_map_value (a : type) : Datatypes.bool :=
+  match a with
+  | operation | big_map _ _=> false
+  | Comparable_type _ | unit | signature | key | lambda _ _ | set _
+  | contract _
+  | chain_id => true
+  | option ty
+  | list ty
+  | map _ ty => is_big_map_value ty
+  | pair a b | or a _ b _ => is_big_map_value a && is_big_map_value b
+  end.
+
 Lemma type_dec (a b : type) : {a = b} + {a <> b}.
 Proof.
   repeat decide equality.

@@ -50,10 +50,22 @@ Definition contract_file_M : error.M syntax.contract_file :=
   let! existT _ tff code :=
     let i := a.(micheline2michelson.code) in
     typer.type_check_instruction_seq (typer.type_instruction_seq typer.Any) i _ _ in
+  let! Hp :=
+     error.assume
+       (is_passable self_type)
+       (error.Typing _ "Non passable parameter type"%string)
+  in
+  let! Hg :=
+     error.assume
+       (is_storable storage_type)
+       (error.Typing _ "Non storable storage type"%string)
+  in
   error.Return
     {| contract_file_parameter := self_type;
+       contract_file_parameter_passable := Hp;
        contract_file_annotation := root_annot;
        contract_file_storage := storage_type;
+       contract_file_storage_storable := Hg;
        contract_tff := tff;
        contract_file_code := code; |}.
 

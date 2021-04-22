@@ -43,11 +43,11 @@ Definition boomerang : full_contract _ parameter_ty None storage_ty :=
     IFCMPEQ {}
     {
       SOURCE ;
-      CONTRACT None unit ;
+      CONTRACT None unit I;
       ASSERT_SOME ;
       AMOUNT ;
       UNIT ;
-      TRANSFER_TOKENS ;
+      TRANSFER_TOKENS (p := unit) I;
       CONS
     };
     PAIR
@@ -82,8 +82,8 @@ Lemma boomerang_correct :
   <->
   (amount env = (0 ~Mutez) /\ ops = nil) \/
   (amount env <> (0 ~Mutez) /\
-    exists ctr, contract_ None unit (source env) = Some ctr /\
-           ops = ((transfer_tokens env unit tt (amount env) ctr) :: nil)%list).
+    exists ctr, contract_ None unit I (source env) = Some ctr /\
+           ops = ((transfer_tokens env unit I tt (amount env) ctr) :: nil)%list).
 Proof.
   intros env ops fuel Hfuel.
   rewrite return_precond.

@@ -67,7 +67,7 @@ Definition IFCMPLE {a SA SB tffa tffb} bt bf := IFCMPop a SA SB tffa tffb bt bf 
 Definition IFCMPGE {a SA SB tffa tffb} bt bf := IFCMPop a SA SB tffa tffb bt bf GE.
 
 Definition FAIL {SA SB} : instruction self_type Datatypes.true SA SB :=
-  Instruction_seq { UNIT; FAILWITH }.
+  Instruction_seq { UNIT; FAILWITH (a := unit) I }.
 
 Definition ASSERT {S} : instruction self_type Datatypes.false (bool ::: S) S :=
   Instruction_seq { IF_ IF_bool {} { FAIL }}.

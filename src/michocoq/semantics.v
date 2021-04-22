@@ -284,6 +284,7 @@ Module Semantics(C : ContractContext).
 
   Inductive data_contract a : Set :=
     build_contract (sao : address_constant * annot_o) :
+      error.Is_true (is_passable a) ->
       get_address_type sao = Some a -> data_contract a.
 
   Fixpoint data (a : type) {struct a} : Set :=
@@ -309,6 +310,8 @@ Module Semantics(C : ContractContext).
     mk_proto_env
       {
         create_contract : forall g p annot tff,
+          error.Is_true (is_passable p) ->
+          error.Is_true (is_storable g) ->
           Datatypes.option (comparable_data key_hash) ->
           tez.mutez ->
           syntax.instruction_seq (Some (p, annot)) tff
@@ -316,6 +319,7 @@ Module Semantics(C : ContractContext).
                              (pair (list operation) g ::: nil) ->
           data g -> data (pair operation address);
         transfer_tokens : forall p,
+            error.Is_true (is_passable p) ->
             data p -> tez.mutez -> data (contract p) ->
             data operation;
         set_delegate : Datatypes.option (comparable_data key_hash) ->
@@ -333,8 +337,8 @@ Module Semantics(C : ContractContext).
         amount : tez.mutez;
         now : comparable_data timestamp;
         hash_key : data key -> comparable_data key_hash;
-        pack : forall a, data a -> data bytes;
-        unpack : forall a, data bytes -> data (option a);
+        pack : forall a, error.Is_true (is_packable a) -> data a -> data bytes;
+        unpack : forall a, error.Is_true (is_packable a) -> data bytes -> data (option a);
         blake2b : data bytes -> data bytes;
         sha256 : data bytes -> data bytes;
         sha512 : data bytes -> data bytes;
@@ -798,16 +802,17 @@ Module Semantics(C : ContractContext).
 
   Definition data_to_string {a} (x : data a) : String.string := "".
 
-  Definition contract_ (an : annot_o) (p : type) (x : data address) : data (option (contract p)).
+  Definition contract_ (an : annot_o) (p : type)
+             (H : error.Is_true (is_passable p))
+             (x : data address) : data (option (contract p)).
   Proof.
     case_eq (get_address_type (x, an)).
-    - intros p' H.
+    - intros p' H'.
       simpl.
       case (type_dec p p').
       + intro; subst p'.
         apply Some.
-        eexists.
-        eassumption.
+        eexists; eassumption.
       + intro; apply None.
     - intro; apply None.
   Defined.
@@ -815,21 +820,20 @@ Module Semantics(C : ContractContext).
   Definition implicit_account (x : data key_hash) : data (contract unit).
   Proof.
     simpl.
-    exists (Implicit x, None).
-    reflexivity.
+    exists (Implicit x, None); constructor.
   Defined.
 
   Definition address_ a (x : data (contract a)) : data address :=
-    match x with build_contract _ (addr, _) _ => addr end.
+    match x with build_contract _ (addr, _) _ _ => addr end.
 
   Definition eval_opcode param_ty (env : @proto_env param_ty) {A B : stack_type}
              (o : @opcode param_ty A B) (SA : stack A) : M (stack B) :=
     match o, SA with
       | @APPLY _ a b c D i, (x, (build_lam _ _ tff f, SA)) =>
-        Return
+        @Return (stack (lambda b c ::: D))
           (build_lam
              b c tff
-             (PUSH _ (data_to_concrete_data _ i x) ;; PAIR ;; f),
+             (PUSH _ (data_to_concrete_data a i x) ;; PAIR ;; f),
            SA)
       | DUP, (x, SA) => Return (x, (x, SA))
       | SWAP, (x, (y, SA)) => Return (y, (x, SA))
@@ -891,7 +895,7 @@ Module Semantics(C : ContractContext).
         Return (N.of_nat (size _ (size_variant_field _ s) x), SA)
       | EMPTY_MAP k val, SA =>
         Return (map.empty (comparable_data k) (data val) _, SA)
-      | EMPTY_BIG_MAP k val, SA =>
+      | EMPTY_BIG_MAP k val _, SA =>
         Return (map.empty (comparable_data k) (data val) _, SA)
       | @GET _ _ _ s _, (x, (y, SA)) =>
         Return (get _ _ _
@@ -904,19 +908,19 @@ Module Semantics(C : ContractContext).
       | RIGHT _, (x, SA) => Return (inr x, SA)
       | CONS, (x, (y, SA)) => Return (cons x y, SA)
       | NIL _, SA => Return (nil, SA)
-      | TRANSFER_TOKENS, (a, (b, (c, SA))) =>
-        Return (transfer_tokens env _ a b c, SA)
+      | TRANSFER_TOKENS Hp, (a, (b, (c, SA))) =>
+        Return (transfer_tokens env _ Hp a b c, SA)
       | SET_DELEGATE, (x, SA) => Return (set_delegate env x, SA)
       | BALANCE, SA => Return (balance env, SA)
       | ADDRESS, (x, SA) => Return (address_ _ x, SA)
-      | CONTRACT ao p, (x, SA) => Return (contract_ ao p x, SA)
+      | CONTRACT ao p H, (x, SA) => Return (contract_ ao p H x, SA)
       | SOURCE, SA => Return (source env, SA)
       | SENDER, SA => Return (sender env, SA)
       | AMOUNT, SA => Return (amount env, SA)
       | IMPLICIT_ACCOUNT, (x, SA) => Return (implicit_account x, SA)
       | NOW, SA => Return (now env, SA)
-      | PACK, (x, SA) => Return (pack env _ x, SA)
-      | UNPACK ty, (x, SA) => Return (unpack env ty x, SA)
+      | PACK H, (x, SA) => Return (pack env _ H x, SA)
+      | UNPACK ty H, (x, SA) => Return (unpack env ty H x, SA)
       | HASH_KEY, (x, SA) => Return (hash_key env x, SA)
       | BLAKE2B, (x, SA) => Return (blake2b env x, SA)
       | SHA256, (x, SA) => Return (sha256 env x, SA)
@@ -974,7 +978,7 @@ Module Semantics(C : ContractContext).
       match i, SA, env with
       | Instruction_seq i, SA, env =>
         eval_seq_body (@eval_n) env i SA
-      | FAILWITH, (x, _), _ =>
+      | FAILWITH _, (x, _), _ =>
         Failed _ (Assertion_Failure _ x)
 
       (* According to the documentation, FAILWITH's argument should
@@ -1012,8 +1016,8 @@ Module Semantics(C : ContractContext).
           let! (c, SC) := eval_n env (MAP body) (y, SB) in
           Return (map_insert _ _ _ _ v a b c, SC)
         end
-      | CREATE_CONTRACT g p an f, (a, (b, (c, SA))), env =>
-        let (oper, addr) := create_contract env g p an _ a b f c in
+      | CREATE_CONTRACT g p an Hp Hg f, (a, (b, (c, SA))), env =>
+        let (oper, addr) := create_contract env g p an _ Hp Hg a b f c in
         Return (oper, (addr, SA))
       | SELF ao H, SA, env => Return (self env ao H, SA)
       | EXEC, (x, (build_lam _ _ tff f, SA)), env =>
@@ -1187,7 +1191,7 @@ Module Semantics(C : ContractContext).
     | @APPLY _ a b c D i, env, psi, (x, (build_lam _ _ tff f, SA)) =>
       psi (build_lam
              b c tff
-             (PUSH _ (data_to_concrete_data _ i x) ;; Instruction_opcode PAIR ;; f),
+             (PUSH _ (data_to_concrete_data a i x) ;; Instruction_opcode PAIR ;; f),
            SA)
     | DUP, env, psi, (x, SA) => psi (x, (x, SA))
     | SWAP, env, psi, (x, (y, SA)) => psi (y, (x, SA))
@@ -1233,7 +1237,7 @@ Module Semantics(C : ContractContext).
       psi (update _ _ _ (update_variant_field _ _ _ s) (data_to_comparable_data _ x) y z, SA)
     | @SIZE _ _ s, env, psi, (x, SA) => psi (N.of_nat (size _ (size_variant_field _ s) x), SA)
     | EMPTY_MAP k val, env, psi, SA => psi (map.empty (comparable_data k) (data val) _, SA)
-    | EMPTY_BIG_MAP k val, env, psi, SA => psi (map.empty (comparable_data k) (data val) _, SA)
+    | EMPTY_BIG_MAP k val _, env, psi, SA => psi (map.empty (comparable_data k) (data val) _, SA)
     | @GET _ _ _ s _, env, psi, (x, (y, SA)) => psi (get _ _ _ (get_variant_field _ _ s) (data_to_comparable_data _ x) y, SA)
     | SOME, env, psi, (x, SA) => psi (Some x, SA)
     | NONE _, env, psi, SA => psi (None, SA)
@@ -1241,20 +1245,20 @@ Module Semantics(C : ContractContext).
     | RIGHT _, env, psi, (x, SA) => psi (inr x, SA)
     | CONS, env, psi, (x, (y, SA)) => psi (cons x y, SA)
     | NIL _, env, psi, SA => psi (nil, SA)
-    | TRANSFER_TOKENS, env, psi, (a, (b, (c, SA))) =>
-      psi (transfer_tokens env _ a b c, SA)
+    | TRANSFER_TOKENS Hp, env, psi, (a, (b, (c, SA))) =>
+      psi (transfer_tokens env _ Hp a b c, SA)
     | SET_DELEGATE, env, psi, (x, SA) =>
       psi (set_delegate env x, SA)
     | BALANCE, env, psi, SA => psi (balance env, SA)
     | ADDRESS, env, psi, (x, SA) => psi (address_ _ x, SA)
-    | CONTRACT ao p, env, psi, (x, SA) => psi (contract_ ao p x, SA)
+    | CONTRACT ao p H, env, psi, (x, SA) => psi (contract_ ao p H x, SA)
     | SOURCE, env, psi, SA => psi (source env, SA)
     | SENDER, env, psi, SA => psi (sender env, SA)
     | AMOUNT, env, psi, SA => psi (amount env, SA)
     | IMPLICIT_ACCOUNT, env, psi, (x, SA) => psi (implicit_account x, SA)
     | NOW, env, psi, SA => psi (now env, SA)
-    | PACK, env, psi, (x, SA) => psi (pack env _ x, SA)
-    | UNPACK ty, env, psi, (x, SA) => psi (unpack env ty x, SA)
+    | PACK H, env, psi, (x, SA) => psi (pack env _ H x, SA)
+    | UNPACK ty H, env, psi, (x, SA) => psi (unpack env ty H x, SA)
     | HASH_KEY, env, psi, (x, SA) => psi (hash_key env x, SA)
     | BLAKE2B, env, psi, (x, SA) => psi (blake2b env x, SA)
     | SHA256, env, psi, (x, SA) => psi (sha256 env x, SA)
@@ -1311,7 +1315,7 @@ Module Semantics(C : ContractContext).
     match i, env, psi, SA with
     | Instruction_seq i, env, psi, SA =>
       eval_seq_precond_body (@eval_precond_n) env _ _ _ i psi SA
-    | FAILWITH, _, _, _ => false
+    | FAILWITH _, _, _, _ => false
 
     | @IF_ _ _ _ tffa tffb _ _ _ IF_bool bt bf, env, psi, (x, SA) =>
       match tffa, tffb with
@@ -1407,8 +1411,8 @@ Module Semantics(C : ContractContext).
                (y, SB))
           (a, SA)
       end
-    | CREATE_CONTRACT g p an f, env, psi, (a, (b, (c, SA))) =>
-      let (oper, addr) := create_contract env g p an _ a b f c in
+    | CREATE_CONTRACT g p an Hp Hg f, env, psi, (a, (b, (c, SA))) =>
+      let (oper, addr) := create_contract env g p an _ Hp Hg a b f c in
       psi (oper, (addr, SA))
     | SELF ao H, env, psi, SA => psi (self env ao H, SA)
     | DIP n Hlen i, env, psi, SA =>
@@ -1578,7 +1582,7 @@ Module Semantics(C : ContractContext).
         reflexivity.
       + reflexivity.
     - destruct st as (a, (b, (c, SA))).
-      destruct (create_contract env g p an _ a b i c).
+      destruct create_contract.
       reflexivity.
     - reflexivity.
     - destruct st as (x, ((tff, f), st)).
@@ -1775,7 +1779,7 @@ Module Semantics(C : ContractContext).
     match i, env, psi, SA with
     | Instruction_seq i, env, psi, SA =>
       eval0_seq_precond env i psi SA
-    | FAILWITH, _, _, _ => false
+    | FAILWITH _, _, _, _ => false
 
     | @IF_ _ _ _ tffa tffb _ _ _ IF_bool bt bf, env, psi, (x, SA) =>
       match tffa, tffb with
@@ -1839,11 +1843,11 @@ Module Semantics(C : ContractContext).
     | LOOP_ _ _, _, _, _ => false
     | EXEC, _, _, _ => false
     | PUSH a x, env, psi, SA => psi (concrete_data_to_data _ x, SA)
-    | LAMBDA a b code, env, psi, SA => psi (existT _ _ code, SA)
+    | LAMBDA a b code, env, psi, SA => psi (build_lam _ _ _ code, SA)
     | ITER _, env, psi, (x, SA) => false
     | MAP _, env, psi, (x, SA) => false
-    | CREATE_CONTRACT g p an f, env, psi, (a, (b, (c, SA))) =>
-      let (oper, addr) := create_contract env g p an _ a b f c in
+    | CREATE_CONTRACT g p an Hp Hg f, env, psi, (a, (b, (c, SA))) =>
+      let (oper, addr) := create_contract env g p an _ Hp Hg a b f c in
       psi (oper, (addr, SA))
     | SELF ao H, env, psi, SA => psi (self env ao H, SA)
     | DIP n Hlen i, env, psi, SA =>
@@ -1875,10 +1879,10 @@ Module Semantics(C : ContractContext).
     | ITER _
     | MAP _ => false
 
-    | FAILWITH
+    | FAILWITH _
     | PUSH _ _
     | LAMBDA _ _ _
-    | CREATE_CONTRACT _ _ _ _
+    | CREATE_CONTRACT _ _ _ _ _ _
     | SELF _ _
     | Instruction_opcode _ => true
 
@@ -1904,10 +1908,10 @@ Module Semantics(C : ContractContext).
     | ITER _
     | MAP _ => None
 
-    | FAILWITH
+    | FAILWITH _
     | PUSH _ _
     | LAMBDA _ _ _
-    | CREATE_CONTRACT _ _ _ _
+    | CREATE_CONTRACT _ _ _ _ _ _
     | SELF _ _
     | Instruction_opcode _ => Some 1
 

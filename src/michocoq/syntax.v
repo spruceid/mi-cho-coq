@@ -399,6 +399,7 @@ Inductive opcode {self_type : self_info} : forall (A B : Datatypes.list type), S
 | EMPTY_MAP (key : comparable_type) (val : type) {S} :
     opcode S (map key val :: S)
 | EMPTY_BIG_MAP (key : comparable_type) (val : type) {S} :
+    error.Is_true (is_big_map_value val) ->
     opcode S (big_map key val :: S)
 | GET {key collection} {i : get_struct key collection} {S} :
     opcode (key ::: collection ::: S) (option (get_val_type _ _ i) :: S)
@@ -409,20 +410,24 @@ Inductive opcode {self_type : self_info} : forall (A B : Datatypes.list type), S
 | CONS {a S} : opcode (a ::: list a ::: S) (list a :: S)
 | NIL (a : type) {S} : opcode S (list a :: S)
 | TRANSFER_TOKENS {p S} :
+    error.Is_true (is_passable p) ->
     opcode (p ::: mutez ::: contract p ::: S) (operation ::: S)
 | SET_DELEGATE {S} :
     opcode (option key_hash ::: S) (operation ::: S)
 | BALANCE {S} : opcode S (mutez ::: S)
 | ADDRESS {p S} : opcode (contract p ::: S) (address ::: S)
 | CONTRACT {S} (annot_opt : Datatypes.option annotation) p :
+    error.Is_true (is_passable p) ->
     opcode (address ::: S) (option (contract p) ::: S)
 | SOURCE {S} : opcode S (address ::: S)
 | SENDER {S} : opcode S (address ::: S)
 | AMOUNT {S} : opcode S (mutez ::: S)
 | IMPLICIT_ACCOUNT {S} : opcode (key_hash ::: S) (contract unit :: S)
 | NOW {S} : opcode S (timestamp ::: S)
-| PACK {a S} : opcode (a ::: S) (bytes ::: S)
-| UNPACK a {S} : opcode (bytes ::: S) (option a ::: S)
+| PACK {a S} :
+    error.Is_true (is_packable a) -> opcode (a ::: S) (bytes ::: S)
+| UNPACK a {S} :
+    error.Is_true (is_packable a) -> opcode (bytes ::: S) (option a ::: S)
 | HASH_KEY {S} : opcode (key ::: S) (key_hash ::: S)
 | BLAKE2B {S} : opcode (bytes ::: S) (bytes ::: S)
 | SHA256 {S} : opcode (bytes ::: S) (bytes ::: S)
@@ -455,7 +460,9 @@ Inductive instruction :
 | Instruction_seq {self_type tff A B} :
     instruction_seq self_type tff A B ->
     instruction self_type tff A B
-| FAILWITH {self_type A B a} : instruction self_type Datatypes.true (a ::: A) B
+| FAILWITH {self_type A B a} :
+    error.Is_true (is_packable a) ->
+    instruction self_type Datatypes.true (a ::: A) B
 | IF_ {self_type A B tffa tffb C1 C2 t} (i : if_family C1 C2 t) :
     instruction_seq self_type tffa (C1 ++ A) B -> instruction_seq self_type tffb (C2 ++ A) B ->
     instruction self_type (tffa && tffb) (t ::: A) B
@@ -473,6 +480,8 @@ Inductive instruction :
     instruction_seq self_type Datatypes.false (map_in_type _ _ i :: A) (b :: A) ->
     instruction self_type Datatypes.false (collection :: A) (map_out_collection_type _ _ i :: A)
 | CREATE_CONTRACT {self_type S tff} (g p : type) (an : annot_o) :
+    error.Is_true (is_passable p) ->
+    error.Is_true (is_storable g) ->
     instruction_seq (Some (p, an)) tff (pair p g :: nil) (pair (list operation) g :: nil) ->
     instruction self_type Datatypes.false
                 (option key_hash ::: mutez ::: g ::: S)
@@ -520,7 +529,7 @@ Fixpoint tail_fail_induction self_type A B
          (i : instruction self_type true A B)
          (P : forall self_type A B, instruction self_type true A B -> Type)
          (Q : forall self_type A B, instruction_seq self_type true A B -> Type)
-         (HFAILWITH : forall st a A B, P st (a ::: A) B FAILWITH)
+         (HFAILWITH : forall st a Ha A B, P st (a ::: A) B (FAILWITH Ha))
          (HIF : forall st A B C1 C2 t (f : if_family C1 C2 t) i1 i2,
              Q st (C1 ++ A)%list B i1 ->
              Q st (C2 ++ A)%list B i2 ->
@@ -537,7 +546,7 @@ Fixpoint tail_fail_induction self_type A B
   in
   match i as i0 in instruction st b A B return P' st b A B i0
   with
-  | FAILWITH => HFAILWITH _ _ _ _
+  | FAILWITH _ => HFAILWITH _ _ _ _ _
   | @IF_ _ A B tffa tffb _ _ _ f i1 i2 =>
     (if tffa as tffa return
         forall i1, P' _ (tffa && tffb)%bool _ _ (IF_ f i1 i2)
@@ -563,7 +572,7 @@ with tail_fail_induction_seq self_type A B
                              (i : instruction_seq self_type true A B)
                              (P : forall self_type A B, instruction self_type true A B -> Type)
                              (Q : forall self_type A B, instruction_seq self_type true A B -> Type)
-                             (HFAILWITH : forall st a A B, P st (a ::: A) B FAILWITH)
+                             (HFAILWITH : forall st a Ha A B, P st (a ::: A) B (FAILWITH Ha))
                              (HIF : forall st A B C1 C2 t (f : if_family C1 C2 t) i1 i2,
                                  Q st (C1 ++ A)%list B i1 ->
                                  Q st (C2 ++ A)%list B i2 ->
@@ -597,7 +606,7 @@ with tail_fail_induction_seq self_type A B
 Corollary tail_fail_induction_and_seq
          (P : forall self_type A B, instruction self_type true A B -> Type)
          (Q : forall self_type A B, instruction_seq self_type true A B -> Type)
-         (HFAILWITH : forall st a A B, P st (a ::: A) B FAILWITH)
+         (HFAILWITH : forall st a Ha A B, P st (a ::: A) B (FAILWITH Ha))
          (HIF : forall st A B C1 C2 t (f : if_family C1 C2 t) i1 i2,
              Q st (C1 ++ A)%list B i1 ->
              Q st (C2 ++ A)%list B i2 ->
@@ -619,8 +628,8 @@ Definition tail_fail_change_range {self_type} A B B' (i : instruction self_type 
 Proof.
   apply (tail_fail_induction self_type A B i (fun self_type A B i => instruction self_type true A B')
                              (fun self_type A B i => instruction_seq self_type true A B')); clear A B i.
-  - intros st a A _.
-    apply FAILWITH.
+  - intros st a Ha A _.
+    apply FAILWITH; assumption.
   - intros st A B C1 C2 t f _ _ i1 i2.
     apply (IF_ f i1 i2).
   - intros st A B C i1 _ i2.
@@ -655,8 +664,12 @@ Record contract_file : Set :=
   Mk_contract_file
     {
       contract_file_parameter : type;
+      contract_file_parameter_passable :
+        error.Is_true (is_passable contract_file_parameter);
       contract_file_annotation : annot_o;
       contract_file_storage : type;
+      contract_file_storage_storable :
+        error.Is_true (is_storable contract_file_storage);
       contract_tff : Datatypes.bool;
       contract_file_code :
         full_contract

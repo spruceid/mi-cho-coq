@@ -92,7 +92,7 @@ Definition vesting_tez_spec
     new_storage =
       ((target, delegateAdmin),
       ((to_flush + vested)%N, (epoch, (secondsPerTick, tokensPerTick)))) /\
-    exists target_contract, contract_ None unit target = Some target_contract /\
+    exists target_contract, contract_ None unit I target = Some target_contract /\
     let tokens_to_flush := (to_flush * tokensPerTick)%N in
     exists pf,
     let tez_to_flush :=
@@ -100,7 +100,7 @@ Definition vesting_tez_spec
         (Z.of_N tokens_to_flush)
         pf in
     returned_operations =
-      (transfer_tokens env unit tt tez_to_flush target_contract :: nil)%list
+      (transfer_tokens env unit I tt tez_to_flush target_contract :: nil)%list
   end.
 
 Definition vesting_tez_spec_helper
@@ -131,7 +131,7 @@ Definition vesting_tez_spec_helper
     let expected_new_storage : data storage_ty :=
       ((target, delegateAdmin),
       ((to_flush + vested)%N, (epoch, (secondsPerTick, tokensPerTick)))) in
-    exists target_contract, contract_ None unit target = Some target_contract /\
+    exists target_contract, contract_ None unit I target = Some target_contract /\
     secondsPerTick <> N0 /\
     is_true (comparison_to_int (
         to_flush ?= Z.to_N ((now env - epoch) / Z.of_N secondsPerTick - Z.of_N vested)
@@ -142,7 +142,7 @@ Definition vesting_tez_spec_helper
     let tez_to_flush := extract m_tez_to_flush m_tez_to_flush_ok in
     new_storage = expected_new_storage /\
     returned_operations =
-      (transfer_tokens env unit tt tez_to_flush target_contract :: nil)%list
+      (transfer_tokens env unit I tt tez_to_flush target_contract :: nil)%list
   end.
 
 Lemma shim_simplify_flush_vested_ineqs (vested : data nat)
@@ -274,7 +274,7 @@ Proof.
   do 2 refine (iff_trans _ (and_assoc _ _ _)).
   refine (iff_trans _ (iff_sym ex_and_comm)).
   refine (forall_ex _).
-  intros ((target_address & target_o) & target_type_eq).
+  intros [target_address target_o target_type_eq].
   refine (iff_trans _ (and_comm _ _)).
   refine (iff_trans _ (iff_sym (and_assoc _ _ _))).
   refine (and_both _).

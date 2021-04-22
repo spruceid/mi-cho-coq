@@ -468,7 +468,12 @@ Qed.
     | EMPTY_MAP kty vty, A =>
       Return (existT _ _ (syntax.EMPTY_MAP kty vty))
     | EMPTY_BIG_MAP kty vty, A =>
-      Return (existT _ _ (syntax.EMPTY_BIG_MAP kty vty))
+      let! H :=
+         error.assume
+           (is_big_map_value vty)
+           (Typing _ "EMPTY_BIG_MAP"%string)
+      in
+      Return (existT _ _ (syntax.EMPTY_BIG_MAP kty vty H))
     | GET, kty' :: map kty vty :: B =>
       let A := kty' :: map kty vty :: B in
       let A' := kty ::: map kty vty :: B in
@@ -494,7 +499,12 @@ Qed.
     | TRANSFER_TOKENS, p1 :: Comparable_type mutez :: contract p2 :: B =>
       let A := p1 ::: mutez ::: contract p2 ::: B in
       let A' := p1 ::: mutez ::: contract p1 ::: B in
-      let! o := opcode_cast_domain self_type A' A _ syntax.TRANSFER_TOKENS in
+      let! H :=
+         error.assume
+           (is_passable p1)
+           (Typing _ "TRANSFER_TOKENS"%string)
+      in
+      let! o := opcode_cast_domain self_type A' A _ (syntax.TRANSFER_TOKENS H) in
       Return (existT _ _ o)
     | SET_DELEGATE, option (Comparable_type key_hash) :: A =>
       Return (existT _ _ syntax.SET_DELEGATE)
@@ -503,7 +513,12 @@ Qed.
     | ADDRESS, contract _ :: A =>
       Return (existT _ _ syntax.ADDRESS)
     | CONTRACT an ty, Comparable_type address :: A =>
-      Return (existT _ _ (syntax.CONTRACT an ty))
+      let! H :=
+         error.assume
+           (is_passable ty)
+           (Typing _ "CONTRACT"%string)
+      in
+      Return (existT _ _ (syntax.CONTRACT an ty H))
     | SOURCE, A =>
       Return (existT _ _ syntax.SOURCE)
     | SENDER, A =>
@@ -515,9 +530,19 @@ Qed.
     | NOW, A =>
       Return (existT _ _ syntax.NOW)
     | PACK, a :: A =>
-      Return (existT _ _ syntax.PACK)
+      let! H :=
+         error.assume
+           (is_packable a)
+           (Typing _ "PACK"%string)
+      in
+      Return (existT _ _ (syntax.PACK H))
     | UNPACK ty, Comparable_type bytes :: A =>
-      Return (existT _ _ (syntax.UNPACK ty))
+      let! H :=
+         error.assume
+           (is_packable ty)
+           (Typing _ "UNPACK"%string)
+      in
+      Return (existT _ _ (syntax.UNPACK ty H))
     | HASH_KEY, key :: A =>
       Return (existT _ _ syntax.HASH_KEY)
     | BLAKE2B, Comparable_type bytes :: A =>
@@ -813,7 +838,13 @@ Qed.
       | Any_type_seq _ i => Return (Any_type _ (fun B => syntax.Instruction_seq (i B)))
       | Inferred_type_seq _ _ i => Return (Inferred_type _ _ (syntax.Instruction_seq i))
       end
-    | FAILWITH, a :: A => Return (Any_type _ (fun B => syntax.FAILWITH))
+    | FAILWITH, a :: A =>
+      let! H :=
+         error.assume
+           (is_packable a)
+           (Typing _ "FAILWITH"%string)
+      in
+      Return (Any_type _ (fun B => syntax.FAILWITH H))
     | IF_ f i1 i2, t :: A =>
       type_branches f t (type_instruction_seq tm) i1 i2 A
     | LOOP_ f i, t :: A =>
@@ -857,13 +888,30 @@ Qed.
       end
     | CREATE_CONTRACT g p an i,
       option (Comparable_type key_hash) :: Comparable_type mutez :: g2 :: B =>
+
+      let! Hp :=
+         error.assume
+           (is_passable p)
+           (Typing
+              _
+              "CREATE_CONTACT: parameter type is not passable"%string)
+      in
+
+      let! Hg :=
+         error.assume
+           (is_storable g)
+           (Typing
+              _
+              "CREATE_CONTACT: storage type is not storable"%string)
+      in
+
       let A :=
           option key_hash ::: mutez ::: g2 :: B in
       let A' :=
           option key_hash ::: mutez ::: g ::: B in
       let! existT _ tff i :=
         type_check_instruction_seq (self_type := (Some (p, an))) (type_instruction_seq tm) i (pair p g :: nil) (pair (list operation) g :: nil) in
-      let! i := instruction_cast_domain A' A _ (syntax.CREATE_CONTRACT g p an i) in
+      let! i := instruction_cast_domain A' A _ (syntax.CREATE_CONTRACT g p an Hp Hg i) in
       Return (Inferred_type _ _ i)
     | SELF an, A =>
       match self_type with

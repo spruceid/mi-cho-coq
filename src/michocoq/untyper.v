@@ -51,7 +51,7 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
     | syntax.MEM => MEM
     | syntax.UPDATE => UPDATE
     | syntax.EMPTY_MAP kty vty => EMPTY_MAP kty vty
-    | syntax.EMPTY_BIG_MAP kty vty => EMPTY_BIG_MAP kty vty
+    | syntax.EMPTY_BIG_MAP kty vty _ => EMPTY_BIG_MAP kty vty
     | syntax.GET => GET
     | syntax.SOME => SOME
     | syntax.NONE a => NONE a
@@ -59,18 +59,18 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
     | syntax.RIGHT a => RIGHT a
     | syntax.CONS => CONS
     | syntax.NIL a => NIL a
-    | syntax.TRANSFER_TOKENS => TRANSFER_TOKENS
+    | syntax.TRANSFER_TOKENS _ => TRANSFER_TOKENS
     | syntax.SET_DELEGATE => SET_DELEGATE
     | syntax.BALANCE => BALANCE
     | syntax.ADDRESS => ADDRESS
-    | syntax.CONTRACT an a => CONTRACT an a
+    | syntax.CONTRACT an a _ => CONTRACT an a
     | syntax.SOURCE => SOURCE
     | syntax.SENDER => SENDER
     | syntax.AMOUNT => AMOUNT
     | syntax.IMPLICIT_ACCOUNT => IMPLICIT_ACCOUNT
     | syntax.NOW => NOW
-    | syntax.PACK => PACK
-    | syntax.UNPACK a => UNPACK a
+    | syntax.PACK _ => PACK
+    | syntax.UNPACK a _ => UNPACK a
     | syntax.HASH_KEY => HASH_KEY
     | syntax.BLAKE2B => BLAKE2B
     | syntax.SHA256 => SHA256
@@ -185,7 +185,7 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
     match i with
     | syntax.Instruction_seq i =>
       Instruction_seq (untype_instruction_seq um i)
-    | syntax.FAILWITH => FAILWITH
+    | syntax.FAILWITH _ => FAILWITH
     | syntax.IF_ f i1 i2 => IF_ (untype_if_family f) (untype_instruction_seq um i1) (untype_instruction_seq um i2)
     | syntax.LOOP_ f i => LOOP_ (untype_loop_family f) (untype_instruction_seq um i)
     | syntax.DIP n _ i => DIP n (untype_instruction_seq um i)
@@ -194,7 +194,7 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
     | syntax.LAMBDA a b i => LAMBDA a b (untype_instruction_seq um i)
     | syntax.ITER i => ITER (untype_instruction_seq um i)
     | syntax.MAP i => MAP (untype_instruction_seq um i)
-    | syntax.CREATE_CONTRACT g p an i => CREATE_CONTRACT g p an (untype_instruction_seq um i)
+    | syntax.CREATE_CONTRACT g p an _ _ i => CREATE_CONTRACT g p an (untype_instruction_seq um i)
     | syntax.SELF an _ => SELF an
     | syntax.Instruction_opcode o => instruction_opcode (untype_opcode o)
     end
@@ -253,8 +253,8 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
   Proof.
     apply (tail_fail_induction_seq self_type A B i (fun self_type A B i => syntax.instruction self_type true A B')
                                    (fun self_type A B i => syntax.instruction_seq self_type true A B')); clear A B i.
-    - intros st a A _.
-      apply syntax.FAILWITH.
+    - intros st a H A _.
+      apply syntax.FAILWITH; assumption.
     - intros st A B C1 C2 t f _ _ i1 i2.
       apply (syntax.IF_ f i1 i2).
     - intros st A B C i1 _ i2.
@@ -442,7 +442,8 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
       try (destruct s as [c v]; destruct v; reflexivity);
       try (destruct i as [v]; destruct v; reflexivity);
       try (destruct i as [v]; destruct v; rewrite opcode_cast_domain_same; reflexivity);
-      try (rewrite opcode_cast_domain_same; reflexivity).
+      try (rewrite opcode_cast_domain_same; reflexivity);
+      try (erewrite (error.assume_ok _ _ _); reflexivity).
     - erewrite (assume_ok _ _ _); simpl.
       rewrite opcode_cast_domain_same.
       reflexivity.
@@ -456,6 +457,9 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
           simpl.
           reflexivity.
     - destruct i as [x v]; destruct v; rewrite opcode_cast_domain_same; reflexivity.
+    - erewrite (assume_ok _ _ _); simpl.
+      rewrite opcode_cast_domain_same.
+      reflexivity.
     - unfold type_check_dig.
       simpl.
       rewrite (take_n_length n S1 (t ::: S2) e).
@@ -744,6 +748,10 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
         destruct tff; reflexivity.
       + unfold untype_type_spec.
         simpl.
+        erewrite error.assume_ok.
+        reflexivity.
+      + unfold untype_type_spec.
+        simpl.
         unfold type_branches.
         assert (type_if_family (untype_if_family i) t = Return (existT _ C1 (existT _ C2 i))) as Hi.
         * destruct i; reflexivity.
@@ -793,6 +801,8 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
       + unfold untype_type_spec; simpl.
         rewrite untype_type_check_instruction_seq.
         -- simpl.
+           erewrite (error.assume_ok _ _ _); simpl.
+           erewrite (error.assume_ok _ _ _); simpl.
            rewrite instruction_cast_domain_same.
            reflexivity.
         -- auto.

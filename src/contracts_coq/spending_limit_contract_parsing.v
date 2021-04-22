@@ -34,8 +34,10 @@ Definition dsl_contract_file :=
 
 Definition slc_contract_file : syntax.contract_file :=
   syntax.Mk_contract_file spending_limit_contract_definition.parameter_ty
+                          I
                           None
                           spending_limit_contract_definition.storage_ty
+                          I
                           Datatypes.false
                           spending_limit_contract_definition.dsl.
 

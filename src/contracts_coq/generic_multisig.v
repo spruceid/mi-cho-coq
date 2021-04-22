@@ -54,6 +54,12 @@ Module semantics := Semantics C. Import semantics.
 
 Definition ADD_nat {S} : instruction (Some (parameter_ty, None)) _ (nat ::: nat ::: S) (nat ::: S) := ADD.
 
+Definition action_ty :=
+  clear_ty (or
+     (lambda unit (list operation)) (Some annots.operation)
+     (pair nat (list key)) (Some annots.change_keys)).
+Definition pack_ty := pair (pair chain_id address) (pair nat action_ty).
+
 Definition multisig : full_contract _ parameter_ty None storage_ty :=
   {
     UNPAIR;
@@ -67,7 +73,7 @@ Definition multisig : full_contract _ parameter_ty None storage_ty :=
             DUP; SELF (self_type := parameter_ty) (self_annot := None) None I;
             ADDRESS; CHAIN_ID;
             PAIR; PAIR;
-            PACK;
+            PACK (a := pack_ty) I;
             DIP1 { UNPAIR; DIP1 { SWAP } }; SWAP
           };
 
@@ -89,7 +95,7 @@ Definition multisig : full_contract _ parameter_ty None storage_ty :=
                           {
                             SWAP; DIIP { DUUP };
                             DUUUP; DIP1 { CHECK_SIGNATURE };
-                            SWAP; IF_TRUE { DROP1 } { FAILWITH };
+                            SWAP; IF_TRUE { DROP1 } { FAILWITH (a := bytes) I };
                             PUSH nat (comparable_constant nat 1%N); ADD_nat }}
                       { SWAP; DROP1 }
                   }
@@ -134,12 +140,6 @@ Fixpoint count_signatures (sigs : Datatypes.list (Datatypes.option (data signatu
   | cons (Some _) sigs => (count_signatures sigs + 1)%N
   end.
 
-Definition action_ty :=
-  clear_ty (or
-     (lambda unit (list operation)) (Some annots.operation)
-     (pair nat (list key)) (Some annots.change_keys)).
-Definition pack_ty := pair (pair chain_id address) (pair nat action_ty).
-
 Definition multisig_spec
            (env : @proto_env (Some (parameter_ty, None)))
            (parameter : data parameter_ty)
@@ -167,8 +167,8 @@ Definition multisig_spec
       (fun k sig =>
          check_signature
            env k sig
-           (pack env pack_ty (chain_id_ env, address_ unit (self env None I),
-                              (counter, action)))) /\
+           (pack env pack_ty I (chain_id_ env, address_ unit (self env None I),
+                               (counter, action)))) /\
     (count_signatures sigs >= threshold)%N /\
     new_stored_counter = (1 + stored_counter)%N /\
     match action with
@@ -199,7 +199,7 @@ Definition multisig_head :
           DUP; SELF (self_type := parameter_ty) (self_annot := None) None I ;
           ADDRESS; CHAIN_ID;
           PAIR; PAIR;
-          PACK;
+          PACK (a := pack_ty) I;
           DIP1 { UNPAIR; DIP1 { SWAP }}; SWAP
         };
 
@@ -226,7 +226,7 @@ Definition multisig_head_spec
   psi (threshold,
        (keys,
         (sigs,
-         (pack env pack_ty
+         (pack env pack_ty I
                (chain_id_ env, address_ unit (self (self_ty := Some (parameter_ty, None)) env None I), (counter, action)),
           (action, (storage, tt)))))).
 
@@ -277,7 +277,7 @@ Definition multisig_iter_body :
                   {
                     SWAP; DIIP { DUUP };
                     DUUUP; DIP1 { CHECK_SIGNATURE };
-                    SWAP; IF_TRUE { DROP1 } { FAILWITH };
+                    SWAP; IF_TRUE { DROP1 } { FAILWITH (a := bytes) I };
                     PUSH nat (comparable_constant nat 1%N); ADD_nat }}
               { SWAP; DROP1 }
           }

@@ -45,9 +45,9 @@ Definition deposit : full_contract _ parameter_ty None storage_ty :=
       { DROP1; (NIL operation) }
       { DIP1 { DUP; DUP;
                SENDER; COMPARE;
-               EQ; IF_TRUE {} { FAILWITH };
-               (CONTRACT None unit); IF_NONE { FAILWITH } {} };
-        PUSH unit Unit; TRANSFER_TOKENS;
+               EQ; IF_TRUE {} { FAILWITH (a := address) I };
+               (CONTRACT None unit I); IF_NONE { FAILWITH (a := address) I } {} };
+        PUSH unit Unit; TRANSFER_TOKENS (p := unit) I;
         (NIL operation); SWAP; CONS };
     PAIR }.
 
@@ -64,8 +64,8 @@ Lemma deposit_correct :
    | inl tt => ops = nil
    | inr am => (storage_in = sender env /\
                 exists c : data (contract unit),
-                  contract_ None unit storage_in = Some c /\
-                  ops = cons (transfer_tokens env unit tt am c) nil)
+                  contract_ None unit I storage_in = Some c /\
+                  ops = cons (transfer_tokens env unit I tt am c) nil)
    end).
 Proof.
   intros env input storage_in ops storage_out fuel Hfuel.

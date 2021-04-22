@@ -69,7 +69,7 @@ Definition multisig : full_contract false parameter_ty None storage_ty :=
         CHAIN_ID;
         PAIR;
         PAIR;
-        PACK;
+        PACK (a := pack_ty) I;
         DIP1 { UNPAIR; DIP1 { SWAP }};
         SWAP
       };
@@ -111,7 +111,7 @@ Definition multisig : full_contract false parameter_ty None storage_ty :=
 
     NIL operation; SWAP;
     IF_LEFT
-      { UNPAIR; UNIT; TRANSFER_TOKENS;
+      { UNPAIR; UNIT; TRANSFER_TOKENS (p := unit) I;
         CONS }
       { IF_LEFT { SET_DELEGATE; CONS }
                 { DIP1 { SWAP; CAR };
@@ -163,7 +163,7 @@ Definition multisig_spec
       (fun k sig =>
          check_signature
            env k sig
-           (pack env pack_ty ((chain_id_ env, address_ parameter_ty (self env None I)),
+           (pack env pack_ty I ((chain_id_ env, address_ parameter_ty (self env None I)),
                              (counter, action)))) /\
     (count_signatures first_sigs >= threshold)%N /\
     new_stored_counter = (1 + stored_counter)%N /\
@@ -171,7 +171,7 @@ Definition multisig_spec
     | inl (amout, contr) =>
       new_threshold = threshold /\
       new_keys = keys /\
-      returned_operations = (transfer_tokens env unit tt amout contr :: nil)%list
+      returned_operations = (transfer_tokens env unit I tt amout contr :: nil)%list
     | inr (inl kh) =>
       new_threshold = threshold /\
       new_keys = keys /\
@@ -196,7 +196,7 @@ Definition multisig_head :
         DUP; SELF (self_type := parameter_ty) (self_annot := None) None I;
         ADDRESS; CHAIN_ID;
         PAIR; PAIR;
-        PACK;
+        PACK (a := pack_ty) I;
         DIP1 { UNPAIR; DIP1 { SWAP } };
         SWAP
       };
@@ -223,7 +223,7 @@ Definition multisig_head_spec
   psi (threshold,
         (keys,
          (sigs,
-          (pack env pack_ty
+          (pack env pack_ty I
                 ((chain_id_ env, address_ parameter_ty (self env None I)), (counter, action)),
            (action, (storage, tt)))))).
 
@@ -425,7 +425,7 @@ Definition multisig_tail :
 
     NIL operation; SWAP;
     IF_LEFT
-      { UNPAIR; UNIT; TRANSFER_TOKENS;
+      { UNPAIR; UNIT; TRANSFER_TOKENS (p := unit) I;
         CONS }
       { IF_LEFT { SET_DELEGATE; CONS }
                 { DIP1 { SWAP; CAR };
@@ -450,7 +450,7 @@ Lemma multisig_tail_correct
     ((threshold <= n)%N /\
      match action with
      | inl (amout, contr) =>
-       psi (((transfer_tokens env unit tt amout contr :: nil)%list, ((1 + counter)%N, (threshold, keys))), tt)
+       psi (((transfer_tokens env unit I tt amout contr :: nil)%list, ((1 + counter)%N, (threshold, keys))), tt)
     | inr (inl kh) =>
       psi (((set_delegate env kh :: nil)%list, ((1 + counter)%N, (threshold, keys))), tt)
     | inr (inr (nt, nks)) =>

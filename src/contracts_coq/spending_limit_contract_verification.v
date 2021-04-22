@@ -100,13 +100,13 @@ Definition slc_ep_transfer2_transaction_iter_body_spec {A} env :
   fun psi '(transferred_amount, destination) '(oplist, (threshold, st)) =>
     exists new_threshold,
     add _ _ _ Add_variant_tez_tez threshold transferred_amount = Return new_threshold /\
-    psi ((transfer_tokens (self_ty := Some (parameter_ty, None)) env unit tt transferred_amount destination) :: oplist,
+    psi ((transfer_tokens (self_ty := Some (parameter_ty, None)) env unit I tt transferred_amount destination) :: oplist,
          (new_threshold, st)).
 
 Lemma slc_ep_transfer2_transaction_iter_body_spec_precond_ex A env psi transferred_amount destination oplist threshold st :
   slc_ep_transfer2_transaction_iter_body_spec (A := A) env psi (transferred_amount, destination) (oplist, (threshold, st)) =
   precond_ex (add _ _ _ Add_variant_tez_tez threshold transferred_amount)
-             (fun new_threshold => psi ((transfer_tokens (self_ty := Some (parameter_ty, None)) env unit tt transferred_amount destination) :: oplist,
+             (fun new_threshold => psi ((transfer_tokens (self_ty := Some (parameter_ty, None)) env unit I tt transferred_amount destination) :: oplist,
                                         (new_threshold, st))).
 Proof.
   reflexivity.
@@ -160,7 +160,7 @@ Lemma slc_ep_transfer2_transaction_iter_correct
         (List.rev
            (List.map
               (fun '(transfered_amount, destination) =>
-                 transfer_tokens env unit tt transfered_amount destination) transaction_list) ++
+                 transfer_tokens env unit I tt transfered_amount destination) transaction_list) ++
            oplist,
          (final_threshold, st)).
 Proof.
@@ -814,9 +814,9 @@ Definition slc_ep_transfer1_check_signature_spec
   :=
   hash_key env slave_key = slave_key_hash /\
   check_signature env slave_key slave_signature
-                  (pack env (pair (list (pair mutez (contract unit))) key_hash) (transactions, new_slave_key_hash)
-                        ++ pack env sig_header_ty (self env None I, (chain_id_ env))
-                        ++ pack env nat slave_salt)%string = true /\
+                  (pack env (pair (list (pair mutez (contract unit))) key_hash) I (transactions, new_slave_key_hash)
+                        ++ pack env sig_header_ty I (self env None I, (chain_id_ env))
+                        ++ pack env nat I slave_salt)%string = true /\
   (exists (threshold_gc : data mutez) ,
       let (q1', q2') := update_queue queue_left queue_right (now env) in
       allowed_amount (queue_left ++ List.rev queue_right) threshold (now env) threshold_gc /\
@@ -944,9 +944,9 @@ Definition slc_spec (env : @proto_env (Some (parameter_ty, None))) (fuel : Datat
     hash_key env master_key = master_key_hash /\
     (* Pre-condition 2: the signature is valid *)
     check_signature env master_key master_signature
-                    (pack env payload_ty payload
-                          ++ pack env sig_header_ty (self env None I, (chain_id_ env))
-                          ++ pack env nat master_salt) = true /\
+                    (pack env payload_ty I payload
+                          ++ pack env sig_header_ty I (self env None I, (chain_id_ env))
+                          ++ pack env nat I master_salt) = true /\
     match payload with
     | inl (new_storage_context, new_master_key_hash) =>
       (* Install new storage *)
@@ -961,9 +961,9 @@ Definition slc_spec (env : @proto_env (Some (parameter_ty, None))) (fuel : Datat
   | inr (inr ((transactions, new_slave_key_hash), (slave_key, slave_signature))) =>
     hash_key env slave_key = slave_key_hash /\
     check_signature env slave_key slave_signature
-                    (pack env (pair (list (pair mutez (contract unit))) key_hash) (transactions, new_slave_key_hash)
-                          ++ pack env sig_header_ty (self env None I, (chain_id_ env))
-                          ++ pack env nat slave_salt) = true /\
+                    (pack env (pair (list (pair mutez (contract unit))) key_hash) I (transactions, new_slave_key_hash)
+                          ++ pack env sig_header_ty I (self env None I, (chain_id_ env))
+                          ++ pack env nat I slave_salt) = true /\
     (exists spent_amount threshold_gc new_threshold,
       (* sum(transactions) = amount *)
       total_amount_transaction_list transactions spent_amount /\
@@ -973,7 +973,7 @@ Definition slc_spec (env : @proto_env (Some (parameter_ty, None))) (fuel : Datat
       sub _ _ _ Sub_variant_tez_tez threshold_gc spent_amount = Return new_threshold /\
       let new_operations : data (list operation) :=
           List.rev (List.map
-                      (fun '(transfered_amount, destination) => transfer_tokens env unit tt transfered_amount destination)
+                      (fun '(transfered_amount, destination) => transfer_tokens env unit I tt transfered_amount destination)
                       transactions) in
       let new_queue :=
           (let (l1', l2') := update_queue queue_left queue_right (now env) in
