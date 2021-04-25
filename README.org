@@ -235,14 +235,6 @@ RESET_REGRESSION=true test=.
 - Play with code extraction
 - Define an extension of Michelson where loops are annotated with invariants
 - check OCaml implem against the documentation
-- turn the type of operations into a Coq inductive
-
-  To do this we need to implement the syntactic restriction over the
-  types allowed for the storage to break the mutual dependency between
-  this new inductive and the "semantics.data" function because the
-  Create_contract operation requires an argument of type data
-  storage_ty.
-
 - replace section variables by functors
 
 - Put notations in their own notation scope
