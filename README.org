@@ -223,6 +223,13 @@ the =NEG= instruction:
       ...
 #+END_SRC
 
+* Regression tests
+
+Regressions of the type checker are tested using the .tz files under
+[[./src/contracts/testsuite][src/contracts/testsuite]]. To run the tests, call =make test=. To
+regenerate the regression traces (the .tz.expected files), call =make
+RESET_REGRESSION=true test=.
+
 * TODO
 
 - Play with code extraction

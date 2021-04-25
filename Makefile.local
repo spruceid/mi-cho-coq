@@ -1,5 +1,8 @@
 
-## Tests
+## Tests:
+
+## To run the regression test suite, call `make test`; to regenerate
+## regression traces, call `make RESET_REGRESSION=true test`
 
 MICHOCOQ=src/michocoq/extraction/michocoq.native
 
