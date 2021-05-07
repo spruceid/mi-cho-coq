@@ -75,3 +75,27 @@ Definition get_entrypoint_opt (e : annot_o) (a : entrypoint_tree) (an : annot_o)
     else get_entrypoint e a an
   end.
 
+Lemma get_entrypoint_root_inversion ep a an ep_ty :
+  get_entrypoint_root ep a an = Some ep_ty ->
+  (an = Some ep /\ entrypoint_tree_to_type a = ep_ty).
+Proof.
+  unfold get_entrypoint_root.
+  destruct an as [an|]; [|discriminate].
+  simpl.
+  case_eq (String.eqb ep an).
+  - intro H.
+    apply String.eqb_eq in H.
+    intuition congruence.
+  - discriminate.
+Defined.
+
+Lemma opt_merge_none {A : Set} (a : Datatypes.option A) : opt_merge a None = a.
+Proof.
+  destruct a; reflexivity.
+Defined.
+
+Lemma opt_merge_is_some {A : Set} (a b : Datatypes.option A) c :
+  opt_merge a b = Some c -> (sum (a = Some c) ((a = None) * (b = Some c))).
+Proof.
+  destruct a as [a|]; destruct b as [b|]; simpl; intuition congruence.
+Defined.

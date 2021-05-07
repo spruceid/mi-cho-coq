@@ -2179,4 +2179,105 @@ Module Semantics(C : ContractContext).
     - contradiction.
   Qed.
 
+  (* Calling an entrypoint. *)
+
+  Definition build_param_from_ep
+             (param_ty : entrypoints.entrypoint_tree)
+             (an : annot_o)
+             (ep : annotation)
+             (ep_ty : type)
+             (H : entrypoints.get_entrypoint ep param_ty an = Some ep_ty)
+             (arg : data ep_ty) :
+    data (entrypoints.entrypoint_tree_to_type param_ty).
+  Proof.
+    generalize dependent an.
+    induction param_ty; intros an H; simpl in H;
+      try (rewrite entrypoints.opt_merge_none in H;
+           apply entrypoints.get_entrypoint_root_inversion in H;
+           destruct H; subst;
+           exact arg).
+    - apply entrypoints.opt_merge_is_some in H.
+      destruct H as [H|(H1, H2)].
+      + apply entrypoints.get_entrypoint_root_inversion in H.
+        destruct H; subst.
+        exact arg.
+      + apply entrypoints.opt_merge_is_some in H2.
+        destruct H2 as [H2|(Hl,Hr)].
+      * simpl.
+        apply inl.
+        eapply IHparam_ty1; eassumption.
+      * simpl.
+        apply inr.
+        eapply IHparam_ty2; eassumption.
+  Defined.
+
+  Definition build_param_from_default_ep
+             (param_ty : entrypoints.entrypoint_tree)
+             (an : annot_o)
+             (ep_ty : type)
+             (H : entrypoints.get_default_entrypoint param_ty an = Some ep_ty)
+             (arg : data ep_ty) :
+    data (entrypoints.entrypoint_tree_to_type param_ty).
+  Proof.
+    unfold entrypoints.get_default_entrypoint in H.
+    case_eq (entrypoints.get_entrypoint default_entrypoint.default param_ty an).
+    - intros ty Hty.
+      rewrite Hty in H.
+      simpl in H.
+      injection H.
+      intro; subst.
+      apply build_param_from_ep in Hty; assumption.
+    - intro Hty.
+      rewrite Hty in H.
+      simpl in H.
+      injection H; intro; subst; assumption.
+  Defined.
+
+  Definition build_param_from_ep_opt
+             (param_ty : entrypoints.entrypoint_tree)
+             (an : annot_o)
+             (ep : annot_o)
+             (ep_ty : type)
+             (H : entrypoints.get_entrypoint_opt ep param_ty an = Some ep_ty)
+             (arg : data ep_ty) :
+    data (entrypoints.entrypoint_tree_to_type param_ty).
+  Proof.
+    destruct ep as [ep|].
+    - simpl in H.
+      destruct (ep =? default_entrypoint.default)%string.
+      + apply build_param_from_default_ep in H; assumption.
+      + apply build_param_from_ep in H; assumption.
+    - simpl in H.
+      apply build_param_from_default_ep in H; assumption.
+  Defined.
+
+  Definition invoke
+             (f : contract_file)
+             (env : @proto_env
+                      (Some (f.(contract_file_parameter),
+                             f.(contract_file_annotation))))
+             (ep : annot_o)
+             (ep_ty : type)
+             (H : entrypoints.get_entrypoint_opt
+                    ep
+                    f.(contract_file_parameter)
+                    f.(contract_file_annotation) = Some ep_ty)
+             (arg : data ep_ty)
+             (storage : data (f.(contract_file_storage)))
+             (fuel : Datatypes.nat)
+    : M (data (pair (list operation) f.(contract_file_storage))) :=
+    let param :=
+        build_param_from_ep_opt
+          f.(contract_file_parameter)
+          f.(contract_file_annotation)
+          ep
+          ep_ty
+          H
+          arg
+    in
+    let! (result, tt) :=
+       eval_seq env f.(contract_file_code) fuel ((param, storage), tt)
+    in
+    Return result.
+
 End Semantics.
