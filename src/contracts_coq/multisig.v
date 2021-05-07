@@ -26,6 +26,7 @@ Import comparable.
 Require Import NArith.
 Require Import semantics.
 Require Import util.
+Require Import entrypoints.
 Import error.
 Require List.
 Require Import Lia.
@@ -42,7 +43,7 @@ Definition action_ty :=
               (or (option key_hash) (Some annots.delegate)
                   (pair nat (list key)) (Some annots.change_keys)) None).
 
-Definition parameter_ty := (pair
+Definition parameter_ty := ep_leaf (pair
              (pair
                 nat
                 action_ty)

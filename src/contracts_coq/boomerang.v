@@ -25,10 +25,11 @@ Import comparable.
 Require Import ZArith.
 Require Import semantics.
 Require Import util.
+Require Import entrypoints.
 Import error.
 Require List.
 
-Definition parameter_ty := unit.
+Definition parameter_ty := ep_leaf unit.
 Definition storage_ty := unit.
 
 Module boomerang(C:ContractContext).

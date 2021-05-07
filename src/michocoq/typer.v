@@ -2,7 +2,7 @@ Require Import ZArith List Nat Ascii String.
 Require Import ListString.All.
 Require Import Moment.All.
 Require syntax semantics.
-Require Import syntax_type comparable.
+Require Import syntax_type comparable entrypoints.
 Require Import untyped_syntax error.
 Import error.Notations.
 

@@ -25,11 +25,12 @@ Import comparable.
 Require Import NArith.
 Require Import semantics.
 Require Import util.
+Require Import entrypoints.
 Import error.
 Require List.
 
 
-Definition parameter_ty := (or unit None mutez None).
+Definition parameter_ty := (ep_node (ep_leaf unit) None (ep_leaf mutez) None).
 Definition storage_ty := address.
 
 Module deposit(C:ContractContext).

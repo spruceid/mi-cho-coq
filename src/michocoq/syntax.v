@@ -29,7 +29,7 @@ Require set map.
 Require Import comparable error.
 Require tez.
 Require Export syntax_type.
-Require entrypoints.
+Require Import entrypoints.
 
 (* source: http://doc.tzalpha.net/whitedoc/michelson.html#xii-full-grammar *)
 
@@ -304,7 +304,7 @@ Definition get_opt {A : Set} (m : Datatypes.option A) (H : isSome m) : A :=
   | None, H => match H with end
   end.
 
-Definition self_info := Datatypes.option (type * annot_o)%type.
+Definition self_info := Datatypes.option (entrypoint_tree * annot_o)%type.
 
 (* The self_type parameter is only here to ensure the so-called
    uniform inheritance condition allowing to use Instruction_opcode as
@@ -437,14 +437,14 @@ Inductive instruction :
 | MAP {self_type collection b} {i : map_struct collection b} {A} :
     instruction_seq self_type Datatypes.false (map_in_type _ _ i :: A) (b :: A) ->
     instruction self_type Datatypes.false (collection :: A) (map_out_collection_type _ _ i :: A)
-| CREATE_CONTRACT {self_type S tff} (g p : type) (an : annot_o) :
+| CREATE_CONTRACT {self_type S tff} (g : type) (p : entrypoint_tree) (an : annot_o) :
     error.Is_true (is_passable p) ->
     error.Is_true (is_storable g) ->
     instruction_seq (Some (p, an)) tff (pair p g :: nil) (pair (list operation) g :: nil) ->
     instruction self_type Datatypes.false
                 (option key_hash ::: mutez ::: g ::: S)
                 (operation ::: address ::: S)
-| SELF {self_type self_annot S} (annot_opt : annot_o) (H : isSome (entrypoints.get_entrypoint_opt annot_opt self_type self_annot)) :
+| SELF {self_type self_annot S} (annot_opt : annot_o) (H : isSome (get_entrypoint_opt annot_opt self_type self_annot)) :
     instruction (Some (self_type, self_annot)) Datatypes.false S (contract (get_opt _ H) :: S)
 | EXEC {self_type a b C} : instruction self_type Datatypes.false
                                        (a ::: lambda a b ::: C) (b :: C)
@@ -621,7 +621,7 @@ Definition full_contract tff param annot storage :=
 Record contract_file : Set :=
   Mk_contract_file
     {
-      contract_file_parameter : type;
+      contract_file_parameter : entrypoint_tree;
       contract_file_parameter_passable :
         error.Is_true (is_passable contract_file_parameter);
       contract_file_annotation : annot_o;

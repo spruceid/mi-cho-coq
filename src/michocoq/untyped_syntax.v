@@ -1,6 +1,7 @@
 Require syntax.
 Require Import ZArith String.
 Require Import syntax_type.
+Require Import entrypoints.
 
 Inductive opcode : Set :=
 | APPLY : opcode
@@ -81,7 +82,7 @@ Inductive instruction : Set :=
 | LAMBDA : type -> type -> instruction_seq -> instruction
 | ITER : instruction_seq -> instruction
 | MAP : instruction_seq -> instruction
-| CREATE_CONTRACT : type -> type -> annot_o -> instruction_seq -> instruction
+| CREATE_CONTRACT : type -> entrypoint_tree -> annot_o -> instruction_seq -> instruction
 | DIP : Datatypes.nat -> instruction_seq -> instruction
 | SELF : annot_o -> instruction
 | EXEC : instruction

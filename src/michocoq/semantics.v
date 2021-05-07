@@ -27,12 +27,12 @@ Require Import String.
 Require Import syntax macros.
 Require NPeano.
 
-Require Import comparable error.
+Require Import comparable error entrypoints.
 Import error.Notations.
 
 Module Type ContractContext.
   Parameter get_contract_type :
-    smart_contract_address_constant -> Datatypes.option type.
+    smart_contract_address_constant -> Datatypes.option entrypoint_tree.
 End ContractContext.
 
 
@@ -159,8 +159,8 @@ Proof.
 Qed.
 
 Inductive op (data : type -> Set) : Set :=
-| Origination
-    (param_ty storage_ty : type)
+| Origination (param_ty : entrypoint_tree)
+    (storage_ty : type)
     (_ : is_passable param_ty)
     (_ : is_storable storage_ty)
     (delegate : data (option key_hash))
@@ -293,13 +293,13 @@ Module Semantics(C : ContractContext).
   Definition get_address_type (sao : comparable_data address * annot_o)
     : Datatypes.option type :=
     let '(addr, ao) := sao in
-    entrypoints.opt_bind
+    opt_bind
       (match addr with
-        | Implicit _ => Some unit
+        | Implicit _ => Some (ep_leaf unit)
         | Originated addr => get_contract_type addr
        end)
       (fun ty =>
-         entrypoints.get_entrypoint_opt ao ty None).
+         get_entrypoint_opt ao ty None).
 
   Inductive data_lam a b : Set :=
     build_lam tff :
@@ -369,7 +369,7 @@ Module Semantics(C : ContractContext).
     intro; apply data_passable; apply storable_is_passable; assumption.
   Qed.
 
-  Definition create_contract_at_address g p annot tff
+  Definition create_contract_at_address g (p : entrypoint_tree) annot tff
              (Hp : is_passable p)
              (Hg : is_storable g)
              (delegate : Datatypes.option (comparable_data key_hash))
@@ -405,7 +405,7 @@ Module Semantics(C : ContractContext).
             | None => Datatypes.unit
             | Some (ty, self_annot) =>
               forall annot_opt H,
-                data (contract (get_opt (entrypoints.get_entrypoint_opt annot_opt ty self_annot) H))
+                data (contract (get_opt (get_entrypoint_opt annot_opt ty self_annot) H))
             end;
         amount : tez.mutez;
         now : comparable_data timestamp;
@@ -422,7 +422,7 @@ Module Semantics(C : ContractContext).
 
 
   Definition create_contract {self_ty : self_info} (env : @proto_env self_ty)
-             g p annot tff
+             g (p : entrypoint_tree) annot tff
              (Hp : is_passable p)
              (Hg : is_storable g)
              (delegate : Datatypes.option (comparable_data key_hash))

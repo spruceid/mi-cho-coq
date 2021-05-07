@@ -108,6 +108,21 @@ Fixpoint micheline2michelson_atype
 
 Definition micheline2michelson_type := micheline2michelson_atype false.
 
+Fixpoint micheline2michelson_ep (bem : loc_micheline)
+  : M entrypoints.entrypoint_tree :=
+  let 'Mk_loc_micheline ((b, e), m) := bem in
+  match m with
+  | PRIM (_, "or") _ (a :: b :: nil) =>
+    let! an := extract_one_field_annot a in
+    let! bn := extract_one_field_annot b in
+    let! a := micheline2michelson_ep a in
+    let! b := micheline2michelson_ep b in
+    Return (entrypoints.ep_node a an b bn)
+  | _ =>
+    let! a := micheline2michelson_type bem in
+    Return (entrypoints.ep_leaf a)
+  end.
+
 Fixpoint micheline2michelson_data (bem : loc_micheline) : M concrete_data :=
   let 'Mk_loc_micheline ((b, e), m) := bem in
   match m with
@@ -526,7 +541,7 @@ Fixpoint micheline2michelson_instruction (bem : loc_micheline) : M instruction_s
     let! an := extract_one_field_annot param in
     let! i := micheline2michelson_instruction i in
     let! sty := micheline2michelson_type storage_ty in
-    let! pty := micheline2michelson_type params_ty in
+    let! pty := micheline2michelson_ep params_ty in
     return_instruction (CREATE_CONTRACT sty pty an i)
   | PRIM (_, "CREATE_CONTRACT") _
                (Mk_loc_micheline
@@ -538,7 +553,7 @@ Fixpoint micheline2michelson_instruction (bem : loc_micheline) : M instruction_s
     let! an := extract_one_field_annot param in
     let! i := micheline2michelson_instruction i in
     let! sty := micheline2michelson_type storage_ty in
-    let! pty := micheline2michelson_type params_ty in
+    let! pty := micheline2michelson_ep params_ty in
     return_instruction (CREATE_CONTRACT sty pty an i)
   | PRIM (_, "EMPTY_SET") _ (cty :: nil) =>
     let! cty := micheline2michelson_ctype cty in
@@ -741,18 +756,18 @@ Fixpoint micheline2michelson_instruction (bem : loc_micheline) : M instruction_s
 Record untyped_michelson_file :=
   Mk_untyped_michelson_file
     { root_annotation : annot_o;
-      parameter : type;
+      parameter : entrypoints.entrypoint_tree;
       storage : type;
       code : instruction_seq }.
 
 Record untyped_michelson_file_opt :=
   Mk_untyped_michelson_file_opt
     { root_annot : annot_o;
-      parameter_opt : Datatypes.option type;
+      parameter_opt : Datatypes.option entrypoints.entrypoint_tree;
       storage_opt : Datatypes.option type;
       code_opt : Datatypes.option instruction_seq }.
 
-Definition read_parameter (ty : type) (root_annot : annot_o)
+Definition read_parameter (ty : entrypoints.entrypoint_tree) (root_annot : annot_o)
            (f : untyped_michelson_file_opt) :=
   match f.(parameter_opt) with
   | None => Return {| root_annot := root_annot;
@@ -794,7 +809,7 @@ Definition micheline2michelson_file (m : Datatypes.list loc_micheline) : M untyp
         match m with
         | PRIM (_, _, "parameter") _ (cons param nil) =>
           let! an := extract_one_field_annot lm in
-          let! ty := micheline2michelson_atype true param in
+          let! ty := micheline2michelson_ep param in
           read_parameter ty an a
         | PRIM (_, _, "storage") _ (cons storage nil) =>
           let! ty := micheline2michelson_type storage in

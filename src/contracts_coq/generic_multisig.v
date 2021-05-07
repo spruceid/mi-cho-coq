@@ -25,6 +25,7 @@ Import comparable.
 Require Import ZArith.
 Require Import semantics.
 Require Import util.
+Require Import entrypoints.
 Require Import Lia.
 Import error.
 Require List.
@@ -37,13 +38,15 @@ Module annots.
 End annots.
 
 Definition parameter_ty :=
-  (or unit (Some default_entrypoint.default)
-      (pair
+  (ep_node
+     (ep_leaf unit)
+     (Some default_entrypoint.default)
+      (ep_leaf (pair
          (pair nat
                (or
                   (lambda unit (list operation)) (Some annots.operation)
                   (pair nat (list key)) (Some annots.change_keys)))
-         (list (option signature)))
+         (list (option signature))))
   (Some annots.main)).
 
 Module generic_multisig(C:ContractContext).

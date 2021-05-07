@@ -21,6 +21,10 @@
 
 Require Import syntax_type.
 
+Inductive entrypoint_tree : Set :=
+| ep_leaf (a : type)
+| ep_node (a : entrypoint_tree) (_ : annot_o) (b : entrypoint_tree) (_ : annot_o).
+
 Definition opt_bind {A B : Set} (m : Datatypes.option A) (f : A -> Datatypes.option B) : Datatypes.option B :=
   match m with
   | Some a => f a
@@ -33,29 +37,36 @@ Definition opt_merge {A : Set} (m1 m2 : Datatypes.option A) : Datatypes.option A
   | None => m2
   end.
 
+Fixpoint entrypoint_tree_to_type (ep : entrypoint_tree) : type :=
+  match ep with
+  | ep_leaf a => a
+  | ep_node a an b bn => or (entrypoint_tree_to_type a) an (entrypoint_tree_to_type b) bn
+  end.
+
+Coercion entrypoint_tree_to_type : entrypoint_tree >-> type.
 
 (* Returns [Some a] if the root annotation [an] is exactly [Some e];
    returns [None] otherwise *)
-Definition get_entrypoint_root (e : annotation) (a : type) (an : annot_o) :
+Definition get_entrypoint_root (e : annotation) (a : entrypoint_tree) (an : annot_o) :
   Datatypes.option type :=
-  opt_bind an (fun e' => if String.eqb e e' then Some a else None).
+  opt_bind an (fun e' => if String.eqb e e' then Some (entrypoint_tree_to_type a) else None).
 
 (* Returns the first entrypoint to match e in the annotated type (a, an).
    The traversal is depth-first *)
-Fixpoint get_entrypoint (e : annotation) (a : type) (an : annot_o) : Datatypes.option type :=
+Fixpoint get_entrypoint (e : annotation) (a : entrypoint_tree) (an : annot_o) : Datatypes.option type :=
   opt_merge (get_entrypoint_root e a an)
             (match a with
-             | or a annot_a b annot_b =>
+             | ep_node a annot_a b annot_b =>
                opt_merge (get_entrypoint e a annot_a) (get_entrypoint e b annot_b)
              | _ => None
              end).
 
 (* Returns the type of the default entrypoint *)
-Definition get_default_entrypoint (a : type) (an : annot_o) : Datatypes.option type :=
+Definition get_default_entrypoint (a : entrypoint_tree) (an : annot_o) : Datatypes.option type :=
   opt_merge (get_entrypoint default_entrypoint.default a an)
-            (Some a).
+            (Some (entrypoint_tree_to_type a)).
 
-Definition get_entrypoint_opt (e : annot_o) (a : type) (an : annot_o) : Datatypes.option type :=
+Definition get_entrypoint_opt (e : annot_o) (a : entrypoint_tree) (an : annot_o) : Datatypes.option type :=
   match e with
   | None => get_default_entrypoint a an
   | Some e =>

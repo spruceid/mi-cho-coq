@@ -1,4 +1,4 @@
-From Michocoq Require Import macros syntax.
+From Michocoq Require Import macros syntax entrypoints.
 Require Import ZArith String.
 
 Definition payload_ty :=
@@ -31,13 +31,15 @@ Definition payload_ty :=
     None.
 
 Definition parameter_master_ty :=
-  (pair
+  ep_leaf
+   (pair
      (pair
         (* %clef_publique) *)
         key signature)
      payload_ty).
 
 Definition parameter_transfer_ty :=
+  ep_leaf
   (pair (*  %transfer *)
      (pair
         (list (*  %beneficiaires *)
@@ -53,14 +55,14 @@ Definition parameter_transfer_ty :=
         key
         signature)).
 
-Definition parameter_ty : type :=
-  (or
+Definition parameter_ty :=
+  (ep_node
       (*
        * %send
        *)
-     unit
+     (ep_leaf unit)
      (Some "%send"%string)
-     (or
+     (ep_node
         parameter_master_ty (Some "%appel_clef_maitresse"%string)
         parameter_transfer_ty (Some "%transfer"%string)) None).
 

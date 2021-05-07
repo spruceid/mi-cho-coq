@@ -20,14 +20,14 @@
 (* DEALINGS IN THE SOFTWARE. *)
 
 Require Import String.
-Require Import syntax macros semantics comparable util.
+Require Import syntax macros semantics comparable util entrypoints.
 Require Import ZArith.
 Import error.
 Require List.
 Require tez.
 Require map.
 
-Definition parameter_ty : type := string.
+Definition parameter_ty := ep_leaf string.
 Definition storage_ty := map string int.
 Module vote(C:ContractContext).
 Module semantics := Semantics C. Import semantics.

@@ -1,5 +1,5 @@
 Require Import String ZArith.
-Require Import syntax macros semantics comparable util.
+Require Import syntax macros semantics comparable util entrypoints.
 Import error.
 Require List.
 Require tez.

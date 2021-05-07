@@ -27,11 +27,15 @@ Import comparable.
 Require Import ZArith.
 Require Import semantics.
 Require Import util.
+Require Import entrypoints.
 Import error.
 Require List.
 Require Import Lia.
 
-Definition parameter_ty := or (lambda unit (list operation)) (Some "%do"%string) unit (Some "%default"%string).
+Definition parameter_ty :=
+  ep_node
+    (ep_leaf (lambda unit (list operation))) (Some "%do"%string)
+    (ep_leaf unit) (Some "%default"%string).
 Definition storage_ty := key_hash.
 
 Module manager(C:ContractContext).

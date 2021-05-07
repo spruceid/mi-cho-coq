@@ -81,6 +81,16 @@ Fixpoint michelson2micheline_type (t : type) : loc_micheline :=
   | chain_id => dummy_prim "chain_id" []
   end.
 
+Fixpoint michelson2micheline_ep (t : entrypoints.entrypoint_tree) : loc_micheline :=
+  match t with
+  | entrypoints.ep_node t1 n1 t2 n2 =>
+    let a := add_annot_loc n1 (michelson2micheline_ep t1) in
+    let b := add_annot_loc n2 (michelson2micheline_ep t2) in
+    dummy_prim "or" [a; b]
+  | entrypoints.ep_leaf a =>
+    michelson2micheline_type a
+  end.
+
 Fixpoint michelson2micheline_data (d : concrete_data) : loc_micheline :=
   match d with
   | Int_constant z => dummy_mich (NUMBER z)
@@ -180,9 +190,10 @@ Fixpoint michelson2micheline_instruction (i : instruction) : loc_micheline :=
     dummy_mich (SEQ (michelson2micheline_ins_seq i))
   | FAILWITH => dummy_prim "FAILWITH" []
   | CREATE_CONTRACT t1 t2 an i => dummy_prim "CREATE_CONTRACT"
-                                          [michelson2micheline_type t1;
-                                             michelson2micheline_atype
-                                               michelson2micheline_type t2 an;
+                                             [michelson2micheline_type t1;
+                                             add_annot_loc
+                                               an
+                                               (michelson2micheline_ep t2);
                                              dummy_mich (SEQ (michelson2micheline_ins_seq i))]
   | IF_ f i1 i2 =>
     let s := match f with

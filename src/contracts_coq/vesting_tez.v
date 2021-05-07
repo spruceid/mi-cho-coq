@@ -24,7 +24,7 @@ Require Import Michocoq.macros.
 Require Import syntax macros main semantics comparable util.
 Require Import ZArith.
 Require Import Lia.
-Import error.
+Import error entrypoints.
 Require List.
 Require tez.
 Require map.
@@ -46,8 +46,8 @@ Module annots.
 End annots.
 
 Definition parameter_ty :=
-  (or (option key_hash) (Some annots.setDelegate)
-      nat (Some annots.vest)
+  (ep_node (ep_leaf (option key_hash)) (Some annots.setDelegate)
+      (ep_leaf nat) (Some annots.vest)
 ).
 
 Module vesting_tez(C:ContractContext).
