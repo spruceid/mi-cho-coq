@@ -40,7 +40,7 @@ Definition opt_merge {A : Set} (m1 m2 : Datatypes.option A) : Datatypes.option A
 Fixpoint entrypoint_tree_to_type (ep : entrypoint_tree) : type :=
   match ep with
   | ep_leaf a => a
-  | ep_node a an b bn => or (entrypoint_tree_to_type a) an (entrypoint_tree_to_type b) bn
+  | ep_node a _ b _ => or (entrypoint_tree_to_type a) (entrypoint_tree_to_type b)
   end.
 
 Coercion entrypoint_tree_to_type : entrypoint_tree >-> type.

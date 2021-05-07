@@ -291,10 +291,10 @@ Module typ.
       let? typ_a' := ocaml_to_coq typ_a in
       let? typ_b' := ocaml_to_coq typ_b in
       Some (pair typ_a' typ_b')
-    | Union_t (typ_a, _) (typ_b, _) _ _ => (* Annotations ignored unfortunately *)
+    | Union_t (typ_a, _) (typ_b, _) _ _ =>
       let? typ_a' := ocaml_to_coq typ_a in
       let? typ_b' := ocaml_to_coq typ_b in
-      Some (or typ_a' None typ_b' None)
+      Some (or typ_a' typ_b')
     | Lambda_t typ_arg typ_ret _ =>
       let? typ_arg' := ocaml_to_coq typ_arg in
       let? typ_ret' := ocaml_to_coq typ_ret in
@@ -330,7 +330,7 @@ Module typ.
     | contract typ => typed_contract (coq_to_ocaml_typ typ)
     | operation => script_typed_ir_ml.operation
     | pair typ_a typ_b => coq_to_ocaml_typ typ_a * coq_to_ocaml_typ typ_b
-    | or typ_a _ typ_b _ => union (coq_to_ocaml_typ typ_a) (coq_to_ocaml_typ typ_b)
+    | or typ_a typ_b => union (coq_to_ocaml_typ typ_a) (coq_to_ocaml_typ typ_b)
     | lambda typ_arg typ_res =>
       script_typed_ir_ml.lambda
         (coq_to_ocaml_typ typ_arg)
@@ -397,7 +397,7 @@ Module typ.
         None
         false
       )
-    | or typ_a None typ_b None =>
+    | or typ_a typ_b =>
       let? typ_a' := coq_to_ocaml typ_a in
       let? typ_b' := coq_to_ocaml typ_b in
       Some (Union_t
@@ -406,7 +406,6 @@ Module typ.
         None
         false
            )
-    | or _ _ _ _ => None
     | lambda typ_arg typ_ret =>
       let? typ_arg' := coq_to_ocaml typ_arg in
       let? typ_ret' := coq_to_ocaml typ_ret in
@@ -453,14 +452,6 @@ Module typ.
     - destruct s; simpl; reflexivity.
     - rewrite comparable.coq_to_ocaml_to_coq_eq; simpl.
       reflexivity.
-    - destruct a; destruct a0; try reflexivity.
-      assert (H_ind_typ1 := coq_to_ocaml_to_coq_eq typ1);
-        assert (H_ind_typ2 := coq_to_ocaml_to_coq_eq typ2);
-        case_eq_rewrite_in_H (coq_to_ocaml typ1) typ1' Htyp1 H_ind_typ1;
-        case_eq_rewrite_in_H (coq_to_ocaml typ2) typ2' Htyp2 H_ind_typ2;
-        case_eq_rewrite_in_H (ocaml_to_coq typ1') typ1'' Htyp1' H_ind_typ1;
-        case_eq_rewrite_in_H (ocaml_to_coq typ2') typ2'' Htyp2' H_ind_typ2;
-        congruence.
     - assert (H_ind_typ := coq_to_ocaml_to_coq_eq typ).
       case_eq_rewrite_in_H (coq_to_ocaml typ) typ' Htyp H_ind_typ.
       rewrite comparable.coq_to_ocaml_to_coq_eq; simpl.

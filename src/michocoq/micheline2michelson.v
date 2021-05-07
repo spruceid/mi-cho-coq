@@ -57,8 +57,7 @@ Definition extract_one_field_annot (bem : loc_micheline) : M annot_o :=
   | _ => Return None
   end.
 
-Fixpoint micheline2michelson_atype
-         (keep_annots : Datatypes.bool) (bem : loc_micheline) : M type :=
+Fixpoint micheline2michelson_type (bem : loc_micheline) : M type :=
   try (let! ty := micheline2michelson_sctype bem in Return (Comparable_type ty))
       (let 'Mk_loc_micheline ((b, e), m) := bem in
        match m with
@@ -68,45 +67,39 @@ Fixpoint micheline2michelson_atype
        | PRIM (_, "operation") _ nil => Return operation
        | PRIM (_, "chain_id") _ nil => Return chain_id
        | PRIM (_, "option") _ (a :: nil) =>
-        let! a := micheline2michelson_atype keep_annots a in
+        let! a := micheline2michelson_type a in
         Return (option a)
        | PRIM (_, "list") _ (a :: nil) =>
-        let! a := micheline2michelson_atype keep_annots a in
+        let! a := micheline2michelson_type a in
         Return (list a)
        | PRIM (_, "contract") _ (a :: nil) =>
-        let! a := micheline2michelson_atype keep_annots a in
+        let! a := micheline2michelson_type a in
         Return (contract a)
        | PRIM (_, "set") _ (a :: nil) =>
         let! a := micheline2michelson_ctype a in
         Return (set a)
        | PRIM (_, "pair") _ (a :: b :: nil) =>
-        let! a := micheline2michelson_atype keep_annots a in
-        let! b := micheline2michelson_atype keep_annots b in
+        let! a := micheline2michelson_type a in
+        let! b := micheline2michelson_type b in
         Return (pair a b)
        | PRIM (_, "or") _ (a :: b :: nil) =>
-        let! an := extract_one_field_annot a in
-        let! bn := extract_one_field_annot b in
-        let an := if keep_annots then an else None in
-        let bn := if keep_annots then bn else None in
-        let! a := micheline2michelson_atype keep_annots a in
-        let! b := micheline2michelson_atype keep_annots b in
-        Return (or a an b bn)
+        let! a := micheline2michelson_type a in
+        let! b := micheline2michelson_type b in
+        Return (or a b)
        | PRIM (_, "lambda") _ (a :: b :: nil) =>
-        let! a := micheline2michelson_atype keep_annots a in
-        let! b := micheline2michelson_atype keep_annots b in
+        let! a := micheline2michelson_type a in
+        let! b := micheline2michelson_type b in
         Return (lambda a b)
        | PRIM (_, "map") _ (a :: b :: nil) =>
         let! a := micheline2michelson_ctype a in
-        let! b := micheline2michelson_atype keep_annots b in
+        let! b := micheline2michelson_type b in
         Return (map a b)
        | PRIM (_, "big_map") _ (a :: b :: nil) =>
         let! a := micheline2michelson_ctype a in
-        let! b := micheline2michelson_atype keep_annots b in
+        let! b := micheline2michelson_type b in
         Return (big_map a b)
        | _ => Failed _ (Expansion b e)
        end).
-
-Definition micheline2michelson_type := micheline2michelson_atype false.
 
 Fixpoint micheline2michelson_ep (bem : loc_micheline)
   : M entrypoints.entrypoint_tree :=

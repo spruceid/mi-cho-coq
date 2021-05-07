@@ -49,7 +49,7 @@ Definition vote : full_contract _ parameter_ty None storage_ty :=
 Definition vote_spec
            (env : @proto_env (Some (parameter_ty, None)))
            (storage: data storage_ty)
-           (param : data parameter_ty)
+           (param : data (entrypoints.entrypoint_tree_to_type parameter_ty))
            (new_storage : data storage_ty)
            (returned_operations : data (list operation)) :=
   (* Preconditions *)
@@ -78,7 +78,7 @@ Opaque tez.of_Z.
 Theorem vote_correct
       (env : @proto_env (Some (parameter_ty, None)))
       (storage : data storage_ty)
-      (param : data parameter_ty)
+      (param : data (entrypoints.entrypoint_tree_to_type parameter_ty))
       (new_storage : data storage_ty)
       (returned_operations : data (list operation))
       (fuel : Datatypes.nat) :

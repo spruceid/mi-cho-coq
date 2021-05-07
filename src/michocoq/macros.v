@@ -99,10 +99,10 @@ Definition ASSERT_NONE {a S} : instruction self_type Datatypes.false (option a :
 Definition ASSERT_SOME {a S} : instruction self_type Datatypes.false (option a ::: S) (a ::: S) :=
   Instruction_seq { IF_NONE { FAIL } {} }.
 
-Definition ASSERT_LEFT {a b an bn S} : instruction self_type Datatypes.false (or a an b bn ::: S) (a ::: S) :=
+Definition ASSERT_LEFT {a b S} : instruction self_type Datatypes.false (or a b ::: S) (a ::: S) :=
   Instruction_seq { IF_LEFT {} { FAIL } }.
 
-Definition ASSERT_RIGHT {a b an bn S} : instruction self_type Datatypes.false (or a an b bn ::: S) (b ::: S) :=
+Definition ASSERT_RIGHT {a b S} : instruction self_type Datatypes.false (or a b ::: S) (b ::: S) :=
   Instruction_seq { IF_LEFT { FAIL } {} }.
 
 Definition DROP1 {a SA} : instruction self_type Datatypes.false (a ::: SA) SA :=
@@ -151,7 +151,7 @@ Definition CDDR {a b c S} : instruction self_type Datatypes.false (pair a (pair 
 Definition IF_SOME {a SA SB tffa tffb} (bt : instruction_seq self_type tffa _ _) (bf : instruction_seq self_type tffb _ _) : instruction self_type _ (option a ::: SA) SB :=
   Instruction_seq { IF_NONE bf bt }.
 
-Definition IF_RIGHT {a an b bn SA SB tffa tffb} (bt : instruction_seq self_type tffa _ _) (bf : instruction_seq self_type tffb _ _) : instruction self_type _ (or a an b bn ::: SA) SB :=
+Definition IF_RIGHT {a b SA SB tffa tffb} (bt : instruction_seq self_type tffa _ _) (bf : instruction_seq self_type tffb _ _) : instruction self_type _ (or a b ::: SA) SB :=
   Instruction_seq { IF_LEFT bf bt }.
 
 Definition SET_CAR {a b S} : instruction self_type Datatypes.false (pair a b ::: a ::: S) (pair a b ::: S) :=

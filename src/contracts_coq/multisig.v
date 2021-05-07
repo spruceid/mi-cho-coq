@@ -38,10 +38,10 @@ Module annots.
 End annots.
 
 Definition action_ty :=
-  clear_ty (or
-              (pair mutez (contract unit)) None
-              (or (option key_hash) (Some annots.delegate)
-                  (pair nat (list key)) (Some annots.change_keys)) None).
+  (or
+     (pair mutez (contract unit))
+     (or (option key_hash) (* (Some annots.delegate) *)
+         (pair nat (list key)) (* (Some annots.change_keys) *))).
 
 Definition parameter_ty := ep_leaf (pair
              (pair

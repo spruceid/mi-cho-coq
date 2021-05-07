@@ -41,7 +41,7 @@ Inductive type : Set :=
 | contract (a : type)
 | operation
 | pair (a : type) (b : type)
-| or (a : type) (_ : annot_o) (b : type) (_ : annot_o)
+| or (a : type) (b : type)
 | lambda (a b : type)
 | map (k : comparable_type) (v : type)
 | big_map (k : comparable_type) (v : type)
@@ -66,7 +66,7 @@ Fixpoint is_pushable (a : type) : Datatypes.bool :=
   | option ty
   | list ty
   | map _ ty => is_pushable ty
-  | pair a b | or a _ b _ => is_pushable a && is_pushable b
+  | pair a b | or a b => is_pushable a && is_pushable b
   end.
 
 Fixpoint is_passable (a : type) : Datatypes.bool :=
@@ -78,7 +78,7 @@ Fixpoint is_passable (a : type) : Datatypes.bool :=
   | list ty
   | map _ ty
   | big_map _ ty => is_passable ty
-  | pair a b | or a _ b _ => is_passable a && is_passable b
+  | pair a b | or a b => is_passable a && is_passable b
   end.
 
 Fixpoint is_storable (a : type) : Datatypes.bool :=
@@ -90,7 +90,7 @@ Fixpoint is_storable (a : type) : Datatypes.bool :=
   | list ty
   | map _ ty
   | big_map _ ty => is_storable ty
-  | pair a b | or a _ b _ => is_storable a && is_storable b
+  | pair a b | or a b => is_storable a && is_storable b
   end.
 
 Fixpoint is_packable (a : type) : Datatypes.bool :=
@@ -102,7 +102,7 @@ Fixpoint is_packable (a : type) : Datatypes.bool :=
   | option ty
   | list ty
   | map _ ty => is_packable ty
-  | pair a b | or a _ b _ => is_packable a && is_packable b
+  | pair a b | or a b => is_packable a && is_packable b
   end.
 
 Fixpoint is_big_map_value (a : type) : Datatypes.bool :=
@@ -114,7 +114,7 @@ Fixpoint is_big_map_value (a : type) : Datatypes.bool :=
   | option ty
   | list ty
   | map _ ty => is_big_map_value ty
-  | pair a b | or a _ b _ => is_big_map_value a && is_big_map_value b
+  | pair a b | or a b => is_big_map_value a && is_big_map_value b
   end.
 
 Lemma type_dec (a b : type) : {a = b} + {a <> b}.
@@ -129,30 +129,3 @@ Defined.
 
 Infix ":::" := (@cons type) (at level 60, right associativity).
 Infix "+++" := (@app type) (at level 60, right associativity).
-
-
-(* Remove all annotations in a type *)
-Fixpoint clear_ty (a : type) : type :=
-  match a with
-  | or a _ b _ => or (clear_ty a) None (clear_ty b) None
-
-  | operation => operation
-  | unit => unit
-  | signature => signature
-  | key => key
-  | chain_id => chain_id
-
-  | Comparable_type a => Comparable_type a
-  | set a => set a
-
-  | contract a => contract (clear_ty a)
-  | option a => option (clear_ty a)
-  | list a => list (clear_ty a)
-
-  | pair a b => pair (clear_ty a) (clear_ty b)
-  | lambda a b => lambda (clear_ty a) (clear_ty b)
-
-  | map a b => map a (clear_ty b)
-  | big_map a b => big_map a (clear_ty b)
-  end.
-

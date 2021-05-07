@@ -72,7 +72,7 @@ Definition manager : full_contract _ parameter_ty None storage_ty :=
 Definition manager_spec
            (env : @proto_env (Some (parameter_ty, None)))
            (storage : data storage_ty)
-           (param : data parameter_ty)
+           (param : data (entrypoints.entrypoint_tree_to_type parameter_ty))
            (new_storage : data storage_ty)
            (returned_operations : data (list operation))
            (fuel : Datatypes.nat) :=
@@ -140,7 +140,7 @@ Qed.
 Lemma manager_correct
       (env : @proto_env (Some (parameter_ty, None)))
       (storage : data storage_ty)
-      (param : data parameter_ty)
+      (param : data (entrypoints.entrypoint_tree_to_type parameter_ty))
       (new_storage : data storage_ty)
       (returned_operations : data (list operation))
       (fuel : Datatypes.nat) :

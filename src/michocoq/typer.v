@@ -168,7 +168,7 @@ Qed.
     match f, t with
     | IF_bool, Comparable_type bool => Return (existT _ _ (existT _ _ syntax.IF_bool))
     | IF_option, option a => Return (existT _ _ (existT _ _ (syntax.IF_option a)))
-    | IF_or, or a an b bn => Return (existT _ _ (existT _ _ (syntax.IF_or a an b bn)))
+    | IF_or, or a b => Return (existT _ _ (existT _ _ (syntax.IF_or a b)))
     | IF_list, list a => Return (existT _ _ (existT _ _ (syntax.IF_list a)))
     | _, _ => Failed _ (Typing _ "type_family"%string)
     end.
@@ -201,7 +201,7 @@ Qed.
     M {A & {B & syntax.loop_family A B t}} :=
     match f, t with
     | LOOP_bool, Comparable_type bool => Return (existT _ _ (existT _ _ syntax.LOOP_bool))
-    | LOOP_or, or a an b bn => Return (existT _ _ (existT _ _ (syntax.LOOP_or a an b bn)))
+    | LOOP_or, or a b => Return (existT _ _ (existT _ _ (syntax.LOOP_or a b)))
     | _, _ => Failed _ (Typing _ "type_family"%string)
     end.
 
@@ -734,17 +734,17 @@ Qed.
     | Left x =>
       fun ty =>
         match ty with
-        | or a an b bn =>
+        | or a b =>
           let! x := type_data tm x a in
-          Return (syntax.Left x an bn)
+          Return (syntax.Left x)
         | _ => Failed _ (Typing _ (d, ty))
         end
     | Right y =>
       fun ty =>
         match ty with
-        | or a an b bn =>
+        | or a b =>
           let! y := type_data tm y b in
-          Return (syntax.Right y an bn)
+          Return (syntax.Right y)
         | _ => Failed _ (Typing _ (d, ty))
         end
     | Some_ x =>
@@ -891,7 +891,7 @@ Qed.
 
       let! Hp :=
          error.assume
-           (is_passable p)
+           (is_passable (entrypoints.entrypoint_tree_to_type p))
            (Typing
               _
               "CREATE_CONTACT: parameter type is not passable"%string)
@@ -910,7 +910,7 @@ Qed.
       let A' :=
           option key_hash ::: mutez ::: g ::: B in
       let! existT _ tff i :=
-        type_check_instruction_seq (self_type := (Some (p, an))) (type_instruction_seq tm) i (pair p g :: nil) (pair (list operation) g :: nil) in
+        type_check_instruction_seq (self_type := (Some (p, an))) (type_instruction_seq tm) i (pair (entrypoints.entrypoint_tree_to_type p) g :: nil) (pair (list operation) g :: nil) in
       let! i := instruction_cast_domain A' A _ (syntax.CREATE_CONTRACT g p an Hp Hg i) in
       Return (Inferred_type _ _ i)
     | SELF an, A =>

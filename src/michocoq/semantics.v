@@ -168,7 +168,7 @@ Inductive op (data : type -> Set) : Set :=
     annot tff
     (script :
        instruction_seq (Some (param_ty, annot)) tff
-                       (pair param_ty storage_ty ::: nil)
+                       (pair (entrypoints.entrypoint_tree_to_type param_ty) storage_ty ::: nil)
                        (pair (list operation) storage_ty ::: nil)
     )
     (initial_storage : data storage_ty)
@@ -293,13 +293,13 @@ Module Semantics(C : ContractContext).
   Definition get_address_type (sao : comparable_data address * annot_o)
     : Datatypes.option type :=
     let '(addr, ao) := sao in
-    opt_bind
+    entrypoints.opt_bind
       (match addr with
         | Implicit _ => Some (ep_leaf unit)
         | Originated addr => get_contract_type addr
        end)
       (fun ty =>
-         get_entrypoint_opt ao ty None).
+         entrypoints.get_entrypoint_opt ao ty None).
 
   Inductive data_lam a b : Set :=
     build_lam tff :
@@ -318,7 +318,7 @@ Module Semantics(C : ContractContext).
     | key => key_constant
     | unit => Datatypes.unit
     | pair a b => data_aux op a * data_aux op b
-    | or a _ b _ => sum (data_aux op a) (data_aux op b)
+    | or a b => sum (data_aux op a) (data_aux op b)
     | option a => Datatypes.option (data_aux op a)
     | list a => Datatypes.list (data_aux op a)
     | set a => set.set (comparable_data a) (compare a)
@@ -375,7 +375,7 @@ Module Semantics(C : ContractContext).
              (delegate : Datatypes.option (comparable_data key_hash))
              (initial_balance : tez.mutez)
              (script : syntax.instruction_seq (Some (p, annot)) tff
-                             (pair p g ::: nil)
+                             (pair (entrypoints.entrypoint_tree_to_type p) g ::: nil)
                              (pair (list operation) g ::: nil))
              (initial_storage : data g) (addr : data address) : data operation.
   Proof.
@@ -405,7 +405,7 @@ Module Semantics(C : ContractContext).
             | None => Datatypes.unit
             | Some (ty, self_annot) =>
               forall annot_opt H,
-                data (contract (get_opt (get_entrypoint_opt annot_opt ty self_annot) H))
+                data (contract (get_opt (entrypoints.get_entrypoint_opt annot_opt ty self_annot) H))
             end;
         amount : tez.mutez;
         now : comparable_data timestamp;
@@ -428,7 +428,7 @@ Module Semantics(C : ContractContext).
              (delegate : Datatypes.option (comparable_data key_hash))
              (initial_balance : tez.mutez)
              (script : syntax.instruction_seq (Some (p, annot)) tff
-                             (pair p g ::: nil)
+                             (pair (entrypoints.entrypoint_tree_to_type p) g ::: nil)
                              (pair (list operation) g ::: nil))
              (initial_storage : data g) : data (pair operation address) :=
     let addr := generate_new_address env tt in
@@ -541,8 +541,8 @@ Module Semantics(C : ContractContext).
     | Key_constant x => Mk_key x
     | Unit => tt
     | Pair a b => (concrete_data_to_data _ a, concrete_data_to_data _ b)
-    | Left a _ _ => inl (concrete_data_to_data _ a)
-    | Right b _ _ => inr (concrete_data_to_data _ b)
+    | Left a => inl (concrete_data_to_data _ a)
+    | Right b => inr (concrete_data_to_data _ b)
     | Some_ a => Some (concrete_data_to_data _ a)
     | None_ => None
     | Concrete_list l => List.map (concrete_data_to_data _) l
@@ -633,10 +633,10 @@ Module Semantics(C : ContractContext).
     | pair a b, H, (x, y) =>
       Pair (data_to_concrete_data a (Is_true_and_left _ _ H) x)
            (data_to_concrete_data b (Is_true_and_right _ _ H) y)
-    | or a an b bn, H, inl x =>
-      Left (data_to_concrete_data a (Is_true_and_left _ _ H) x) an bn
-    | or a an b bn, H, inr x =>
-      Right (data_to_concrete_data b (Is_true_and_right _ _ H) x) an bn
+    | or a b, H, inl x =>
+      Left (data_to_concrete_data a (Is_true_and_left _ _ H) x)
+    | or a b, H, inr x =>
+      Right (data_to_concrete_data b (Is_true_and_right _ _ H) x)
     | lambda a b, _, build_lam _ _ tff f => Instruction tff f
     | chain_id, _, x => Chain_id_constant x
     end.
@@ -1023,8 +1023,8 @@ Module Semantics(C : ContractContext).
     match i, x with
     | IF_bool, true => inl tt
     | IF_bool, false => inr tt
-    | IF_or _ _ _ _, inl x => inl (x, tt)
-    | IF_or _ _ _ _, inr x => inr (x, tt)
+    | IF_or _ _, inl x => inl (x, tt)
+    | IF_or _ _, inr x => inr (x, tt)
     | IF_option a, None => inl tt
     | IF_option a, Some x => inr (x, tt)
     | IF_list a, cons x l => inl (x, (l, tt))
@@ -1035,8 +1035,8 @@ Module Semantics(C : ContractContext).
     match i, x with
     | LOOP_bool, true => inl tt
     | LOOP_bool, false => inr tt
-    | LOOP_or _ _ _ _, inl x => inl (x, tt)
-    | LOOP_or _ _ _ _, inr x => inr (x, tt)
+    | LOOP_or _ _, inl x => inl (x, tt)
+    | LOOP_or _ _, inr x => inr (x, tt)
     end.
 
   Fixpoint eval_seq_body
@@ -1414,7 +1414,7 @@ Module Semantics(C : ContractContext).
       if x then eval_seq_precond_body (@eval_precond_n) env _ _ _ bt psi SA
       else eval_seq_precond_body (@eval_precond_n) env _ _ _ bf psi SA
       end
-    | @IF_ _ _ _ tffa tffb _ _ _ (IF_or a an b bn) bt bf, env, psi, (x, SA) =>
+    | @IF_ _ _ _ tffa tffb _ _ _ (IF_or a b) bt bf, env, psi, (x, SA) =>
       match tffa, tffb with
       | false, true =>
         exists y : data _,
@@ -1877,7 +1877,7 @@ Module Semantics(C : ContractContext).
       if x then eval0_seq_precond env bt psi SA
       else eval0_seq_precond env bf psi SA
       end
-    | @IF_ _ _ _ tffa tffb _ _ _ (IF_or a an b bn) bt bf, env, psi, (x, SA) =>
+    | @IF_ _ _ _ tffa tffb _ _ _ (IF_or a b) bt bf, env, psi, (x, SA) =>
       match tffa, tffb with
       | false, true =>
         exists y : data _,

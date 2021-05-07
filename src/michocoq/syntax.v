@@ -363,8 +363,8 @@ Inductive opcode {self_type : self_info} : forall (A B : Datatypes.list type), S
     opcode (key ::: collection ::: S) (option (get_val_type _ _ i) :: S)
 | SOME {a S} : opcode (a :: S) (option a :: S)
 | NONE (a : type) {S} : opcode S (option a :: S)
-| LEFT {a} (b : type) {S} : opcode (a :: S) (or a None b None :: S)
-| RIGHT (a : type) {b S} : opcode (b :: S) (or a None b None :: S)
+| LEFT {a} (b : type) {S} : opcode (a :: S) (or a b :: S)
+| RIGHT (a : type) {b S} : opcode (b :: S) (or a b :: S)
 | CONS {a S} : opcode (a ::: list a ::: S) (list a :: S)
 | NIL (a : type) {S} : opcode S (list a :: S)
 | TRANSFER_TOKENS {p S} :
@@ -404,13 +404,13 @@ Inductive opcode {self_type : self_info} : forall (A B : Datatypes.list type), S
 
 Inductive if_family : forall (A B : Datatypes.list type) (a : type), Set :=
 | IF_bool : if_family nil nil bool
-| IF_or a an b bn : if_family (a :: nil) (b :: nil) (or a an b bn)
+| IF_or a b : if_family (a :: nil) (b :: nil) (or a b)
 | IF_option a : if_family nil (a :: nil) (option a)
 | IF_list a : if_family (a ::: list a ::: nil) nil (list a).
 
 Inductive loop_family : forall (A B : Datatypes.list type) (a : type), Set :=
 | LOOP_bool : loop_family nil nil bool
-| LOOP_or a an b bn : loop_family (a :: nil) (b :: nil) (or a an b bn).
+| LOOP_or a b : loop_family (a :: nil) (b :: nil) (or a b).
 
 
 Inductive instruction :
@@ -440,7 +440,7 @@ Inductive instruction :
 | CREATE_CONTRACT {self_type S tff} (g : type) (p : entrypoint_tree) (an : annot_o) :
     error.Is_true (is_passable p) ->
     error.Is_true (is_storable g) ->
-    instruction_seq (Some (p, an)) tff (pair p g :: nil) (pair (list operation) g :: nil) ->
+    instruction_seq (Some (p, an)) tff (pair (entrypoint_tree_to_type p) g :: nil) (pair (list operation) g :: nil) ->
     instruction self_type Datatypes.false
                 (option key_hash ::: mutez ::: g ::: S)
                 (operation ::: address ::: S)
@@ -465,8 +465,8 @@ with concrete_data : type -> Set :=
 | Key_constant : String.string -> concrete_data key
 | Unit : concrete_data unit
 | Pair {a b : type} : concrete_data a -> concrete_data b -> concrete_data (pair a b)
-| Left {a b : type} (x : concrete_data a) an bn : concrete_data (or a an b bn)
-| Right {a b : type} (x : concrete_data b) an bn : concrete_data (or a an b bn)
+| Left {a b : type} (x : concrete_data a) : concrete_data (or a b)
+| Right {a b : type} (x : concrete_data b) : concrete_data (or a b)
 | Some_ {a : type} : concrete_data a -> concrete_data (option a)
 | None_ {a : type} : concrete_data (option a)
 | Concrete_list {a} : Datatypes.list (concrete_data a) -> concrete_data (list a)
@@ -615,7 +615,7 @@ Coercion comparable_constant a := Comparable_constant a.
 
 Definition full_contract tff param annot storage :=
   instruction_seq (Some (param, annot)) tff
-    ((pair (clear_ty param) storage) ::: nil)
+    ((pair (entrypoint_tree_to_type param) storage) ::: nil)
     ((pair (list operation) storage) ::: nil).
 
 Record contract_file : Set :=
@@ -623,7 +623,7 @@ Record contract_file : Set :=
     {
       contract_file_parameter : entrypoint_tree;
       contract_file_parameter_passable :
-        error.Is_true (is_passable contract_file_parameter);
+        error.Is_true (is_passable (entrypoint_tree_to_type contract_file_parameter));
       contract_file_annotation : annot_o;
       contract_file_storage : type;
       contract_file_storage_storable :
@@ -639,7 +639,7 @@ Record contract_file : Set :=
 
 Notation "'IF'" := (IF_ IF_bool) : michelson_scope.
 Notation "'IF_TRUE'" := (IF_ IF_bool) : michelson_scope.
-Notation "'IF_LEFT'" := (IF_ (IF_or _ _ _ _)) : michelson_scope.
+Notation "'IF_LEFT'" := (IF_ (IF_or _ _)) : michelson_scope.
 Notation "'IF_NONE'" := (IF_ (IF_option _)) : michelson_scope.
 Notation "'IF_CONS'" := (IF_ (IF_list _)) : michelson_scope.
 Notation "'LOOP'" := (LOOP_ LOOP_bool) : michelson_scope.

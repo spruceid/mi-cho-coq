@@ -84,7 +84,7 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
   Definition untype_if_family {A B t} (f : syntax.if_family A B t) : if_family :=
     match f with
     | syntax.IF_bool => IF_bool
-    | syntax.IF_or _ _ _ _ => IF_or
+    | syntax.IF_or _ _ => IF_or
     | syntax.IF_option _ => IF_option
     | syntax.IF_list _ => IF_list
     end.
@@ -92,7 +92,7 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
   Definition untype_loop_family {A B t} (f : syntax.loop_family A B t) : loop_family :=
     match f with
     | syntax.LOOP_bool => LOOP_bool
-    | syntax.LOOP_or _ _ _ _ => LOOP_or
+    | syntax.LOOP_or _ _ => LOOP_or
     end.
 
   Definition untype_simple_comparable_data {a : simple_comparable_type} (um : untype_mode) : comparable.comparable_data a -> concrete_data :=
@@ -138,8 +138,8 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
     | syntax.Key_constant s => String_constant s
     | syntax.Unit => Unit
     | syntax.Pair x y => Pair (untype_data um x) (untype_data um y)
-    | syntax.Left x _ _ => Left (untype_data um x)
-    | syntax.Right y _ _ => Right (untype_data um y)
+    | syntax.Left x => Left (untype_data um x)
+    | syntax.Right y => Right (untype_data um y)
     | syntax.Some_ x => Some_ (untype_data um x)
     | syntax.None_ => None_
     | syntax.Concrete_list l => Concrete_seq (List.map (untype_data um) l)
@@ -1042,7 +1042,7 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
            | contract _ => _
            | operation => _
            | pair _ _ => _
-           | or _ _ _ _ => _
+           | or _ _ => _
            | lambda _ _ => _
            | map _ _ => _
            | big_map _ _ => _

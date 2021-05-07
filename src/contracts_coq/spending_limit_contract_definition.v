@@ -23,12 +23,10 @@ Definition payload_ty :=
                 (list (pair timestamp mutez)))))
        (*  %nouvelle_clef_maitresse *)
        key_hash)
-    None
     (pair
        (lambda unit (list operation))
        (*  %nouvelle_clef_publique *)
-       key_hash)
-    None.
+       key_hash).
 
 Definition parameter_master_ty :=
   ep_leaf
@@ -110,7 +108,7 @@ Definition slc_ep_master_lambda :
 Definition slc_ep_master :
   instruction_seq (Some (parameter_ty, None))
                   false
-                  (parameter_master_ty ::: storage_context_ty ::: storage_auth_ty ::: nil)
+                  (entrypoints.entrypoint_tree_to_type parameter_master_ty ::: storage_context_ty ::: storage_auth_ty ::: nil)
                   (list operation ::: storage_context_ty ::: storage_auth_ty ::: nil) :=
   { (* retrieve master_key and salt from storage *)
     DIP1 {SWAP};
@@ -122,8 +120,8 @@ Definition slc_ep_master :
           DIP1 { DUP;
                  (* pack the received payload (new storage or lambda) *)
                  PACK (a := or (pair storage_context_ty key_hash)
-                               _ (pair (lambda unit (list operation)) key_hash)
-                               _) I (* @packedpayload *) ;
+                               (pair (lambda unit (list operation)) key_hash))
+                      I (* @packedpayload *) ;
                  (* pack the header *)
                  DIP1 { DIP1 { UNPAIR;
                                DUP ;
@@ -137,7 +135,7 @@ Definition slc_ep_master :
                                CHAIN_ID ;
                                SELF (self_type := parameter_ty) (self_annot := None) None I ;
                                PAIR ;
-                               PACK (a := pair (contract parameter_ty) chain_id) I (* @packed_self_chain_id *) ;
+                               PACK (a := pair (contract (entrypoints.entrypoint_tree_to_type parameter_ty)) chain_id) I (* @packed_self_chain_id *) ;
                                (* packed(self, chain_id) : packed(salt) : ... *)
                                CONCAT (i := stringlike_bytes) (* @packedheader *)
                                       (* (packed(self, chain_id) ++ packed(salt)) : ... *)
@@ -231,7 +229,7 @@ Definition slc_ep_transfer_loop : instruction _ _ _ _ :=
 
 Definition slc_ep_transfer1_check_signature :
   instruction_seq (Some (parameter_ty, None)) Datatypes.false
-                  (parameter_transfer_ty ::: storage_context_ty ::: storage_auth_ty ::: nil)
+                  (entrypoints.entrypoint_tree_to_type parameter_transfer_ty ::: storage_context_ty ::: storage_auth_ty ::: nil)
                   (list (pair mutez (contract unit)) :::
                         list operation ::: mutez ::: key_hash ::: int ::: mutez ::: list (pair timestamp mutez) :::
                         list (pair timestamp mutez) ::: storage_auth_ty ::: nil)
@@ -271,7 +269,7 @@ Definition slc_ep_transfer1_check_signature :
                     CHAIN_ID ;
                     SELF (self_type := parameter_ty) (self_annot := None) None I ;
                     PAIR ;
-                    PACK (a := pair (contract parameter_ty) chain_id) I  ;
+                    PACK (a := pair (contract (entrypoints.entrypoint_tree_to_type parameter_ty)) chain_id) I  ;
                     CONCAT (i := stringlike_bytes)
                 } ;
               CONCAT (i := stringlike_bytes) ;
@@ -328,7 +326,7 @@ Definition slc_ep_transfer3_register :
 
 Definition slc_ep_transfer :
   instruction_seq (Some (parameter_ty, None)) false
-                  (parameter_transfer_ty ::: storage_context_ty ::: storage_auth_ty ::: nil)
+                  (entrypoints.entrypoint_tree_to_type parameter_transfer_ty ::: storage_context_ty ::: storage_auth_ty ::: nil)
                   (list operation ::: storage_context_ty ::: storage_auth_ty ::: nil)
   := slc_ep_transfer1_check_signature ;;;
      { slc_ep_transfer2_transaction_iter ;

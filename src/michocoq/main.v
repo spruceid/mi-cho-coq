@@ -53,7 +53,7 @@ Definition contract_file_M : error.M syntax.contract_file :=
     typer.type_check_instruction_seq (typer.type_instruction_seq typer.Any) i _ _ in
   let! Hp :=
      error.assume
-       (is_passable self_type)
+       (is_passable (entrypoints.entrypoint_tree_to_type self_type))
        (error.Typing _ "Non passable parameter type"%string)
   in
   let! Hg :=

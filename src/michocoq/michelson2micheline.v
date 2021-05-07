@@ -54,9 +54,6 @@ Fixpoint michelson2micheline_ctype (ct: comparable_type) : loc_micheline :=
                [michelson2micheline_sctype sct; michelson2micheline_ctype ct]
   end.
 
-Definition michelson2micheline_atype michelson2micheline_type (t : type) (an : annot_o) : loc_micheline :=
-  add_annot_loc an (michelson2micheline_type t).
-
 Fixpoint michelson2micheline_type (t : type) : loc_micheline :=
   match t with
   | Comparable_type ct => michelson2micheline_sctype ct
@@ -70,8 +67,8 @@ Fixpoint michelson2micheline_type (t : type) : loc_micheline :=
   | contract t' => dummy_prim "contract" [michelson2micheline_type t']
   | pair t1 t2 =>
     dummy_prim "pair" [michelson2micheline_type t1; michelson2micheline_type t2]
-  | or t1 n1 t2 n2 =>
-    dummy_prim "or" [michelson2micheline_atype michelson2micheline_type t1 n1; michelson2micheline_atype michelson2micheline_type t2 n2]
+  | or t1 t2 =>
+    dummy_prim "or" [michelson2micheline_type t1; michelson2micheline_type t2]
   | lambda t1 t2 =>
     dummy_prim "lambda" [michelson2micheline_type t1; michelson2micheline_type t2]
   | map ct1 t2 =>

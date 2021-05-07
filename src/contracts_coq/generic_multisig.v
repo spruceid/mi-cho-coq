@@ -44,8 +44,8 @@ Definition parameter_ty :=
       (ep_leaf (pair
          (pair nat
                (or
-                  (lambda unit (list operation)) (Some annots.operation)
-                  (pair nat (list key)) (Some annots.change_keys)))
+                  (lambda unit (list operation)) (* (Some annots.operation) *)
+                  (pair nat (list key)) (* (Some annots.change_keys) *)))
          (list (option signature))))
   (Some annots.main)).
 
@@ -58,9 +58,9 @@ Module semantics := Semantics C. Import semantics.
 Definition ADD_nat {S} : instruction (Some (parameter_ty, None)) _ (nat ::: nat ::: S) (nat ::: S) := ADD.
 
 Definition action_ty :=
-  clear_ty (or
-     (lambda unit (list operation)) (Some annots.operation)
-     (pair nat (list key)) (Some annots.change_keys)).
+ (or
+     (lambda unit (list operation)) (* (Some annots.operation) *)
+     (pair nat (list key)) (* (Some annots.change_keys) *)).
 Definition pack_ty := pair (pair chain_id address) (pair nat action_ty).
 
 Definition multisig : full_contract _ parameter_ty None storage_ty :=

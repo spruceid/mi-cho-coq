@@ -54,7 +54,7 @@ Definition deposit : full_contract _ parameter_ty None storage_ty :=
 
 Lemma deposit_correct :
   forall (env : @proto_env (Some (parameter_ty, None)))
-         (input : data (or unit None mutez None)) storage_in
+         (input : data (or unit mutez)) storage_in
          (ops : data (list operation)) storage_out
          (fuel : Datatypes.nat),
   fuel >= 42 ->
