@@ -917,7 +917,7 @@ Qed.
       match self_type with
       | Some (sty, san) =>
         let error := Typing _ "No such self entrypoint"%string in
-        let! H := syntax.isSome_maybe error (syntax.get_entrypoint_opt an sty san) in
+        let! H := syntax.isSome_maybe error (entrypoints.get_entrypoint_opt an sty san) in
         Return (Inferred_type _ _ (syntax.SELF an H))
       | None => Failed _ (Typing _ "SELF is not allowed inside lambdas"%string)
       end

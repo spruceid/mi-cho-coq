@@ -808,8 +808,8 @@ Inductive untype_mode := untype_Readable | untype_Optimized.
         -- auto.
       + unfold untype_type_spec; simpl.
         assert (isSome_maybe (Typing _ "No such self entrypoint"%string)
-                             (get_entrypoint_opt annot_opt self_type self_annot) = Return H).
-        * destruct (get_entrypoint_opt annot_opt self_type self_annot) as [x|].
+                             (entrypoints.get_entrypoint_opt annot_opt self_type self_annot) = Return H).
+        * destruct (entrypoints.get_entrypoint_opt annot_opt self_type self_annot) as [x|].
           -- simpl.
              destruct H.
              reflexivity.

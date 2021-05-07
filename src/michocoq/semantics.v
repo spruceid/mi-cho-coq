@@ -293,13 +293,13 @@ Module Semantics(C : ContractContext).
   Definition get_address_type (sao : comparable_data address * annot_o)
     : Datatypes.option type :=
     let '(addr, ao) := sao in
-    opt_bind
+    entrypoints.opt_bind
       (match addr with
         | Implicit _ => Some unit
         | Originated addr => get_contract_type addr
        end)
       (fun ty =>
-         get_entrypoint_opt ao ty None).
+         entrypoints.get_entrypoint_opt ao ty None).
 
   Inductive data_lam a b : Set :=
     build_lam tff :
@@ -405,7 +405,7 @@ Module Semantics(C : ContractContext).
             | None => Datatypes.unit
             | Some (ty, self_annot) =>
               forall annot_opt H,
-                data (contract (get_opt (get_entrypoint_opt annot_opt ty self_annot) H))
+                data (contract (get_opt (entrypoints.get_entrypoint_opt annot_opt ty self_annot) H))
             end;
         amount : tez.mutez;
         now : comparable_data timestamp;

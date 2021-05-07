@@ -29,6 +29,7 @@ Require set map.
 Require Import comparable error.
 Require tez.
 Require Export syntax_type.
+Require entrypoints.
 
 (* source: http://doc.tzalpha.net/whitedoc/michelson.html#xii-full-grammar *)
 
@@ -291,49 +292,6 @@ Inductive elt_pair (a b : Set) : Set :=
 
 Definition stack_type := Datatypes.list type.
 
-Definition opt_bind {A B : Set} (m : Datatypes.option A) (f : A -> Datatypes.option B) : Datatypes.option B :=
-  match m with
-  | Some a => f a
-  | None => None
-  end.
-
-Definition opt_merge {A : Set} (m1 m2 : Datatypes.option A) : Datatypes.option A :=
-  match m1 with
-  | Some a1 => Some a1
-  | None => m2
-  end.
-
-
-(* Returns [Some a] if the root annotation [an] is exactly [Some e];
-   returns [None] otherwise *)
-Definition get_entrypoint_root (e : annotation) (a : type) (an : annot_o) :
-  Datatypes.option type :=
-  opt_bind an (fun e' => if String.eqb e e' then Some a else None).
-
-(* Returns the first entrypoint to match e in the annotated type (a, an).
-   The traversal is depth-first *)
-Fixpoint get_entrypoint (e : annotation) (a : type) (an : annot_o) : Datatypes.option type :=
-  opt_merge (get_entrypoint_root e a an)
-            (match a with
-             | or a annot_a b annot_b =>
-               opt_merge (get_entrypoint e a annot_a) (get_entrypoint e b annot_b)
-             | _ => None
-             end).
-
-(* Returns the type of the default entrypoint *)
-Definition get_default_entrypoint (a : type) (an : annot_o) : Datatypes.option type :=
-  opt_merge (get_entrypoint default_entrypoint.default a an)
-            (Some a).
-
-Definition get_entrypoint_opt (e : annot_o) (a : type) (an : annot_o) : Datatypes.option type :=
-  match e with
-  | None => get_default_entrypoint a an
-  | Some e =>
-    if String.eqb e default_entrypoint.default
-    then get_default_entrypoint a an
-    else get_entrypoint e a an
-  end.
-
 Definition isSome_maybe {A : Set} error (o : Datatypes.option A) : M (isSome o) :=
   match o return M (isSome o) with
   | Some _ => Return I
@@ -486,7 +444,7 @@ Inductive instruction :
     instruction self_type Datatypes.false
                 (option key_hash ::: mutez ::: g ::: S)
                 (operation ::: address ::: S)
-| SELF {self_type self_annot S} (annot_opt : annot_o) (H : isSome (get_entrypoint_opt annot_opt self_type self_annot)) :
+| SELF {self_type self_annot S} (annot_opt : annot_o) (H : isSome (entrypoints.get_entrypoint_opt annot_opt self_type self_annot)) :
     instruction (Some (self_type, self_annot)) Datatypes.false S (contract (get_opt _ H) :: S)
 | EXEC {self_type a b C} : instruction self_type Datatypes.false
                                        (a ::: lambda a b ::: C) (b :: C)
