@@ -30,13 +30,18 @@ Require tez.
 Require map.
 Require String.
 
-Require did_manager_string.
+Require did_manager_michelson_string.
 
 Module source.
-  Definition contract_file_M :=
-    main.contract_file_M did_manager_string.did_manager_string 15.
+  (* Definition contract_file_M := *)
+  (*   main.contract_file_M did_manager_string.did_manager_string 15. *)
 
-  Definition contract_file := Eval cbv in (error.extract contract_file_M I).
+  (* Definition contract_file := Eval cbv in (error.extract contract_file_M I). *)
+
+  Definition contract_file_michelson_M :=
+    main.contract_file_M did_manager_michelson_string.did_manager_michelson_string 10.
+
+  Definition contract_file_michelson := Eval cbv in (error.extract contract_file_michelson_M I).
 End source.
 
 Module annots.
@@ -57,7 +62,7 @@ Definition parameter_ty :=
       (Some annots.rotateService))
     None).
 
-Module did_manager(C:ContractContext).
+Module did_manager_michelson(C:ContractContext).
 
   (* (pair (pair (big_map %metadata string bytes) (address %owner)) *)
   (*       (pair (pair %service (string %endpoint) (string %type_)) *)
@@ -66,40 +71,45 @@ Definition storage_ty :=
   (pair (pair (big_map string bytes) address)
         (pair (pair string string) address)).
 
-Definition did_manager : full_contract _ parameter_ty None storage_ty :=
-  Eval cbv in contract_file_code source.contract_file.
+Definition did_manager_michelson : full_contract _ parameter_ty None storage_ty :=
+  Eval cbv in contract_file_code source.contract_file_michelson.
 
-Module semantics := Semantics C. Import semantics.
+Require did_manager.
+Module did_manager_ligo := did_manager.did_manager C. Import did_manager_ligo.
+Import did_manager_ligo.semantics.
 
-Definition did_manager_spec_helper
-           (env : @proto_env (Some (parameter_ty, None)))
-           (metadata : data (big_map string bytes))
-           (owner : data address)
-           (endpoint : data string)
-           (type_ : data string)
-           (verification_method : data address)
-           (param : data parameter_ty)
-           (new_storage : data storage_ty)
-           (returned_operations : data (list operation)) :=
-  let storage : data storage_ty :=
-    ((metadata, owner),
-          ((endpoint, type_), verification_method)) in
+(* Module semantics := Semantics C. Import semantics. *)
+(* Export semantics. *)
 
-  negb (comparison_to_int (address_compare (sender env) owner) =? 0)%Z = false /\
-  (comparison_to_int (tez.compare (amount env) (0 ~Mutez)) >? 0)%Z = false /\
-  match param with
-  | inl rotateOwner =>
-      (nil, (metadata, rotateOwner, (endpoint, type_, verification_method)), tt) =
-      (returned_operations, new_storage, tt)
-  | inr (inl rotateAuth) =>
-      (nil, (metadata, owner, (endpoint, type_, rotateAuth)), tt) =
-      (returned_operations, new_storage, tt)
-  | inr (inr rotateService) =>
-      (nil, (metadata, owner, (rotateService, verification_method)), tt) =
-      (returned_operations, new_storage, tt)
-  end.
+(* Definition did_manager_michelson_spec_helper *)
+(*            (env : @proto_env (Some (parameter_ty, None))) *)
+(*            (metadata : data (big_map string bytes)) *)
+(*            (owner : data address) *)
+(*            (endpoint : data string) *)
+(*            (type_ : data string) *)
+(*            (verification_method : data address) *)
+(*            (param : data parameter_ty) *)
+(*            (new_storage : data storage_ty) *)
+(*            (returned_operations : data (list operation)) := *)
+(*   let storage : data storage_ty := *)
+(*     ((metadata, owner), *)
+(*           ((endpoint, type_), verification_method)) in *)
 
-Lemma did_manager_spec_helper_correct
+(*   negb (comparison_to_int (address_compare (sender env) owner) =? 0)%Z = false /\ *)
+(*   (comparison_to_int (tez.compare (amount env) (0 ~Mutez)) >? 0)%Z = false /\ *)
+(*   match param with *)
+(*   | inl rotateOwner => *)
+(*       (nil, (metadata, rotateOwner, (endpoint, type_, verification_method)), tt) = *)
+(*       (returned_operations, new_storage, tt) *)
+(*   | inr (inl rotateAuth) => *)
+(*       (nil, (metadata, owner, (endpoint, type_, rotateAuth)), tt) = *)
+(*       (returned_operations, new_storage, tt) *)
+(*   | inr (inr rotateService) => *)
+(*       (nil, (metadata, owner, (rotateService, verification_method)), tt) = *)
+(*       (returned_operations, new_storage, tt) *)
+(*   end. *)
+
+Lemma did_manager_michelson_spec_helper_correct
       (env : @proto_env (Some (parameter_ty, None)))
       (metadata : data (big_map string bytes))
       (owner : data address)
@@ -113,7 +123,7 @@ Lemma did_manager_spec_helper_correct
   let storage : data storage_ty :=
     ((metadata, owner),
           ((endpoint, type_), verification_method)) in
-  eval_seq env did_manager (100 + fuel) ((param, storage), tt) =
+  eval_seq env did_manager_michelson (100 + fuel) ((param, storage), tt) =
     Return ((returned_operations, new_storage), tt)
   <-> did_manager_spec_helper env metadata owner endpoint type_ verification_method
     param new_storage returned_operations.
@@ -125,11 +135,17 @@ Proof.
   rewrite eval_seq_precond_correct.
   unfold eval_seq_precond.
   unfold did_manager_spec_helper.
-  destruct param as [[rotateAuth | rotateOwner] | rotateService];
-  (do 3 (more_fuel; simpl); reflexivity).
+
+  assert (H_negb : forall x, negb x = false <-> x = true).
+  {
+    intro x; destruct x; simpl; split; intro H_x; congruence.
+  }
+
+  destruct param as [rotateOwner | [rotateAuth | rotateService]];
+  (rewrite H_negb; do 4 (more_fuel; simpl); reflexivity).
 Qed.
 
-Definition did_manager_spec
+Definition did_manager_michelson_spec
            (env : @proto_env (Some (parameter_ty, None)))
            (metadata : data (big_map string bytes))
            (owner : data address)
@@ -151,6 +167,7 @@ Definition did_manager_spec
 
     sender env = owner /\
 
+    (* amount env = (0 ~Mutez) /\ *)
     (int64bv.to_Z (tez.to_int64 (amount env)) <= 0)%Z /\
 
     returned_operations = nil /\
@@ -175,7 +192,7 @@ Definition did_manager_spec
     end
   end.
 
-Lemma did_manager_spec_correct
+Lemma did_manager_michelson_spec_correct
       (env : @proto_env (Some (parameter_ty, None)))
       (metadata : data (big_map string bytes))
       (owner : data address)
@@ -189,18 +206,18 @@ Lemma did_manager_spec_correct
   let storage : data storage_ty :=
     ((metadata, owner),
           ((endpoint, type_), verification_method)) in
-  eval_seq env did_manager (100 + fuel) ((param, storage), tt) =
+  eval_seq env did_manager_michelson (100 + fuel) ((param, storage), tt) =
     Return ((returned_operations, new_storage), tt)
-  <-> did_manager_spec env metadata owner endpoint type_ verification_method
+  <-> did_manager_michelson_spec env metadata owner endpoint type_ verification_method
     param new_storage returned_operations.
 Proof.
   Arguments Nat.add : simpl never.
   simpl.
   Arguments Nat.add : simpl nomatch.
 
-  rewrite did_manager_spec_helper_correct.
+  rewrite did_manager_michelson_spec_helper_correct.
   unfold did_manager_spec_helper.
-  unfold did_manager_spec.
+  unfold did_manager_michelson_spec.
 
   rewrite address_compare_iff, tez_not_gt_0.
 
@@ -249,5 +266,42 @@ Proof.
       repeat f_equal; intuition.
 Qed.
 
-End did_manager.
+
+
+(* Require did_manager. *)
+(* Module did_manager_ligo := did_manager.did_manager C. Import did_manager_ligo. *)
+
+(* Import did_manager_ligo.semantics. *)
+
+Lemma did_manager_michelson_ligo_equivalent
+      (env : @proto_env (Some (parameter_ty, None)))
+      (metadata : data (big_map string bytes))
+      (owner : data address)
+      (endpoint : data string)
+      (type_ : data string)
+      (verification_method : data address)
+      (param : data parameter_ty)
+      (new_storage : data storage_ty)
+      (returned_operations : data (list operation))
+      (fuel : Datatypes.nat) :
+  (let storage : data storage_ty :=
+    ((metadata, owner),
+          ((endpoint, type_), verification_method)) in
+  eval_seq env did_manager_michelson (100 + fuel) ((param, storage), tt) =
+    Return ((returned_operations, new_storage), tt)) <->
+
+  (let storage : data storage_ty :=
+    ((metadata, owner),
+          ((endpoint, type_), verification_method)) in
+  eval_seq env did_manager (100 + fuel) ((param, storage), tt) =
+    Return ((returned_operations, new_storage), tt)).
+Proof.
+  rewrite did_manager_michelson_spec_correct.
+  rewrite did_manager_spec_correct.
+
+  reflexivity.
+Qed.
+
+
+End did_manager_michelson.
 

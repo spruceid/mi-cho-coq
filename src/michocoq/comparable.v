@@ -23,6 +23,7 @@
    and key hashes *)
 
 Require Import ZArith.
+Require Import Lia.
 Require Import Ascii.
 Require String.
 Require Import ListSet.
@@ -528,3 +529,96 @@ Proof.
   replace string_compare with (compare string) by reflexivity.
   apply case_compare_Eq.
 Qed.
+
+Definition case_tez_compare_Eq (s1 s2 : tez.mutez) :
+  sumbool
+    ( tez.compare s1 s2 = Eq /\ s1 = s2 )
+    ( tez.compare s1 s2 <> Eq /\ s1 <> s2 ).
+Proof.
+  replace tez.compare with (compare mutez) by reflexivity.
+  apply case_compare_Eq.
+Qed.
+
+Definition case_address_compare_Eq (s1 s2 : address_constant) :
+  sumbool
+    ( address_compare s1 s2 = Eq /\ s1 = s2 )
+    ( address_compare s1 s2 <> Eq /\ s1 <> s2 ).
+Proof.
+  replace address_compare with (compare address) by reflexivity.
+  apply case_compare_Eq.
+Qed.
+
+Lemma address_compare_iff (a1 a2 : address_constant) :
+  negb (comparison_to_int (address_compare a1 a2) =? 0)%Z = false <->
+  a1 = a2.
+Proof.
+  destruct (case_address_compare_Eq a1 a2) as
+    [(str_cmp_eq & str_eq) | (str_cmp_neq & str_neq)].
+  - rewrite str_cmp_eq; tauto.
+  - destruct (address_compare a1 a2); simpl; split; intro H; congruence.
+Qed.
+
+
+
+
+(* Notation "n ~Mutez" := (exist _ (int64bv.of_Z_safe n eq_refl) I) (at level 100). *)
+
+(* Require tez. *)
+(* Require ZArith. *)
+(* Locate ">?". *)
+
+(* Eval cbv in (1 >? 0)%Z. *)
+
+(*     (1* Search int64bv.of_Z_safe. *1) *)
+(*     (1* Search int64bv.to_Z. *1) *)
+(*     (1* Search int64bv.of_Z. *1) *)
+
+Lemma to_Z_of_Z_safe
+  (z : Z)
+  (H : ((z >=? - two_power_nat 63)%Z && (z <? two_power_nat 63)%Z)%bool = true) :
+  int64bv.to_Z (int64bv.of_Z_safe z H) = z.
+Proof.
+  rewrite int64bv.of_Z_to_Z_eqv.
+  apply int64bv.of_Z_safe_is_of_Z.
+Qed.
+
+
+Lemma tez_not_gt_0 (a1 : tez.mutez) :
+  (comparison_to_int (tez.compare a1 (exist _ (int64bv.of_Z_safe 0 eq_refl) I)) >? 0)%Z = false <->
+  (int64bv.to_Z (tez.to_int64 a1) <= 0)%Z.
+Proof.
+  destruct (case_tez_compare_Eq a1 (exist _ (int64bv.of_Z_safe 0 eq_refl) I)) as
+    [(str_cmp_eq & str_eq) | (str_cmp_neq & str_neq)].
+  - rewrite str_cmp_eq; simpl.
+    rewrite tez.compare_eq_iff in str_cmp_eq.
+    apply (f_equal (fun x => int64bv.to_Z (tez.to_int64 x))) in str_cmp_eq.
+    replace (int64bv.to_Z (tez.to_int64 (exist _ (int64bv.of_Z_safe 0 eq_refl) I)))
+       with (0%Z) in str_cmp_eq.
+    + intuition.
+    + unfold tez.to_int64.
+      match goal with
+      | |- _ = int64bv.to_Z (int64bv.of_Z_safe 0 ?H) =>
+        rewrite (int64bv.of_Z_to_Z_eqv 0 (int64bv.of_Z_safe 0 H));
+        rewrite (int64bv.of_Z_safe_is_of_Z 0 H)
+      end.
+      reflexivity.
+  - pose (cmp := tez.compare a1 (exist _ (int64bv.of_Z_safe 0 eq_refl) I)).
+    assert (cmp_eq : tez.compare a1 (exist _ (int64bv.of_Z_safe 0 eq_refl) I) = cmp) by reflexivity.
+    rewrite cmp_eq in *.
+    destruct cmp; try congruence;
+    unfold tez.compare in cmp_eq;
+    unfold int64bv.int64_compare in cmp_eq;
+    unfold int64bv.compare in cmp_eq;
+    simpl in *.
+
+    rewrite to_Z_of_Z_safe in cmp_eq.
+    rewrite Z.compare_lt_iff in cmp_eq.
+    intuition.
+
+    rewrite to_Z_of_Z_safe in cmp_eq.
+    rewrite Z.compare_gt_iff in cmp_eq.
+
+    split; intro H; try inversion H.
+    lia.
+Qed.
+
