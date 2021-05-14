@@ -166,6 +166,15 @@ Proof.
       discriminate.
 Qed.
 
+Lemma to_Z_of_Z_safe
+  (z : Z)
+  (H : ((z >=? - two_power_nat 63)%Z && (z <? two_power_nat 63)%Z)%bool = true) :
+  to_Z (of_Z_safe z H) = z.
+Proof.
+  rewrite of_Z_to_Z_eqv.
+  apply of_Z_safe_is_of_Z.
+Qed.
+
 Lemma of_Z_to_Z b : of_Z (to_Z b) = error.Return b.
 Proof.
   rewrite <- of_Z_to_Z_eqv.

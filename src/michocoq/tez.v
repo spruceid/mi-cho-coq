@@ -95,11 +95,23 @@ Proof.
     congruence.
 Qed.
 
+Lemma to_Z_of_Z_safe
+  (z : Z)
+  (H : ((z >=? - two_power_nat 63)%Z && (z <? two_power_nat 63)%Z)%bool = true) :
+  int64bv.to_Z (int64bv.of_Z_safe z H) = z.
+Proof.
+  rewrite int64bv.of_Z_to_Z_eqv.
+  apply int64bv.of_Z_safe_is_of_Z.
+Qed.
+
+
 Lemma of_Z_to_Z (t : mutez) : of_Z (to_Z t) = error.Return t.
 Proof.
   rewrite <- of_Z_to_Z_eqv.
   reflexivity.
 Qed.
+
+
 
 Lemma of_Z_of_N_success (n : N) (H : (n < 2 ^ 63)%N) :
   Bool.Is_true (error.success (of_Z (Z.of_N n))).
